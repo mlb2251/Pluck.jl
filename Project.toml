@@ -1,0 +1,31 @@
+name = "Pluck"
+uuid = "86be7f31-a170-45b4-80a2-1900336dac47"
+authors = ["Alex Lew <alexlew@mit.edu>", "Maddy Bowers <mlbowers@mit.edu>"]
+version = "0.1.0"
+
+[deps]
+AutoHashEquals = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CUDD = "345a2cc7-28d8-58b2-abdf-cff77ea7d7f1"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Dice = "94eeadfc-1ba6-40b7-9ed8-dee71557d525"
+FlameGraphs = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
+FunctionalCollections = "de31a74c-ac4f-5751-b3fd-e18cd04993ca"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+PProf = "e4faabce-9ead-11e9-39d9-4379958e3056"
+Profile = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
+ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+StringDistances = "88034a9c-02f8-509d-84a9-84ec65e18404"
+
+[sources]
+Dice = {rev = "synth", url = "https://github.com/mlb2251/Dice.jl.git"}
+
+[compat]
+BenchmarkTools = "1.5.0"
+CUDD = "0.3.0"
+Dice = "0.1.0"
+StringDistances = "0.11.3"

@@ -1,0 +1,13 @@
+.vscode/settings.json
+out
+.DS_Store
+examples/test.html
+.vscode/launch.json
+examples/cdnjs.cloudflare.com_ajax_libs_d3_7.8.5_d3.min.js
+data/yandp/supplement_raw.txt
+data/yandp/lang_data
+alloc-profile.pb.gz
+profile.pb.gz
+python/gpt-experiments-venv
+python/openai_api_key.txt
+PluckArtifact
