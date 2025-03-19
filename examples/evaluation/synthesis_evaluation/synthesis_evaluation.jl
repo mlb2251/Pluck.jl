@@ -318,7 +318,7 @@ function synth(eval_file, mode, task; max_depth=1000, temperature=1.0, mcmc_step
     cfg = MCMCConfig(; steps=mcmc_steps, pcfg=task_dist.grammar, eval_builder, evaluate_solution)
     println("Running MCMC with $mode")
     GC.gc()
-    println("Memory usage before MCMC: $(mem_usage_mb()) MB")
+    # println("Memory usage before MCMC: $(mem_usage_mb()) MB")
     summary = mcmc_eval(cfg, eval_file; repetitions, truncate)
     addr = summary_address(summary)
     printstyled("  $mode: $addr\n", color=:green)
@@ -401,7 +401,7 @@ function test_mcmc(eval_file, task_dist; modes=[:bdd, :lazy, :smc, :dice], max_d
         cfg = MCMCConfig(; steps=mcmc_steps, pcfg=task_dist.grammar, eval_builder, evaluate_solution)
         println("Running MCMC with $mode")
         GC.gc()
-        println("Memory usage before MCMC: $(mem_usage_mb()) MB")
+        # println("Memory usage before MCMC: $(mem_usage_mb()) MB")
         summary = mcmc_eval(cfg, eval_file; repetitions, truncate)
         addr = summary_address(summary)
         printstyled("  $mode: $addr\n", color=:green)
@@ -641,7 +641,7 @@ function nov13()
         printstyled("Generated $(dist[:name]) as $gen_file\n", color=:green)
         # println(dist)
     end
-    println("Memory usage: $(mem_usage_mb()) MB")
+    # println("Memory usage: $(mem_usage_mb()) MB")
 
     println("Fuzzing datasets")
     for dist in dists
@@ -649,7 +649,7 @@ function nov13()
             println("Skipping $(dist[:name]) because it already has a fuzzed dataset")
             continue
         end
-        println("Memory usage before fuzzing: $(mem_usage_mb()) MB")
+        # println("Memory usage before fuzzing: $(mem_usage_mb()) MB")
         println("Fuzzing $(dist[:name]) from $(dist[:gen_file])")
         eval_file = fuzzing_evaluation(dist[:gen_file]; modes, time_limit=fuzz_time_limit, truncate=fuzz_truncate)
         dist[:eval_file] = eval_file
@@ -685,7 +685,7 @@ function nov13()
         end
         # println(dist)
     end
-    println("Memory usage at end: $(mem_usage_mb()) MB")
+    # println("Memory usage at end: $(mem_usage_mb()) MB")
     println(dists)
     nothing
 end
