@@ -1,0 +1,81 @@
+(define-type char
+  (a_) (b_) (c_) (d_) (e_) (f_) (g_) (h_) (i_)
+  (j_) (k_) (l_) (m_) (n_) (o_) (p_) (q_) (r_)
+  (s_) (t_) (u_) (v_) (w_) (x_) (y_) (z_))
+
+;; `uniform` is one of the built-in functions for sampling from discrete distributions.
+;; The other built-in distribution primitives are:
+;;   - `(flip p)`, to sample from a Bernoulli distribution with probability `p` of heads.
+;;   - `(discrete (e1 p1) (e2 p2) ...)`, to sample from a discrete distribution over `e1`, `e2`, etc. with probabilities `p1`, `p2`, etc. The probabilities must be floating-point literals and must sum to 1.
+;;   - `(geom p)`, to sample from a geometric distribution on natural numbers with parameter `p`.
+(define (random_char)
+  (uniform (a_) (b_) (c_) (d_) (e_) (f_) (g_) (h_) (i_)
+           (j_) (k_) (l_) (m_) (n_) (o_) (p_) (q_) (r_)
+           (s_) (t_) (u_) (v_) (w_) (x_) (y_) (z_)))
+
+;; list=? (defined in src/language/stdlib.pluck) takes as an argument 
+;; a predicate for comparing two elements for equality.
+;; Here, we use the built-in `constructor=?` which checks if two values 
+;; of user-defined types have the same constructor.
+(define string=? (list=? constructor=?))
+
+(define (maybe_insert s)
+  (if (flip 0.99) s (Cons (random_char) s)))
+
+(define (maybe_cons c cs)
+  (if (flip 0.99) (Cons c cs) cs))
+
+(define (maybe_substitute c)
+  (if (flip 0.99) c (random_char)))
+
+(define (perturb s)
+  (match s
+    Nil => (maybe_insert (Nil))
+    Cons c cs =>
+    (let ((perturbed_cs (perturb cs)))
+      (maybe_insert (maybe_cons (maybe_substitute c) perturbed_cs)))))
+
+;; What is the probability that "lazy" is mistyped as "lucky"?
+;; Syntax: (query <query-name> <query-expression>)
+;; Query expression is a program term evaluating to either:
+;;  - (Marginal <expr>), to compute the marginal distribution over values that <expr> can take on.
+;;  - (Posterior <expr> <bool>), to compute the posterior distribution over values that <expr> can take on, conditioned on the evidence <bool> being true.
+;;  - (PosteriorSamples <expr> <bool> <num-samples>), to draw <num-samples> samples from the posterior distribution over values that <expr> can take on, conditioned on the evidence <bool> being true.
+(query
+ ;; Query name
+ lazy-to-lucky
+ (Marginal
+  (string=?
+   (perturb (Cons (l_) (Cons (a_) (Cons (z_) (Cons (y_) (Nil))))))
+   (Cons (l_) (Cons (u_) (Cons (c_) (Cons (k_) (Cons (y_) (Nil)))))))))
+
+;; Is "gat" more likely a typo of "goat" or "bat"?
+(query
+ goat-or-bat
+ (let ((original_string
+        (if (flip 0.5)
+          (Cons (g_) (Cons (o_) (Cons (a_) (Cons (t_) (Nil)))))
+          (Cons (b_) (Cons (a_) (Cons (t_) (Nil))))))
+       (observed_string
+        (Cons (g_) (Cons (a_) (Cons (t_) (Nil))))))
+
+   ;; Posterior over `original_string` variable,
+   ;; conditioned on the observed string.
+   (Posterior
+    ;; Query expression -- A in "P(A | B)"
+    original_string
+    ;; Evidence -- B in "P(A | B)"
+    (string=?
+     (perturb original_string)
+     observed_string))))
+
+;; If a user intended to type "cat" and the third letter they type is an "a", what did they probably type?
+(query
+ cat-third-char
+ (let ((typed-string
+        (perturb
+         (Cons (c_) (Cons (a_) (Cons (t_) (Nil)))))))
+   (PosteriorSamples
+    typed-string
+    (constructor=? (index 2 typed-string) (a_))
+    15)))

@@ -1,0 +1,12 @@
+(define (burglary)
+  (let ((earthquake (flip 0.0001))
+        (burglary (flip 0.001))
+        (alarm (or earthquake burglary))
+        (phoneWorking (flip (if earthquake 0.7 0.99)))
+        (maryWakes (flip (if alarm (if earthquake 0.8 0.6) 0.2)))
+        (called (and maryWakes phoneWorking)))
+    ;; Query the posterior distribution of `burglary`
+    ;; given that `called` is true
+    (Posterior burglary called)))
+
+(query burglary-given-that-mary-called (burglary))

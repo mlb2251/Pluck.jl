@@ -1,0 +1,90 @@
+(define-type non-terminal (Start) (XX) (YY))
+(define-type terminal (a_) (b_) (c_))
+
+(define (generate nt)
+  (match nt
+    Start => (uniform
+              (append (generate (XX)) (generate (YY)))
+              (append (generate (YY)) (generate (XX))))
+    XX => (uniform
+           (Cons (a_) (Nil))
+           (Cons (b_) (append (generate (XX)) (generate (XX)))))
+    YY => (Cons (c_) (uniform
+                      (Nil)
+                      (generate (XX))
+                      (generate (Start))))))
+
+(define string=? (list=? constructor=?))
+
+;; test_example_string = 
+;; [:c, :b, :b, :b, :a, 
+;; :b, :b, :a, :b, :a, 
+;; :b, :b, :a, :b, :a, 
+;; :a, :a, :a, :a, :b, 
+;; :a, :a, :a]
+(query
+ probability-of-string
+ (Marginal
+  (string=? (generate (Start))
+            (Cons (c_) (Cons (b_) (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_)  (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (b_) (Cons (a_) (Cons (a_) (Cons (a_) (Nil)))))))))))))))))))))))))))
+
+;; What could the string be if it is 5 or fewer letters long 
+;; and the third letter is an a?
+(query
+ posterior-on-strings
+ (let ((s (generate (Start))))
+   (Posterior
+    s
+    (and (> 6 (length s)) (constructor=? (index 2 s) (a_))))))
+
+;; Simple English PCFG
+(define-type non-terminal (Sent) (NP) (VP) (Verb) (VT) (Det) (Adj) (Noun) (Conj))
+(define-type terminal (the_) (a_) (cat_) (dog_) (barks_) (eats_) (bone_) (happy_) (sad_) (tasty_) (and_) (but_))
+
+(define (generate-english nt)
+  (match nt
+    Sent => (discrete
+             ((append (generate-english (NP)) (generate-english (VP))) 0.7)
+             ((append (append (generate-english (NP)) (generate-english (VP)))
+                      (append (generate-english (Conj)) (generate-english (Sent)))) 0.3))
+    Conj => (Cons (uniform (and_) (but_)) (Nil))
+    NP => (append (generate-english (Det)) (generate-english (Noun)))
+    VP => (uniform (generate-english (Verb)) (append (generate-english (VT)) (generate-english (NP))))
+    Verb => (Cons (uniform (barks_) (eats_)) (Nil))
+    VT => (Cons (eats_) (Nil))
+    Adj => (Cons (uniform (happy_) (sad_) (tasty_)) (Nil))
+    Det => (Cons (uniform (the_) (a_)) (Nil))
+    Noun => (discrete ((append (generate-english (Adj)) (generate-english (Noun))) 0.3)
+                      ((Cons (uniform (cat_) (dog_) (bone_)) (Nil)) 0.7))))
+
+(query
+ probability-of-sentence
+ (Marginal
+  (string=? (generate-english (Sent))
+            (Cons (the_) (Cons (dog_) (Cons (eats_) (Cons (the_) (Cons (bone_) (Nil)))))))))
+
+(query
+ short-sentence
+ (let ((s (generate-english (Sent))))
+   (Posterior
+    s
+    (>= 3 (length s)))))
+
+(query
+ infilling-given-fifth-word-tasty
+ (let ((s (generate-english (Sent))))
+   (Posterior
+    s
+    (and
+     (<= (length s) 7)
+     (constructor=? (index 4 s) (tasty_))))))
+
+(query
+ sample-long-sentence-with-fifth-word-tasty
+ (let ((s (generate-english (Sent))))
+   (PosteriorSamples
+    s
+    (and
+     (>= (length s) 8)
+     (constructor=? (index 4 s) (tasty_)))
+    10)))

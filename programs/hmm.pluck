@@ -1,0 +1,55 @@
+
+
+;; Transition function for the latent states of our HMM.
+(define (transition state)
+  (if state
+    (flip 0.4)
+    (flip 0.6)))
+
+;; Emission function for our HMM.
+(define (generate-observation state)
+  (if state
+    (flip 0.9)
+    (flip 0.4)))
+
+;; A hidden Markov model that lazily
+;; generates a stream of (latent, observation) pairs.
+(define (hmm state)
+  (let ((next-state (transition state)))
+    (Cons
+     ;; This step: a latent state and an observation
+     (Pair
+      state
+      (generate-observation state))
+     ;; Rest of the chain
+     (hmm next-state))))
+
+;; Check if all elements of a Boolean list are true.
+(define (all bs)
+  (match bs
+    Nil => (True)
+    Cons b bs => (and b (all bs))))
+
+;; Posterior distribution of the 11th latent,
+;; given that the first fifty observations are all true.
+(query
+ posterior-first-fifty-latents
+ (let ((chain (hmm (flip 0.5))))
+   ;; Compute the exact posterior distribution P(11th latent | first fifty observations all true)
+   (Posterior
+    ;; Query expression -- A in "P(A | B)"
+    (fst (index 10 chain))
+    ;; Evidence -- B in "P(A | B)"
+    (all (take 50 (map snd chain))))))
+
+;; Sample from the posterior of the entire latent chain.
+(query
+ sampled-chain
+ (let ((chain (hmm (flip 0.5))))
+   (PosteriorSamples
+    ;; Query expression -- A in "P(A | B)"
+    (take 50 (map fst chain))
+    ;; Evidence -- B in "P(A | B)"
+    (all (take 50 (map snd chain)))
+    ;; Number of samples to draw
+    1)))

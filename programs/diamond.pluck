@@ -1,0 +1,14 @@
+;; Based on diamond network example from the Dice paper,
+;; and on https://github.com/Tractables/Dice.jl/blob/d5101ce2b0d0c7a25b0a56973144430d892dc773/examples/examples-old/hoisting_flip_order_experiments/network_verification.jl
+
+(define (diamond s1)
+  (let (route (flip 0.5)
+              drop (flip 0.0001))
+    (and (or (not drop) route) s1)))
+
+(define (network n)
+  (match n
+    O => (True)
+    S m => (diamond (network m))))
+
+(query network-100 (Marginal (network 100)))

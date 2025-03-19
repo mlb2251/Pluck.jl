@@ -1,0 +1,213 @@
+;; boolean operations
+(define (and a b) (if a b (False)))
+(define (or a b) (if a (True) b))
+(define (not a) (if a (False) (True)))
+(define (iff a b) (if a b (not b)))
+
+;; arithmetic
+(define (inc x) (S x))
+(define (dec x) (match x
+                  S m => m
+                  O => (O)))
+(define (+ x y)
+  (match x
+    O => y
+    S n => (S (+ n y))))
+(define (- x y)
+  (match y
+    O => x
+    S m => (match x
+             O => (O)
+             S n => (- n m))))
+(define (* x y)
+  (match x
+    O => (O)
+    S n => (+ y (* n y))))
+
+(define (iseven n)
+  (match n
+    O => (True)
+    S m => (match m
+             O => (False)
+             S k => (iseven k))))
+(define (> x y)
+  (match x
+    O => (False)
+    S n => (match y
+             O => (True)
+             S m => (> n m))))
+(define (< x y)
+  (match x
+    O => (match y
+           O => (False)
+           S n => (True))
+    S n => (match y
+             O => (False)
+             S m => (< n m))))
+
+(define (>= x y) (not (< x y)))
+(define (<= x y) (not (> x y)))
+
+(define (mod x y)
+  (if (>= x y)
+    (mod (- x y) y)
+    x))
+
+;; geometric distribution
+(define (geom p)
+  (if (flip p)
+    (O)
+    (S (geom p))))
+
+(define (randnat) (geom 0.5))
+(define (randnatlist) (if (flip 0.5) (Nil) (Cons (randnat) (randnatlist))))
+
+;; list operations
+(define (car l)
+  (match l
+    Cons x xs => x))
+(define (cdr l)
+  (match l
+    Cons x xs => xs))
+(define (cdr_safe l)
+  (match l
+    Nil => (Nil)
+    Cons x xs => xs))
+(define (isempty l)
+  (match l
+    Nil => (True)
+    Cons x xs => (False)))
+(define (fold f init xs)
+  (if (isempty xs)
+    init
+    (f (fold f init (cdr xs)) (car xs))))
+
+(define (map f xs)
+  (match xs
+    Nil => (Nil)
+    Cons x xs => (Cons (f x) (map f xs))))
+
+(define (mapi f xs)
+  (let ((helper
+         (Y (fn rec xs i ->
+              (match xs
+                Nil => (Nil)
+                Cons x xs => (Cons (f x i) (rec xs (S i))))))))
+    (helper xs 0)))
+
+(define (filter f xs)
+  (match xs
+    Nil => (Nil)
+    Cons x xs => (let (xs (filter f xs))
+                   (if (f x) (Cons x xs) xs))))
+
+(define (filteri f xs)
+  (let ((helper
+         (Y (fn rec xs i ->
+              (match xs
+                Nil => (Nil)
+                Cons x xs => (let (xs (rec xs (S i)))
+                               (if (f x i) (Cons x xs) xs)))))))
+    (helper xs 0)))
+
+(define (length xs)
+  (fold (fn acc x -> (inc acc)) 0 xs))
+
+(define (range n)
+  (let ((helper
+         (Y (fn rec m ->
+              (if (== m n)
+                (Nil)
+                (Cons m (rec (S m))))))))
+    (helper 0)))
+
+(define (index n xs)
+  (match xs
+    Cons x xs => (match n
+                   O => x
+                   S m => (index m xs))))
+
+(define (append xs ys)
+  (match xs
+    Nil => ys
+    Cons x xs => (Cons x (append xs ys))))
+
+(define (append_one xs y) (append xs (Cons y (Nil))))
+
+(define (list=? elem=? xs ys)
+  (match xs
+    Nil =>
+    (match ys
+      Nil => (True)
+      Cons y ys => (False))
+    Cons x xs =>
+    (match ys
+      Nil => (False)
+      Cons y ys => (if (elem=? x y)
+                     (list=? elem=? xs ys)
+                     (False)))))
+
+(define (take n xs)
+  (match xs
+    Nil => (Nil)
+    Cons x xs => (match n
+                   O => (Nil)
+                   S n => (Cons x (take n xs)))))
+
+;; Conditioning
+(define (given p q)
+  (match p
+    True => q))
+(define-type query
+  (Marginal any)
+  (Posterior any bool)
+  (PosteriorSamples any bool int)
+  (AdaptiveRejection any bool))
+
+;; Suspendible Boolean
+(define-type suspendible-bool
+  (FinallyTrue)
+  (FinallyFalse)
+  (Suspend suspendible-bool))
+
+(define (suspendible-list=? elems=? xs ys)
+  (match xs
+    Nil => (match ys
+             Nil => (FinallyTrue)
+             Cons y ys => (FinallyFalse))
+    Cons x xs => (match ys
+                   Nil => (FinallyFalse)
+                   Cons y ys => (if (elems=? x y)
+                                  (Suspend (suspendible-list=? elems=? xs ys))
+                                  (FinallyFalse)))))
+
+;; Binary integers
+(define-type int1 (Int1 bool))
+(define-type int2 (Int2 bool bool))
+(define-type int3 (Int3 bool bool bool))
+(define-type int4 (Int4 bool bool bool bool))
+
+(define (int1=? a b) (match a
+                       (Int1 a) => (match b
+                                     (Int1 b) => (iff a b))))
+(define (int2=? a b) (match a
+                       (Int2 a1 a2) => (match b
+                                         (Int2 b1 b2) => (and (iff a1 b1) (iff a2 b2)))))
+(define (int3=? a b) (match a
+                       (Int3 a1 a2 a3) => (match b
+                                            (Int3 b1 b2 b3) => (and (iff a1 b1) (and (iff a2 b2) (iff a3 b3))))))
+(define (int4=? a b) (match a
+                       (Int4 a1 a2 a3 a4) => (match b
+                                               (Int4 b1 b2 b3 b4) => (and (iff a1 b1) (and (iff a2 b2) (and (iff a3 b3) (iff a4 b4)))))))
+
+;; make primitive usable as a function
+(define (constructor=? a b) (constructors_equal a b))
+
+;; Pairs
+(define-type pair (Pair any any))
+(define (fst p)
+  (match p
+    Pair x _ => x))
+(define (snd p)
+  (match p
+    Pair _ y => y))
