@@ -112,7 +112,7 @@ function new_summary(config)
         push!(stubs_of_task, stubs)
     end
     summary_path = joinpath(config.out, "summary.json")
-    repo = LibGit2.GitRepo(".")
+    # repo = LibGit2.GitRepo(".")
     summary = Dict(
         :out => config.out,
         :cmd => "disabled this field", # last(Base.active_repl.mistate.current_mode.hist.history),
@@ -123,9 +123,9 @@ function new_summary(config)
         :init_stubs_of_task => stubs_of_task,
         :task_info => config.task_info,
         :timestamp => Dates.format(Dates.now(), "yyyy-mm-dd HH:MM:SS"),
-        :branch => string(LibGit2.headname(repo)),
-        :commit => LibGit2.head(".")[1:10],
-        :dirty => string(LibGit2.isdirty(repo)),
+        # :branch => string(LibGit2.headname(repo)),
+        # :commit => LibGit2.head(".")[1:10],
+        # :dirty => string(LibGit2.isdirty(repo)),
         :config => config.config,
         :strat => get_strat(config.config)
     )
