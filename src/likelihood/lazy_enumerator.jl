@@ -107,6 +107,8 @@ mutable struct LazyEnumeratorEvalState
     callstack_of_id::Vector{Vector{Symbol}}
     depth::Int
     max_depth::Union{Int, Nothing}
+    time_limit::Union{Float64, Nothing}
+    start_time::Float64
     depth_reached::Int
     hit_limit::Bool
     next_thunk_id::Int
@@ -114,8 +116,8 @@ mutable struct LazyEnumeratorEvalState
     disable_cache::Bool # we actually find cache slows things down
     strict::Bool
 
-    function LazyEnumeratorEvalState(; max_depth = nothing, disable_traces = false, disable_cache = true, strict = false)
-        return new(Symbol[], Dict(), Vector{Vector{Symbol}}(), 0, max_depth, 0, false, 1, disable_traces, disable_cache, strict)
+    function LazyEnumeratorEvalState(; max_depth = nothing, time_limit = nothing, disable_traces = false, disable_cache = true, strict = false)
+        return new(Symbol[], Dict(), Vector{Vector{Symbol}}(), 0, max_depth, time_limit, 0., 0., false, 1, disable_traces, disable_cache, strict)
     end
 end
 
@@ -138,8 +140,19 @@ mutable struct LazyEnumeratorThunk
 end
 
 function traced_lazy_enumerate(expr::PExpr, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState, name::Symbol)
-    # println("traced_lazy_enumerate")
+    # println(" " ^ state.depth * "traced_lazy_enumerate($expr)")
+
+    if state.hit_limit
+        return []
+    end
+
     if state.max_depth !== nothing && state.depth > state.max_depth
+        state.hit_limit = true
+        return []
+    end
+
+    if check_time_limit(state)
+        state.hit_limit = true
         return []
     end
 
@@ -151,7 +164,20 @@ function traced_lazy_enumerate(expr::PExpr, env::Vector{Any}, trace::Trace, stat
     return worlds
 end
 
+@inline function elapsed_time(state::LazyEnumeratorEvalState)
+    return time() - state.start_time
+end
+
+@inline function check_time_limit(state::LazyEnumeratorEvalState)
+    res = !isnothing(state.time_limit) && elapsed_time(state) > state.time_limit
+    return res
+end
+
 function evaluate(thunk::LazyEnumeratorThunk, trace::Trace, state::LazyEnumeratorEvalState)
+    if state.hit_limit
+        return []
+    end
+
     # Check the cache
     cached = get_cache(trace, thunk.id, state)
     if cached !== nothing
@@ -176,9 +202,15 @@ function lazy_enumerate(expr::PExpr, env::Vector{Any}, trace::Trace, state::Lazy
 end
 
 function lazy_enumerator_bind(cont, first_stage_results, state)
+    if check_time_limit(state)
+        state.hit_limit = true
+        return []
+    end
     results = []
     for (result, trace) in first_stage_results
+        state.hit_limit && return []
         second_stage_worlds = cont(result, trace)
+        state.hit_limit && return []
         for (final_result, final_trace) in second_stage_worlds
             push!(results, (final_result, final_trace))
         end
@@ -197,6 +229,7 @@ function lazy_enumerate(expr::App, env::Vector{Any}, trace::Trace, state::LazyEn
         results = []
         for (f, ftrace) in fs
             for (x, xtrace) in xs
+                state.hit_limit && return []
                 new_env = copy(f.env)
                 pushfirst!(new_env, x)
                 new_trace = cat_trace(ftrace, xtrace)
@@ -248,6 +281,10 @@ function lazy_enumerate(expr::Construct, env::Vector{Any}, trace::Trace, state::
         end
         results = []
         for args in Iterators.product(options_of_arg...)
+            if check_time_limit(state)
+                state.hit_limit = true
+                return []
+            end
             new_trace = trace
             new_args = []
             for (arg, arg_trace) in args
@@ -402,7 +439,28 @@ function lazy_enumerate(expr; show_length = false, kwargs...)
     if expr isa String
         expr = parse_expr(expr)
     end
-    ret = lazy_enumerate(expr, Pluck.EMPTY_ENV, Trace(), s)
+    @assert !s.hit_limit
+    s.start_time = time()
+    
+    ret = try
+        lazy_enumerate(expr, Pluck.EMPTY_ENV, Trace(), s)
+    catch e
+        if e isa StackOverflowError
+            # printstyled("[lazy_enumerate: stackoverflow]\n"; color=:yellow)
+            s.hit_limit = true
+            return []
+        else
+            rethrow(e)
+        end
+    end
+
+    if s.hit_limit
+        if !isempty(ret)
+            @warn "enumeration hit time limit but had nonempty result"
+        end
+        ret = []
+    end
+
     # Trying a model count of each possibility.
     results = [(ret, weight(trace)) for (ret, trace) in ret]
     if show_length

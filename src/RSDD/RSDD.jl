@@ -52,8 +52,14 @@ end
 
 
 # Define types
-const Manager = Ptr{Cvoid}
+const ManagerPtr = Ptr{Cvoid}
 const Label = Csize_t
+
+mutable struct Manager
+    ptr::ManagerPtr
+    bdds::Vector{Any}
+    freed::Bool
+end
 
 
 # Helper function to look up symbols
@@ -116,6 +122,11 @@ end
 struct BDD
     manager::Manager
     ptr::Csize_t
+    function BDD(manager::Manager, ptr::Csize_t)
+        bdd = new(manager, ptr)
+        push!(manager.bdds, bdd)
+        return bdd
+    end
 end
 
 # Show method for BDD
@@ -126,7 +137,8 @@ Creates a new BDD manager with default variable order.
 Returns: Manager (Ptr{Cvoid})
 """
 function mk_bdd_manager_default_order(num_vars::Integer)
-    ccall(mk_bdd_manager_default_order_ptr, Manager, (Cint,), num_vars)
+    ptr = ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    Manager(ptr, [], false)
 end
 
 """
@@ -134,7 +146,7 @@ Creates a new BDD variable.
 Returns: BDD
 """
 function bdd_new_var(manager::Manager, polarity::Bool)
-    ptr = ccall(bdd_new_var_ptr, Csize_t, (Manager, Bool), manager, polarity)
+    ptr = ccall(bdd_new_var_ptr, Csize_t, (ManagerPtr, Bool), manager.ptr, polarity)
     BDD(manager, ptr)
 end
 
@@ -158,7 +170,7 @@ Returns: BDD
 function bdd_and(a::BDD, b::BDD)
     # tstart = time()
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = ccall(bdd_and_ptr, Csize_t, (Manager, Csize_t, Csize_t), a.manager, a.ptr, b.ptr)
+    ptr = ccall(bdd_and_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
     # tstop = time()
     # bdd_time.bdd_and += (tstop - tstart)
     return BDD(a.manager, ptr)
@@ -171,7 +183,7 @@ Returns: BDD
 function bdd_or(a::BDD, b::BDD)
     # tstart = time()
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = ccall(bdd_or_ptr, Csize_t, (Manager, Csize_t, Csize_t), a.manager, a.ptr, b.ptr)
+    ptr = ccall(bdd_or_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
     # tstop = time()
     # bdd_time.bdd_or += (tstop - tstart)
     return BDD(a.manager, ptr)
@@ -183,7 +195,7 @@ Returns: BDD
 """
 function bdd_iff(a::BDD, b::BDD)
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = ccall(bdd_iff_ptr, Csize_t, (Manager, Csize_t, Csize_t), a.manager, a.ptr, b.ptr)
+    ptr = ccall(bdd_iff_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
     BDD(a.manager, ptr)
 end
 
@@ -201,7 +213,7 @@ Negates a BDD.
 Returns: BDD
 """
 function bdd_negate(bdd::BDD)
-    ptr = ccall(bdd_negate_ptr, Csize_t, (Manager, Csize_t), bdd.manager, bdd.ptr)
+    ptr = ccall(bdd_negate_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
     BDD(bdd.manager, ptr)
 end
 
@@ -241,7 +253,7 @@ Returns: BDD
 """
 function bdd_ite(f::BDD, g::BDD, h::BDD)
     @assert f.manager == g.manager == h.manager "BDDs must belong to the same manager"
-    ptr = ccall(bdd_ite_ptr, Csize_t, (Manager, Csize_t, Csize_t, Csize_t), f.manager, f.ptr, g.ptr, h.ptr)
+    ptr = ccall(bdd_ite_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Csize_t), f.manager.ptr, f.ptr, g.ptr, h.ptr)
     BDD(f.manager, ptr)
 end
 
@@ -251,7 +263,7 @@ Returns: Bool
 """
 function bdd_eq(a::BDD, b::BDD)
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ccall(bdd_eq_ptr, Bool, (Manager, Csize_t, Csize_t), a.manager, a.ptr, b.ptr)
+    ccall(bdd_eq_ptr, Bool, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
 end
 
 """
@@ -259,7 +271,7 @@ Gets the high child of a BDD node.
 Returns: BDD
 """
 function bdd_high(bdd::BDD)
-    ptr = ccall(bdd_high_ptr, Csize_t, (Manager, Csize_t), bdd.manager, bdd.ptr)
+    ptr = ccall(bdd_high_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
     BDD(bdd.manager, ptr)
 end
 
@@ -268,7 +280,7 @@ Gets the low child of a BDD node.
 Returns: BDD
 """
 function bdd_low(bdd::BDD)
-    ptr = ccall(bdd_low_ptr, Csize_t, (Manager, Csize_t), bdd.manager, bdd.ptr)
+    ptr = ccall(bdd_low_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
     BDD(bdd.manager, ptr)
 end
 
@@ -282,7 +294,7 @@ bdd_topvar(bdd::BDD) = ccall(bdd_topvar_ptr, Label, (Csize_t,), bdd.ptr)
 Gets the number of recursive calls made by the BDD manager.
 Returns: UInt64
 """
-bdd_num_recursive_calls(manager::Manager) = ccall(bdd_num_recursive_calls_ptr, UInt64, (Manager,), manager)
+bdd_num_recursive_calls(manager::Manager) = ccall(bdd_num_recursive_calls_ptr, UInt64, (ManagerPtr,), manager.ptr)
 
 """
 Prints a BDD to a string.
@@ -307,7 +319,7 @@ Existentially quantifies a variable in a BDD.
 Returns: BDD
 """
 function bdd_exists(bdd::BDD, var::Label)
-    ptr = ccall(bdd_exists_ptr, Csize_t, (Manager, Csize_t, Label), bdd.manager, bdd.ptr, var)
+    ptr = ccall(bdd_exists_ptr, Csize_t, (ManagerPtr, Csize_t, Label), bdd.manager.ptr, bdd.ptr, var)
     BDD(bdd.manager, ptr)
 end
 
@@ -316,7 +328,7 @@ Conditions a BDD on a variable.
 Returns: BDD
 """
 function bdd_condition(bdd::BDD, var::Label, value::Bool)
-    ptr = ccall(bdd_condition_ptr, Csize_t, (Manager, Csize_t, Label, Bool), bdd.manager, bdd.ptr, var, value)
+    ptr = ccall(bdd_condition_ptr, Csize_t, (ManagerPtr, Csize_t, Label, Bool), bdd.manager.ptr, bdd.ptr, var, value)
     BDD(bdd.manager, ptr)
 end
 
@@ -326,7 +338,7 @@ Returns: BDD
 """
 function bdd_compose(f::BDD, var::Label, g::BDD)
     @assert f.manager == g.manager "BDDs must belong to the same manager"
-    ptr = ccall(bdd_compose_ptr, Csize_t, (Manager, Csize_t, Label, Csize_t), f.manager, f.ptr, var, g.ptr)
+    ptr = ccall(bdd_compose_ptr, Csize_t, (ManagerPtr, Csize_t, Label, Csize_t), f.manager.ptr, f.ptr, var, g.ptr)
     BDD(f.manager, ptr)
 end
 
@@ -346,12 +358,12 @@ bdd_size(bdd::BDD) = ccall(bdd_size_ptr, UInt64, (Csize_t,), bdd.ptr)
 Checks if a BDD represents a variable.
 Returns: Bool
 """
-bdd_is_var(bdd::BDD) = ccall(bdd_is_var_ptr, Bool, (Manager, Csize_t), bdd.manager, bdd.ptr)
+bdd_is_var(bdd::BDD) = ccall(bdd_is_var_ptr, Bool, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
 
 """
 Prints statistics about the BDD manager.
 """
-man_print_stats(manager::Manager) = ccall(man_print_stats_ptr, Cvoid, (Manager,), manager)
+man_print_stats(manager::Manager) = ccall(man_print_stats_ptr, Cvoid, (ManagerPtr,), manager.ptr)
 
 """
 Checks if a BDD represents a constant (true or false).
@@ -393,7 +405,7 @@ end
 Checks if a BDD has a variable.
 Returns: Bool
 """
-bdd_has_variable(bdd::BDD, var::Label) = ccall(bdd_has_variable_ptr, Bool, (Manager, Csize_t, Label), bdd.manager, bdd.ptr, var)
+bdd_has_variable(bdd::BDD, var::Label) = ccall(bdd_has_variable_ptr, Bool, (ManagerPtr, Csize_t, Label), bdd.manager.ptr, bdd.ptr, var)
 
 # Convenience operators
 Base.:&(a::BDD, b::BDD) = bdd_and(a, b)
@@ -496,15 +508,21 @@ export BDD,
 # """
 # Frees the memory associated with a BDD.
 # """
-# function free_bdd(bdd::BDD)
-#     ccall(free_bdd_ptr, Cvoid, (Csize_t,), bdd.ptr)
-# end
+function free_bdd(bdd::BDD)
+    ccall(free_bdd_ptr, Cvoid, (Csize_t,), bdd.ptr)
+end
 
 """
 Frees the memory associated with a BDD manager.
 """
 function free_bdd_manager(manager::Manager)
-    ccall(free_bdd_manager_ptr, Cvoid, (Manager,), manager)
+    manager.freed && return
+    for bdd in manager.bdds
+        free_bdd(bdd)
+    end
+    manager.bdds = []
+    manager.freed = true
+    ccall(free_bdd_manager_ptr, Cvoid, (ManagerPtr,), manager.ptr)
 end
 
 """
@@ -526,7 +544,7 @@ Creates a new variable at a specified position in the BDD manager's variable ord
 A new BDD representing the variable.
 """
 function bdd_new_var_at_position(manager::Manager, position::Integer, polarity::Bool)
-    ptr = ccall(bdd_new_var_at_position_ptr, Csize_t, (Manager, Csize_t, Bool), manager, position, polarity)
+    ptr = ccall(bdd_new_var_at_position_ptr, Csize_t, (ManagerPtr, Csize_t, Bool), manager.ptr, position, polarity)
     BDD(manager, ptr)
 end
 
@@ -558,8 +576,8 @@ Returns: Tuple of (BDD, Float64) representing the sampled BDD and its probabilit
 """
 function weighted_sample(bdd::BDD, wmc_params::WmcParams)
     result = ccall(robdd_weighted_sample_ptr, WeightedSampleResult,
-        (Manager, Csize_t, Ptr{Cvoid}),
-        bdd.manager, bdd.ptr, wmc_params.ptr)
+        (ManagerPtr, Csize_t, Ptr{Cvoid}),
+        bdd.manager.ptr, bdd.ptr, wmc_params.ptr)
 
     sample_bdd = BDD(bdd.manager, result.sample)
     probability = result.probability
@@ -568,7 +586,7 @@ function weighted_sample(bdd::BDD, wmc_params::WmcParams)
 end
 
 function bdd_top_k_paths(bdd::BDD, k::Integer, wmc_params::WmcParams)
-    ptr = ccall(robdd_top_k_paths_ptr, Csize_t, (Manager, Csize_t, Csize_t, Ptr{Cvoid}), bdd.manager, bdd.ptr, k, wmc_params.ptr)
+    ptr = ccall(robdd_top_k_paths_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Ptr{Cvoid}), bdd.manager.ptr, bdd.ptr, k, wmc_params.ptr)
     BDD(bdd.manager, ptr)
 end
 

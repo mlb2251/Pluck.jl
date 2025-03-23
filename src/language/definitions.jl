@@ -9,8 +9,8 @@ function def_constructors()
     @define inc "int -> int" "(λx->(S x))"
     @define dec "int -> int" "(λx->(case x of S => (λx2 -> x2)))"
     @define pflip "(λx->(if (flip x) (True) (False)))"
-    @define randnat "((Y (λ rec unit -> (if (flip 0.5) (O) (S (rec unit))))) (Unit))"
-    @define randnatlist "((Y (λ rec unit -> (if (flip 0.5) (Nil) (Cons randnat (rec unit))))) (Unit))"
+    @define randnat "(Y (λ rec unit -> (if (flip 0.5) (O) (S (rec unit)))))"
+    @define randnatlist "((Y (λ rec unit -> (if (flip 0.5) (Nil) (Cons (randnat) (rec unit))))) (Unit))"
 
 
     define_type!(:Int4, Dict(:Int4 => Symbol[:bool, :bool, :bool, :bool]))
@@ -186,9 +186,9 @@ function def_constructors()
             weight |>
             exp ≈ 1
     @assert constrain("(dec #1)", [to_value(9)], to_value(8)) |> weight |> exp ≈ 1
-    @assert constrain("randnat", [], to_value(0)) |> weight |> exp ≈ 1 / 2
-    @assert constrain("randnat", [], to_value(1)) |> weight |> exp ≈ 1 / 4
-    @assert constrain("randnat", [], to_value(2)) |> weight |> exp ≈ 1 / 8
+    @assert constrain("(randnat)", [], to_value(0)) |> weight |> exp ≈ 1 / 2
+    @assert constrain("(randnat)", [], to_value(1)) |> weight |> exp ≈ 1 / 4
+    @assert constrain("(randnat)", [], to_value(2)) |> weight |> exp ≈ 1 / 8
     @assert constrain("randnatlist", [], to_value([])) |> weight |> exp ≈ 1 / 2
     @assert constrain("randnatlist", [], to_value([0])) |> weight |> exp ≈ 1 / 4 * 1 / 2
     @assert constrain("randnatlist", [], to_value([1, 1])) |> weight |> exp ≈

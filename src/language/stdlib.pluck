@@ -10,9 +10,9 @@
                   S m => m
                   O => (O)))
 (define (+ x y)
-  (match x
-    O => y
-    S n => (S (+ n y))))
+  (match y
+    O => x
+    S n => (S (+ x n))))
 (define (- x y)
   (match y
     O => x

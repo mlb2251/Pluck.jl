@@ -76,9 +76,8 @@ In Visual Studio Code, we have found that when editing `.pluck` files, it is nic
 
 ## Running a Pluck Program
 
-To compile a Pluck file, open Julia and run:
+Start julia by running `julia --project` from the `Pluck.jl` folder. To compile a Pluck file, run:
 ```julia
-julia> using Pkg; Pkg.activate("."); instantiate
 julia> using Pluck
 julia> load_pluck_file("programs/simple_example.pluck");
 
