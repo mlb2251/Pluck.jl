@@ -157,12 +157,12 @@ function write_figure5_left_single(mode, task, eval_file)
     println("Wrote $file")
 end
 
-function figure5_right_single(mode; truncate=8, time_limit=0.05, max_depth=1000, mcmc_steps=500)
+function figure5_right_single(mode; truncate=8, time_limit=0.05, max_depth=1000, mcmc_steps=500, repetitions=1)
     more_defs()
     historical_data = get_historical_data()
     for data in historical_data
         println("Synthesizing task: ", data[:task])
-        out_dir = synth(data[:eval_file], mode, data[:task]; truncate, time_limit, max_depth, mcmc_steps)
+        out_dir = synth(data[:eval_file], mode, data[:task]; truncate, time_limit, max_depth, mcmc_steps, repetitions)
         write_figure5_right_single(mode, data[:task], out_dir)
     end
 end
@@ -187,7 +187,7 @@ all_tasks = [
 all_modes = [:bdd, :dice, :lazy, :smc]
 
 function build_figure5_right()
-    data = open("data_to_plot/figure5-right/synthesis_result_template.json") do f
+    data = open("data/figure5/synthesis_result_template.json") do f
         JSON.parse(f)
     end
     for task in all_tasks
@@ -196,7 +196,8 @@ function build_figure5_right()
         group = data["groups"][group]
         @assert isempty(group["runs"])
         for mode in all_modes
-            res = open("data_to_plot/figure5-right/$(mode)/$(task).json") do f
+            path = "data_to_plot/figure5-right/$(mode)/$(task).json"
+            res = open(path) do f
                 JSON.parse(f)
             end
             path = res["synth_file"]
@@ -210,7 +211,7 @@ function build_figure5_right()
 end
 
 function build_figure5_left()
-    data = open("data_to_plot/figure5-left/fuzzing_result_template.json") do f
+    data = open("data/figure5/fuzzing_result_template.json") do f
         JSON.parse(f)
     end
     for task in all_tasks
@@ -221,7 +222,8 @@ function build_figure5_left()
 
         # initialize with first mode
         first_mode = all_modes[1]
-        eval_file = open("data_to_plot/figure5-left/$(first_mode)/$(task).json") do f
+        path = "data_to_plot/figure5-left/$(first_mode)/$(task).json"
+        eval_file = open(path) do f
             JSON.parse(f)["eval_file"]
         end
         merged = open(eval_file) do f
