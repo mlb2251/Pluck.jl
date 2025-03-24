@@ -837,8 +837,13 @@ function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_j
     ret = enumerated_ret
 
     if show_bdd_size
+        # println("Number of bdds: $(length(ret))")
+        summed_size = sum(Int(RSDD.bdd_size(bdd)) for (ret, (bdd)) in ret)
+        num_vars = length(state.sorted_callstacks)
+        printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
+        # printstyled("Summed bdd size: $summed_size\n"; color=:blue)
         println("BDD sizes: $([(ret, Int(RSDD.bdd_size(bdd))) for (ret, (bdd)) in ret])")
-        @show state.num_forward_calls
+        # printstyled("Number of forward calls: $(state.num_forward_calls)\n"; color=:yellow)
     end
     # Trying a model count of each possibility.
     if show_bdd
