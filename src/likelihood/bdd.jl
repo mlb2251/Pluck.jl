@@ -155,6 +155,7 @@ mutable struct BDDEvalState
     callstack::Callstack
     thunks::Vector{BDDThunk}
     disable_used_information::Bool
+    disable_path_conditions::Bool
     singleton_cache::Bool
     var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
     sorted_callstacks::Vector{Tuple{Callstack, Float64}}
@@ -188,6 +189,7 @@ mutable struct BDDEvalState
         use_thunk_unions::Bool = true,
         record_json::Bool = false,
         disable_used_information::Bool = false,
+        disable_path_conditions::Bool = false,
         singleton_cache::Bool = true,
     )
         manager = RSDD.mk_bdd_manager_default_order(0)
@@ -202,6 +204,7 @@ mutable struct BDDEvalState
             Int[],
             BDDThunk[],
             disable_used_information,
+            disable_path_conditions,
             singleton_cache,
             Dict{Tuple{Callstack, Float64}, BDD}(),
             Tuple{Callstack, Float64}[],
@@ -329,7 +332,9 @@ function combine_results(result_sets, used_information::BDD, available_informati
 
     for ((results, used_info), outer_guard) in result_sets
         #Pluck.interesting_results[:used_info_and_time] += @elapsed 
-        used_information = traced_bdd_and(used_information, traced_bdd_implies(outer_guard, used_info, state), state)
+        if !state.disable_used_information
+            used_information = traced_bdd_and(used_information, traced_bdd_implies(outer_guard, used_info, state), state)
+        end
         for (result, inner_guard) in results
             # OK, here is a / the bottleneck... is it because we are somehow calling it too many times, or because the individual calls are expensive?
             #push!(Pluck.interesting_results[:inner_outer_guard_times], (@elapsed 
@@ -509,7 +514,7 @@ function bdd_forward(expr::PExpr, env::Env, available_information::BDD, state::B
 end
 
 function bdd_bind(cont, first_stage_results, available_information, used_information, state)
-    return combine_results([(cont(result, result_guard), result_guard)
+    return combine_results([(cont(result, state.disable_path_conditions ? state.BDD_TRUE : result_guard), result_guard)
                             for (result, result_guard) in first_stage_results],
         used_information, available_information, state)
 end
@@ -801,10 +806,11 @@ function bdd_forward(expr::ConstReal, env::Env, available_information::BDD, stat
     return [(expr.val, state.BDD_TRUE)], state.BDD_TRUE
 end
 
-function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_json = false, state = BDDEvalState(), return_bdd_stats = false)
+function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_json = false, make_state = () -> BDDEvalState(), return_bdd_stats = false)
     if expr isa String
         expr = parse_expr(expr)
     end
+    state = make_state()
     ret, used_information = traced_bdd_forward((expr), Pluck.EMPTY_ENV, state.BDD_TRUE, state, 0)
     # When ret contains IntDists, enumerate the 2^n options
     enumerated_ret = []
