@@ -2,6 +2,8 @@
 
 This guide provides a brief tour of Pluck's internals for developers who want to extend the library. It assumes familiarity with the Pluck source language, as described in USAGE.md. It also assumes that developers have read and understood the paper introducing Pluck's key inference algorithm, "Stochastic Lazy Knowledge Compilation for Inference in Discrete Probabilistic Programs" (PLDI '25).
 
+Dependency Versions: Pluck was developed with Julia 1.11.4 and Rust 1.86.0
+
 ## Core Architecture
 
 Pluck's source code can be broadly divided into three components, organized into separate subdirectories of `src`:
@@ -18,7 +20,7 @@ The language layer is responsible for parsing, type checking, and executing Pluc
 
 - `types.jl`: Defines a Julia type, `SumProductType`, for user-defined algebraic datatypes in Pluck. Initializes a top-level type environment with the unit type, natural numbers, lists, and Booleans.
 - `pexpr.jl`: Implements Pluck's abstract syntax, via the `PExpr` abstract type. Also defines the parser, `parse_expr`, which converts `String`s containing Pluck's s-expression syntax into `PExpr`s.
-- `values.jl`: Implements Julia types to represent Pluck values, including values of algebraic datatypes (`Value`) and closures (`Closure`, `YClosure`).
+- `values.jl`: Implements Julia types to represent Pluck values, including values of algebraic datatypes (`Value`) and closures (`Closure`).
 - `primitives.jl`: Defines names and arities of built-in primitives. The two primitives used by our example programs and in our experiments are `flip` and `constructors_equal`.
 - `define.jl`: Julia macros for programmatically adding new definitions to Pluck's top-level environment.
 - `toplevel.jl`: Handles `.pluck` file format and top-level program execution. This includes "runners" for different queries that can appear in `.pluck` files.
@@ -63,4 +65,5 @@ The BDD backend provides efficient operations on binary decision diagrams:
 
 1. Modify the Rust implementation in `rsdd/` for core changes
 2. Add any new methods to the foreign function interface in the Rust library.
-3. Add Julia bindings in `RSDD.jl`.
+3. Recompile the rust library with `make bindings`, or by running `cargo build --release --features=ffi` from `rsdd/`
+4. Add Julia bindings in `RSDD.jl`.
