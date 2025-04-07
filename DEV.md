@@ -16,7 +16,7 @@ Note that this repository also contains a good amount of code that is not exerci
 
 ### Language Layer
 
-The language layer is responsible for parsing, type checking, and executing Pluck programs. Key components:
+The language layer is responsible for parsing Pluck programs into an abstract syntax representation, and defining Pluck's standard library and runtime representations. Key components:
 
 - `types.jl`: Defines a Julia type, `SumProductType`, for user-defined algebraic datatypes in Pluck. Initializes a top-level type environment with the unit type, natural numbers, lists, and Booleans.
 - `pexpr.jl`: Implements Pluck's abstract syntax, via the `PExpr` abstract type. Also defines the parser, `parse_expr`, which converts `String`s containing Pluck's s-expression syntax into `PExpr`s.
