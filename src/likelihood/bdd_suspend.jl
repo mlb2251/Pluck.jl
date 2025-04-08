@@ -1,26 +1,5 @@
 export bdd_forward_with_suspension, bdd_forward_with_suspension_top_k
 
-# Suppose we have a type `SuspendableBool := FinallyTrue | FinallyFalse | Suspend SuspendableBool`.
-suspended_bool_type = define_type!(:SuspendableBool, Dict(:FinallyTrue => Symbol[], :FinallyFalse => Symbol[], :Suspend => [:SuspendableBool]))
-
-# We can define a version of, e.g., list equality, that returns a `SuspendableBool`.
-@define "suspended_list_eq" """
-(λ elems_equal -> 
-(Y (λ suspended_list_eq xs ys -> 
-  (case xs of 
-    Nil        => (case ys of Nil => (FinallyTrue) | Cons _ _ => (FinallyFalse))
-    Cons x xs_ => (case ys of 
-      Nil        => (FinallyFalse)
-      Cons y ys_ => (case (elems_equal x y) of 
-        True  => (Suspend (suspended_list_eq xs_ ys_))
-        False => (FinallyFalse)
-      )
-    )
-  )
-))
-)
-"""
-
 # A few approaches to sampling.
 # 1) We could sample actual traces from the posterior given "suspended".
 #    Then, in the next call to evaluate (on the thunk or thunk union inside "suspended"),

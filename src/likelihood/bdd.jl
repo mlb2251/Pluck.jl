@@ -25,6 +25,7 @@ const Callstack = Vector{Int}
 const Env = Vector{Any}
 const World = Tuple{Any, BDD}
 const ForwardResult = Tuple{BDD, Vector{World}}
+const EMPTY_ENV::Env = Any[]
 
 
 struct IntDist
