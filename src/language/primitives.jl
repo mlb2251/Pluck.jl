@@ -1,10 +1,5 @@
 export FlipOp, ConstructorEqOp, MkIntOp, IntDistEqOp
 
-struct FlipOp <: Primitive end
-struct ConstructorEqOp <: Primitive end
-struct MkIntOp <: Primitive end
-struct IntDistEqOp <: Primitive end
-
 const primop_of_name::Dict{String, Type} = Dict()
 const name_of_primop::Dict{Type, String} = Dict()
 const arity_of_primop::Dict{Type, Int} = Dict()
@@ -32,10 +27,19 @@ function prim_arity(::Type{T}) where T <: Primitive
     arity_of_primop[T]
 end
 
-define_prim!("flip", FlipOp, 1)
-define_prim!("constructors_equal", ConstructorEqOp, 2)
-define_prim!("mk_int", MkIntOp, 2)
-define_prim!("int_dist_eq", IntDistEqOp, 2)
-
 Base.show(io::IO, e::T) where T <: Primitive = print(io, prim_str(e))
 Base.:(==)(::Primitive, ::Primitive) = true
+
+
+struct FlipOp <: Primitive end
+define_prim!("flip", FlipOp, 1)
+
+struct ConstructorEqOp <: Primitive end
+define_prim!("constructors_equal", ConstructorEqOp, 2)
+
+struct MkIntOp <: Primitive end
+define_prim!("mk_int", MkIntOp, 2)
+
+struct IntDistEqOp <: Primitive end
+define_prim!("int_dist_eq", IntDistEqOp, 2)
+
