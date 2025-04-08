@@ -177,6 +177,8 @@ mutable struct Construct <: PExpr
     constructor::Symbol
     args::Vector{PExpr}
 end
+Construct(constructor) = Construct(constructor, PExpr[])
+Construct(constructor, args...) = Construct(constructor, collect(args))
 
 var_is_free(e::Construct, var) = any(arg -> var_is_free(arg, var), e.args)
 shortname(e::Construct) = string(e.constructor)

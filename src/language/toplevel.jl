@@ -48,7 +48,7 @@ function posterior_query(val, state)
     # TODO: reconsider strict order index to use?
     ret, _ = traced_bdd_forward(given_expr, env, state.BDD_TRUE, state, 0)
     full_ret = infer_full_distribution(ret, state)
-    results = bdd_normalize([v => RSDD.bdd_wmc(b, state.weights) for (v, b) in full_ret])
+    results = normalize([v => RSDD.bdd_wmc(b, state.weights) for (v, b) in full_ret])
     return results
 end
 

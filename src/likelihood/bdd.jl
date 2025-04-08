@@ -1,4 +1,4 @@
-export bdd_normalize, bdd_forward, BDDEvalState
+export normalize, bdd_forward, BDDEvalState
 
 # A version of `forward` that works with BDDs.
 # Signature for `forward`:
@@ -196,8 +196,8 @@ mutable struct BDDEvalState
         manager = RSDD.mk_bdd_manager_default_order(0)
         BDD_TRUE = RSDD.bdd_true(manager)
         BDD_FALSE = RSDD.bdd_false(manager)
-        true_thunk = BDDThunk(true_expr, Pluck.EMPTY_ENV, Callstack(), :truebr, 0, nothing)
-        false_thunk = BDDThunk(false_expr, Pluck.EMPTY_ENV, Callstack(), :falsebr, 1, nothing)
+        true_thunk = BDDThunk(Construct(:True), Pluck.EMPTY_ENV, Callstack(), :truebr, 0, nothing)
+        false_thunk = BDDThunk(Construct(:False), Pluck.EMPTY_ENV, Callstack(), :falsebr, 1, nothing)
 
 
         weights = RSDD.new_wmc_params_f64()
@@ -279,7 +279,7 @@ end
 
 function combine_results(result_sets, used_information::BDD, available_information::BDD, state::BDDEvalState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
     join_results = Vector{World}()
-    index_of_result = Dict{Union{Value, Closure, Float64}, Int}()
+    index_of_result = Dict{AbstractValue, Int}()
     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
     int_dist_results = Vector{Tuple{IntDist, BDD}}()
 
@@ -289,7 +289,7 @@ function combine_results(result_sets, used_information::BDD, available_informati
         end
         for (result, inner_guard) in results
             inner_and_outer = inner_guard & outer_guard
-            if result isa Closure || result isa Float64 || (result isa Value && !state.use_thunk_unions)
+            if result isa Closure || result isa FloatValue || (result isa Value && !state.use_thunk_unions)
                 result_index = Base.get!(index_of_result, result, length(join_results) + 1)
                 if result_index > length(join_results)
                     push!(join_results, (result, inner_and_outer))
@@ -564,6 +564,7 @@ function bdd_prim_forward(op::FlipOp, args, env::Env, available_information::BDD
 
     ps, used_information = traced_bdd_forward(args[1], env, available_information, state, 0)
     bdd_bind(ps, available_information, used_information, state) do p, p_guard
+        p = p.value
         if isapprox(p, 0.0)
             return [(Pluck.FALSE_VALUE, p_guard)], state.BDD_TRUE
         elseif isapprox(p, 1.0)
@@ -603,31 +604,8 @@ function bdd_prim_forward(op::ConstructorEqOp, args, env::Env, available_informa
     end
 end
 
-const true_expr = parse_expr("true")
-const false_expr = parse_expr("false")
-
-# struct BDDThunk
-#     expr::PExpr
-#     env::Env
-#     cache::Vector{ForwardResult}
-#     callstack::Callstack
-#     name::Symbol
-#     strict_order_index::Int
-# end
-
 const int_dist_of_bitwidth = Symbol[:Int1, :Int2, :Int3, :Int4]
 
-
-# function bdd_prim_forward(op::MkIntOp, args, env::Env, available_information::BDD, state::BDDEvalState)
-#     bitwidth = args[1]::RawInt
-#     val = args[2]::RawInt
-#     bools = digits(Bool, val.val, base=2, pad=bitwidth.val)
-
-#     sym = int_dist_of_bitwidth[bitwidth.val]
-
-#     res = map(b -> b ? state.true_thunk : state.false_thunk, bools)
-#     return [(spt_of_constructor[sym](sym, res...), state.BDD_TRUE)], state.BDD_TRUE
-# end
 
 function bdd_prim_forward(op::MkIntOp, args, env::Env, available_information::BDD, state::BDDEvalState)
     bitwidth = args[1]::RawInt
@@ -668,9 +646,6 @@ function int_dist_eq(x::IntDist, y::IntDist, state::BDDEvalState)::BDD
 end
 
 
-
-
-
 function bdd_forward(expr::Var, env::Env, available_information::BDD, state::BDDEvalState)
     # Look up the variable in the environment.
     if expr.idx > length(env)
@@ -695,7 +670,7 @@ end
 
 
 function bdd_forward(expr::ConstReal, env::Env, available_information::BDD, state::BDDEvalState)
-    return [(expr.val, state.BDD_TRUE)], state.BDD_TRUE
+    return [(FloatValue(expr.val), state.BDD_TRUE)], state.BDD_TRUE
 end
 
 function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_json = false, make_state = () -> BDDEvalState(), return_bdd_stats = false)
@@ -735,13 +710,10 @@ function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_j
     ret = enumerated_ret
 
     if show_bdd_size
-        # println("Number of bdds: $(length(ret))")
         summed_size = sum(Int(RSDD.bdd_size(bdd)) for (ret, (bdd)) in ret)
         num_vars = length(state.sorted_callstacks)
         printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
-        # printstyled("Summed bdd size: $summed_size\n"; color=:blue)
         println("BDD sizes: $([(ret, Int(RSDD.bdd_size(bdd))) for (ret, (bdd)) in ret])")
-        # printstyled("Number of forward calls: $(state.num_forward_calls)\n"; color=:yellow)
     end
     # Trying a model count of each possibility.
     if show_bdd
@@ -750,8 +722,6 @@ function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_j
     else
         results = [(v, RSDD.bdd_wmc(bdd, state.weights)) for (v, bdd) in ret]
     end
-
-    # return state.thunks
 
     if record_bdd_json
         println(ret[2][1].constructor == :True)
@@ -774,141 +744,10 @@ function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_j
     end
 end
 
-function bdd_forward_pretty(expr; max_depth = nothing, eval_state = BDDEvalState(; max_depth))
-    worlds, used_information = bdd_forward(parse_expr(expr), Pluck.EMPTY_ENV, eval_state.BDD_TRUE, eval_state)
-    weighted_worlds = [(val, RSDD.bdd_wmc(bdd, eval_state.weights)) for (val, bdd) in worlds]
-    println("weighted_worlds: $weighted_worlds")
-    println("BDD sizes: $([(val, Int(RSDD.bdd_size(bdd))) for (val, bdd) in worlds])")
-
-    for (val, bdd) in worlds
-        println(val, " ", bdd)
-    end
-
-    println("used_information: $used_information")
-
-    # free_bdd_manager(eval_state.manager)
-    # free_wmc_params(eval_state.weights)
-    return worlds
-end
-
-function bdd_viz(use_strict_order = false)
-    @define "dice_flips" """
-        (
-          (λx -> 
-            (
-              (λy -> 
-                (
-                  (λz -> 
-                    z
-                  ) (if y (flip 0.4) (flip 0.5))
-                )
-              ) (if x (flip 0.2) (flip 0.3))
-            )
-          )
-          (flip 0.1)
-        )
-    """
-    # bdd_forward_pretty("dice_flips")
-
-
-    println("==========")
-
-    # worlds = bdd_forward_pretty("(if (flip 0.5) (flip 0.6) (flip 0.7))", eval_state = state)
-    # worlds = bdd_forward_pretty("dice_flips", eval_state=state)
-    # worlds = bdd_forward_pretty("(network 3)", eval_state=state)
-    # include("examples/likelihood_benchmarks/evaluation.jl")
-
-    # include("examples/likelihood_benchmarks/spelling_correction.jl")
-    # perturb_defs()
-    spell_test = """(strings_eq 
-    (perturb (Cons (b_) (Cons (b_) (Cons (c_) (Nil)))))
-             (Cons (b_) (Cons (b_) (Cons (c_) (Nil))))
-    )
-    """
-    worlds = bdd_forward(spell_test; record_bdd_json = true, show_bdd_size = true, state = BDDEvalState(; use_strict_order, use_thunk_cache = true, record_json = true))
-
-    # @show worlds
-    # bdd = worlds[2][2]
-
-    # record_bdd(state, bdd)
-end
-
-
-function bdd_normalize(results)
+function normalize(results)
     probabilities = [res[2] for res in results]
     total = sum(probabilities)
     return [(res[1], res[2] / total) for res in results]
-end
-
-function io_constrain(expr, io, eval_state::BDDEvalState)
-    inputs = pluck_list.(from_value.(io.inputs))
-    output = pluck_list(from_value(io.output))
-
-    # wrap in lambdas
-    for _ = 1:length(inputs)
-        expr = "(λx -> $(expr))"
-    end
-
-    # now apply the inputs
-    for i in reverse(inputs)
-        expr = "($expr $i)"
-    end
-
-    expr = "(== $expr $output)"
-
-    @show expr
-    res = bdd_forward(expr, eval_state = eval_state)
-    @show res
-    return 0.0, eval_state
-end
-
-
-function benchmarks()
-
-    viz = """(strings_eq 
-    (perturb (Cons (b_) (Cons (b_) (Cons (c_) (Nil)))))
-           (Cons (b_) (Cons (b_) (Cons (c_) (Nil))))
-    )
-    """
-
-    # miniviz = """(strings_eq 
-    # (perturb (Cons (b_) (Nil)))
-    #        (Cons (b_) (Nil))
-    # )
-    # """
-
-    miniviz = """(strings_eq 
-    (perturb (Cons (b_) (Cons (b_) (Nil))))
-           (Cons (b_) (Cons (b_) (Nil)))
-    )
-    """
-
-    unions_example = """
-    (== (if (flip 0.5)
-            (S (O))
-            (S (S (O)))
-        ) 
-        (S (O))
-    )
-    """
-
-    println("miniviz")
-    @time bdd_forward(miniviz; show_bdd_size = true, state = BDDEvalState(; use_strict_order = true, record_json = true))
-    println("unions")
-    @time bdd_forward(unions_example; show_bdd_size = true, state = BDDEvalState(; use_strict_order = true, record_json = true))
-
-
-    big = """(strings_eq 
-    (perturb (Cons (a_) (Cons (b_) (Cons (c_) (Cons (e_) (Cons (c_) (Cons (e_) (Cons (d_) (Cons (d_) (Nil)))))))))) 
-             (Cons (a_) (Cons (e_) (Cons (e_) (Cons (e_) (Cons (e_) (Cons (e_) (Nil)))))))
-    )
-    """
-    println("strict=false")
-    # @btime bdd_forward($big; use_strict_order=false, show_bdd=false);
-    @time bdd_forward(big; show_bdd_size = true, state = BDDEvalState(; use_strict_order = false))
-    println("strict=true")
-    # @btime bdd_forward($big; use_strict_order=true, show_bdd=false);
-    @time bdd_forward(big; show_bdd_size = true, state = BDDEvalState(; use_strict_order = true))
 end
 
 function infer_full_distribution(initial_results, state)
