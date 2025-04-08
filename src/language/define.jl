@@ -5,7 +5,6 @@ struct Definition
     name::Symbol
     expr::PExpr
     type::Union{PType,Nothing}
-    is_random::Bool
 end
 
 DUMMY_EXPRESSION = Construct(spt_of_constructor[:Unit], :Unit, PExpr[])
@@ -23,10 +22,10 @@ end
 function define(name, str; typestr=nothing)
     name = Symbol(name)
     type = typestr === nothing ? nothing : parse_type(typestr)
-    DEFINITIONS[name] = Definition(name, DUMMY_EXPRESSION, type, false)
+    DEFINITIONS[name] = Definition(name, DUMMY_EXPRESSION, type)
     try
         expr = parse_expr(str)
-        DEFINITIONS[name] = Definition(name, expr, type, is_random(expr))
+        DEFINITIONS[name] = Definition(name, expr, type)
     catch e
         delete!(DEFINITIONS, name)
         rethrow(e)

@@ -363,10 +363,6 @@ function bdd_forward(expr::Defined, env::Env, state::BDDStrictEvalState)
     return traced_bdd_forward(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, state)
 end
 
-function bdd_forward(expr::Root, env::Env, state::BDDStrictEvalState)
-    return bdd_forward(expr.body, env, state)
-end
-
 function bdd_forward(expr::ConstReal, env::Env, state::BDDStrictEvalState)
     return [(expr.val, state.BDD_TRUE)]
 end

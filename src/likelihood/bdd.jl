@@ -56,7 +56,7 @@ struct BDDThunk
             # println("cache hit: $expr, $callstack, $name, $strict_order_index")
             return state.thunk_cache[key]
         else
-            thunk = new(expr, Pluck.mask_thunk_env(env, expr), [], copy(callstack), name, strict_order_index)
+            thunk = new(expr, env, [], copy(callstack), name, strict_order_index)
             if state !== nothing && state.use_thunk_cache
                 state.thunk_cache[(expr, copy(env), copy(callstack))] = thunk
             end
@@ -526,11 +526,7 @@ function bdd_forward(expr::App, env::Env, available_information::BDD, state::BDD
 
     return bdd_bind(fs, available_information, used_information, state) do f, f_guard
         new_env = copy(f.env)
-        x = thunked_argument # Pluck.var_is_free(f.expr, 1) ? thunked_argument : nothing
-        # if x isa BDDThunkUnion
-        #     x, used_info = simplify_thunk_union(x, available_information, state)
-        #     used_information = used_information & used_info
-        # end
+        x = thunked_argument
         pushfirst!(new_env, x)
         results, used_info = traced_bdd_forward(f.expr, new_env, traced_bdd_and(available_information, f_guard, state), state, 2)
         return results, traced_bdd_and(used_information, used_info, state)
@@ -799,9 +795,6 @@ function bdd_forward(expr::Defined, env::Env, available_information::BDD, state:
     return traced_bdd_forward(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, available_information, state, 0)
 end
 
-function bdd_forward(expr::Root, env::Env, available_information::BDD, state::BDDEvalState)
-    return bdd_forward(expr.body, env, available_information, state)
-end
 
 function bdd_forward(expr::ConstReal, env::Env, available_information::BDD, state::BDDEvalState)
     return [(expr.val, state.BDD_TRUE)], state.BDD_TRUE
@@ -1019,125 +1012,6 @@ function benchmarks()
     # @btime bdd_forward($big; use_strict_order=true, show_bdd=false);
     @time bdd_forward(big; show_bdd_size = true, state = BDDEvalState(; use_strict_order = true))
 end
-
-
-
-# function resolve_callstack_in_pexpr(pexpr::Var, callstack::Callstack, env)
-#     @assert false "Callstack should not lead to variable $pexpr..."
-# end
-
-# function resolve_callstack_in_pexpr(pexpr::Abs, callstack::Callstack, env)
-#     @assert false "Callstack should not lead to lambda $pexpr..."
-# end
-
-# function resolve_callstack_in_pexpr(pexpr::Construct, callstack::Callstack, env)
-#     idx = callstack[1] # argument number
-#     exprs = resolve_callstack_in_pexpr(pexpr.args[idx], callstack[2:end], env)
-
-#     expr = copy(pexpr)
-#     setchild!(expr, idx, exprs[1])
-#     exprs[1] = expr
-#     return exprs
-# end
-
-# function resolve_callstack_in_pexpr(pexpr::CaseOf, callstack::Callstack, env)
-#     if callstack[1] == 0
-#         # Scrutinee
-#         exprs = resolve_callstack_in_pexpr(pexpr.scrutinee, callstack[2:end], env)
-#         expr = copy(pexpr)
-#         setchild!(expr, 1, exprs[1])
-#         exprs[1] = expr
-#         return exprs
-#     else
-#         # Case branch at callstack[1]
-#         idx = callstack[1]
-#         exprs = resolve_callstack_in_pexpr(pexpr.cases[pexpr.constructors[idx]], callstack[2:end], env)
-#         expr = copy(pexpr)
-#         setchild!(expr, idx + 1, exprs[1])
-#         exprs[1] = expr
-#         return exprs
-#     end
-# end
-
-# function resolve_callstack(pexpr::App, callstack::Callstack, env)
-#     # callstack[1] is: 0 if f, 1 if x, 2 if body-of-f.
-#     if callstack[1] == 0
-#         # f
-#         exprs = resolve_callstack(pexpr.f, callstack[2:end], env)
-#         expr = copy(pexpr)
-#         # Don't use setchild! because it tries to automatically resolve nested applications,
-#         # which we don't want here.
-#         # setchild!(expr, 1, exprs[1])
-#         expr.f = exprs[1]
-#         exprs[1] = expr
-#         return exprs
-#     end
-#     if callstack[1] == 1
-#         # x
-#         exprs = resolve_callstack(pexpr.x, callstack[2:end], env)
-#         expr = copy(pexpr)
-#         # Don't use setchild! because it tries to automatically resolve nested applications,
-#         # which we don't want here.
-#         # setchild!(expr, 2, exprs[1])
-#         expr.x = exprs[1]
-#         exprs[1] = expr
-#         return exprs
-#     end
-#     if callstack[1] == 2
-#         # body-of-f.
-#         # Several cases for what f could be.
-#         # Technically, f could be dynamically computed, e.g. by an if statement.
-#         # For now, we don't handle that case; ultimately, this logic should probably be handled
-#         # "at runtime" -- a flag that allows callstack debug info (expressions corresponding to each callstack)
-#         # to be saved.
-#         fexpr = Pluck.get_func(pexpr)
-#         if fexpr isa Abs
-#             env = copy(env)
-#             push!(env, pexpr.x)
-#             exprs = resolve_callstack(fexpr.body, callstack[2:end], env)
-#             copied_fexpr = copy(fexpr)
-#             copied_fexpr.body = exprs[1]
-#             expr = copy(pexpr)
-#             setchild!(expr, 1, copied_fexpr)
-#             exprs[1] = expr
-#             return exprs
-#         end
-#         if fexpr isa Y
-#             env = copy(env)
-#             push!(env, fexpr)
-#             push!(env, pexpr.x)
-#             exprs = resolve_callstack(fexpr.f.body, callstack[2:end], env)
-#             copied_fexpr = copy(fexpr)
-#             copied_fexpr.f.body = exprs[1]
-#             expr = copy(pexpr)
-#             setchild!(expr, 1, copied_fexpr)
-#             exprs[1] = expr
-#             return exprs
-#         end
-#         if fexpr isa Var
-#             actual_f = env[fexpr.idx]
-#             # actual_f is either an Abs or a Y or a Defined or another Variable.
-
-#             exprs = resolve_callstack(env[fexpr.idx], callstack[2:end], env)
-
-#         end
-#     end
-# end
-
-# function resolve_callstack_in_pexpr(pexpr::Defined, callstack::Callstack, env)
-#     return resolve_callstack_in_pexpr(Pluck.lookup(pexpr.name).expr, callstack, [])
-# end
-
-
-
-# function resolve_callstack_in_pexpr(pexpr::PExpr, callstack::Callstack, env)
-
-#     # Given a PExpr and a callstack, as well as an environment for resolving variables,
-#     # return a list of PExprs with RenderedHole expressions inserted at the appropriate
-#     # points, to highlight the path through the PExpr that corresponds to the callstack.
-
-
-# end
 
 function infer_full_distribution(initial_results, state)
     # Queue of (value, bdd) pairs to process

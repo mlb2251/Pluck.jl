@@ -135,7 +135,7 @@ mutable struct LazyEnumeratorThunk
         end
         id = state.next_thunk_id
         state.next_thunk_id += 1
-        new(expr, Pluck.mask_thunk_env(env, expr), copy(state.callstack), name, id)
+        new(expr, env, copy(state.callstack), name, id)
     end
 end
 
@@ -424,10 +424,6 @@ end
 function lazy_enumerate(expr::Defined, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     # Execute Defined with a blanked out environment.
     return traced_lazy_enumerate(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, trace, state, expr.name)
-end
-
-function lazy_enumerate(expr::Root, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    return lazy_enumerate(expr.body, env, trace, state)
 end
 
 function lazy_enumerate(expr::ConstReal, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)

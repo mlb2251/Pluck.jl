@@ -175,7 +175,7 @@ function parse_and_process_define_function(tokens, defs)
     tokens = view(tokens, 2:length(tokens))
     fname = Symbol(tokens[1])
     # Set up dummy binding before parsing the body
-    defs[fname] = Definition(fname, DUMMY_EXPRESSION, nothing, false)
+    defs[fname] = Definition(fname, DUMMY_EXPRESSION, nothing)
 
     tokens = view(tokens, 2:length(tokens))
     # Collect args and parse body as before...
@@ -210,7 +210,7 @@ function parse_and_process_define_function(tokens, defs)
     @assert tokens[1] == ")" "Expected closing paren"
 
     # Update the definition with the actual expression
-    defs[fname] = Definition(fname, expr, nothing, is_random(expr))
+    defs[fname] = Definition(fname, expr, nothing)
 
     return (:define, fname, expr), view(tokens, 2:length(tokens))
 end
@@ -219,7 +219,7 @@ function parse_and_process_define_value(tokens, defs)
     # Regular (define x e) form
     name = Symbol(tokens[1])
     # Set up dummy binding
-    defs[name] = Definition(name, DUMMY_EXPRESSION, nothing, false)
+    defs[name] = Definition(name, DUMMY_EXPRESSION, nothing)
 
     tokens = view(tokens, 2:length(tokens))
     expr, tokens = parse_expr_inner(tokens, defs, [])
@@ -227,7 +227,7 @@ function parse_and_process_define_value(tokens, defs)
     @assert tokens[1] == ")" "Expected closing paren"
 
     # Update with actual expression
-    defs[name] = Definition(name, expr, nothing, is_random(expr))
+    defs[name] = Definition(name, expr, nothing)
 
     return (:define, name, expr), view(tokens, 2:length(tokens))
 end

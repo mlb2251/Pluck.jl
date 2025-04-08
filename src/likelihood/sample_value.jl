@@ -191,9 +191,6 @@ function sample_value_forward(expr::Defined, env::Env, state::SampleValueState)
     return traced_sample_value(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, state, 0)
 end
 
-function sample_value_forward(expr::Root, env::Env, state::SampleValueState)
-    return traced_sample_value(expr.body, env, state, 0)
-end
 
 function sample_value_forward(expr::ConstReal, env::Env, state::SampleValueState)
     return expr.val

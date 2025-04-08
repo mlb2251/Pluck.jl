@@ -14,47 +14,6 @@ export Closure,
 
 export to_value, from_value, string_repr
 
-# Heuristic / very hacky way to check if linear.
-# May not even buy us anything... Ultimately would likely need 
-# a fancier type-based analysis.
-times_used(x::Var, i) = x.idx == i ? 1 : 0
-times_used(x::Abs, i) = times_used(x.body, i + 1)
-times_used(x::App, i) = begin
-    f_used_free = times_used(x.f, i)
-    arg_used = times_used(x.x, i)
-    if arg_used > 0 && isa(x.f, Abs)
-        f_used_free + times_used(x.f.body, 1) * arg_used
-    elseif arg_used > 0 && isa(x.f, Ylamlam)
-        f_used_free + times_used(x.f.body, 1) * arg_used
-    elseif arg_used > 0
-        return 2 # give up -- can't tell how many times f uses the arg.
-    else
-        f_used_free
-    end
-end
-times_used(x::PrimOp, i) = sum(times_used(arg, i) for arg in x.args; init = 0)
-times_used(x::Const, i) = 0
-times_used(x::ConstReal, i) = 0
-times_used(x::ConstBool, i) = 0
-times_used(x::If, i) =
-    times_used(x.cond, i) + max(times_used(x.then_expr, i), times_used(x.else_expr, i))
-times_used(x::Ylamlam, i) = times_used(x.body, i + 2)
-times_used(x::Y, i) = times_used(x.f, i)
-times_used(x::Defined, i) = 0
-times_used(x::Root, i) = times_used(x.body, i)
-times_used(x::NullExpr, i) = 0
-times_used(x::Construct, i) = sum(times_used(arg, i) for arg in x.args; init = 0)
-times_used(x::CaseOf, i) =
-    times_used(x.scrutinee, i) + max((times_used(c, i) for c in values(x.cases))...)
-
-# mask_thunk_env(env, expr) =
-#     Any[var_is_free(expr, i) ? v : nothing for (i, v) in enumerate(env)]
-# mask_closure_env(env, expr) =
-#     Any[var_is_free(expr, i + 1) ? v : nothing for (i, v) in enumerate(env)]
-
-mask_thunk_env(env, expr) = env
-mask_closure_env(env, expr) = env
-
 # result of evaluating a lambda. Takes 1 argument.
 mutable struct Closure
     expr::PExpr
@@ -62,8 +21,7 @@ mutable struct Closure
     # linear :: Bool
 
     function Closure(expr, env)
-        # linear = times_used(expr, 1) <= 1
-        new(expr, mask_closure_env(env, expr))
+        new(expr, env)
     end
 end
 
@@ -122,18 +80,6 @@ function JSON.lower(x::Closure)
     )
 end
 
-# result of evaluating y combinator. Takes two arguments.
-struct YClosure
-    expr::PExpr
-    env::Vector{Any}
-    # linear :: Bool 
-
-    function YClosure(expr, env)
-        # linear = times_used(expr, 1) <= 1
-        new(expr, env)
-    end
-end
-
 # A lazily evaluated expression. Takes zero arguments. May yield more than one
 # actual value, so this is not itself a value – it's a construct that can only
 # appear within an env or under a constructor, and will be enumerated or logprob'd 
@@ -152,10 +98,7 @@ struct Thunk
         if expr isa Var && env[expr.idx] isa Thunk
             return env[expr.idx]
         end
-        # App should guarantee that this masking already happened so we dont need mask_thunk_env() here
-        # @assert all(var_is_free(expr, i) || isnothing(v) for (i,v) in enumerate(env))
-        # @assert env == mask_thunk_env(env, expr) "$expr\n $env\n $(mask_thunk_env(env, expr))"
-        new(expr, mask_thunk_env(env, expr), copy(callstack), name, memoizing)
+        new(expr, env, copy(callstack), name, memoizing)
     end
 end
 
@@ -289,13 +232,9 @@ Base.:(==)(x::Value, y::Value) =
 
 
 function to_value(n::Int)
-    if value_mode === :peano
-        @assert n >= 0
-        n == 0 && return nat(:O)
-        nat(:S, to_value(n - 1))
-    else
-        n
-    end
+    @assert n >= 0
+    n == 0 && return nat(:O)
+    nat(:S, to_value(n - 1))
 end
 
 to_value(u::Tuple{}) = unit(:Unit)
@@ -303,16 +242,8 @@ to_value(x::Bool) = x ? bool(:True) : bool(:False)
 to_value(x::Value) = x
 
 function to_value(xs::Vector)
-    if value_mode === :peano
-        isempty(xs) && return list(:Nil)
-        return list(:Cons, to_value(xs[1]), to_value(xs[2:end]))
-    elseif value_mode === :snoc
-        isempty(xs) && return snoclist(:SNil)
-        # consume the list backwards to reverse it
-        return snoclist(:Snoc, to_value(xs[1:end-1]), to_value(xs[end]))
-    else
-        error("unimplemented value_mode")
-    end
+    isempty(xs) && return list(:Nil)
+    return list(:Cons, to_value(xs[1]), to_value(xs[2:end]))
 end
 
 

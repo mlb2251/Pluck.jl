@@ -6,6 +6,7 @@ include("RSDD/RSDD.jl")
 include("util/util.jl")
 include("language/types.jl")
 include("language/pexpr.jl")
+include("language/parsing.jl")
 include("language/values.jl")
 include("language/primitives.jl")
 include("language/define.jl")
@@ -21,6 +22,5 @@ include("likelihood/bdd_viz.jl")
 
 export get_rsdd_time, clear_rsdd_time!, @rsdd_time
 
-prims_minimal()
 load_pluck_file(joinpath(@__DIR__, "language", "stdlib.pluck"))
 end # module

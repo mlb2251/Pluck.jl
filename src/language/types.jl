@@ -6,7 +6,6 @@ export BaseType,
     parse_type,
     return_type,
     expansion_targets,
-    getchildtype,
     arg_types,
     args_of_constructor
 

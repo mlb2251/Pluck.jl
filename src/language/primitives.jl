@@ -1,6 +1,6 @@
 export FlipOp, ConstructorEqOp, MkIntOp, IntDistEqOp
 
-struct FlipOp <: RandomPrimitive end
+struct FlipOp <: Primitive end
 struct ConstructorEqOp <: Primitive end
 struct MkIntOp <: Primitive end
 struct IntDistEqOp <: Primitive end
@@ -16,19 +16,19 @@ function define_prim!(name::String, op::Type{T}, arity::Int) where T <: Primitiv
     nothing
 end
 
-function has_prim(name::String)
+function has_prim(name::AbstractString)
     haskey(primop_of_name, name)
 end
 
-function lookup_prim(name::String)
+function lookup_prim(name::AbstractString)
     primop_of_name[name]
 end
 
-function prim_str(::T) where T <: Primitive
+function prim_str(::Type{T}) where T <: Primitive
     name_of_primop[T]
 end
 
-function prim_arity(::T) where T <: Primitive
+function prim_arity(::Type{T}) where T <: Primitive
     arity_of_primop[T]
 end
 
@@ -39,7 +39,3 @@ define_prim!("int_dist_eq", IntDistEqOp, 2)
 
 Base.show(io::IO, e::T) where T <: Primitive = print(io, prim_str(e))
 Base.:(==)(::Primitive, ::Primitive) = true
-
-prim_type(::FlipOp) = Arrow(PType[BaseType(:bool)], BaseType(:bool))
-prim_type(::MkIntOp) = BaseType(:int)
-prim_type(::IntDistEqOp) = tbool
