@@ -10,18 +10,6 @@ function parse_expr(s::String, defs)
     return expr
 end
 
-function parse_type_params(tokens)
-    tokens[1] != "{" && return (PType[], tokens)
-    tokens = view(tokens, 2:length(tokens))
-    type_params = PType[]
-    idx_end = findfirst(x -> x == "}", tokens)
-    @assert !isnothing(idx_end)
-    annotation_str = join(tokens[1:idx_end-1], " ")
-    type_params = parse_type.(split(annotation_str, ","))
-    tokens = tokens[idx_end+1:end]
-    return (type_params, tokens)
-end
-
 function const_to_expr(v::Int)
     parse_expr(pluck_nat(v))
 end
@@ -131,9 +119,8 @@ function parse_expr_inner(tokens, defs, env)
         elseif token == "Y"
             # parse a Y
             tokens = view(tokens, 2:length(tokens))
-            type_params, tokens = parse_type_params(tokens)
             f, tokens = parse_expr_inner(tokens, defs, env)
-            e = Y(f, type_params...)
+            e = Y(f)
             if tokens[1] != ")"
                 # parse (Y f x) into App(Y(f), x)
                 x, tokens = parse_expr_inner(tokens, defs, env)
@@ -219,23 +206,26 @@ function parse_expr_inner(tokens, defs, env)
             end
 
             return expr, view(tokens, 2:length(tokens))
-        elseif haskey(spt_of_constructor, Symbol(token))
+        elseif haskey(type_of_constructor, Symbol(token))
             # parse a sum product type constructor
             constructor = Symbol(token)
-            spt = spt_of_constructor[constructor]
+            type = type_of_constructor[constructor]
+            args = args_of_constructor[constructor]
             tokens = view(tokens, 2:length(tokens))
             args = []
             while tokens[1] != ")"
                 arg, tokens = parse_expr_inner(tokens, defs, env)
                 push!(args, arg)
             end
+            if length(args) != length(args_of_constructor[constructor])
+                error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(join(tokens, " "))")
+            end
             return Construct(constructor, args), view(tokens, 2:length(tokens))
         elseif has_prim(token) && !haskey(defs, Symbol(token))
             op_type = lookup_prim(token)
             arity = prim_arity(op_type)
             tokens = view(tokens, 2:length(tokens))
-            type_params, tokens = parse_type_params(tokens)
-            op = op_type(type_params...)
+            op = op_type()
             args = PExpr[]
             for i ∈ 1:arity
                 arg, tokens = parse_expr_inner(tokens, defs, env)
@@ -329,16 +319,10 @@ function parse_expr_inner(tokens, defs, env)
         idx = findfirst(x -> x == token, env) # shadowing
         return Var(idx, Symbol(token)), view(tokens, 2:length(tokens))
     elseif token[1] == '#'
-        if isdigit(token[2])
-            # parse debruijn index
-            idx = parse(Int, token[2:end])
-            @assert idx > 0 "need one-index debruijn"
-            return Var(idx), view(tokens, 2:length(tokens))
-        else
-            # parse CFG symbol variable like "#int"
-            type = parse_type(token[2:end])
-            return VarCFGSymbol(type), view(tokens, 2:length(tokens))
-        end
+        # parse debruijn index
+        idx = parse(Int, token[2:end])
+        @assert idx > 0 "need one-index debruijn"
+        return Var(idx), view(tokens, 2:length(tokens))
     elseif '#' ∈ token
         # variable combining name and debruijn like x#4
         parts = split(token, "#")

@@ -78,20 +78,16 @@ Base.copy(e::Abs) = Abs(copy(e.body), e.name)
 Base.:(==)(a::Abs, b::Abs) = a.body == b.body
 Base.hash(e::Abs, h::UInt) = hash(e.body, hash(:Abs, h))
 
-mutable struct Y <: PExpr
+struct Y <: PExpr
     f::PExpr
-    t0::Union{PType,Nothing}
-    t1::Union{PType,Nothing}
 end
-Y(f) = Y(f, nothing, nothing)
 
 var_is_free(e::Y, var) = var_is_free(e.f, var)
 shortname(e::Y) = "Y"
 function Base.show(io::IO, e::Y)
-    annotation = isnothing(e.t0) ? "" : "{$(e.t0),$(e.t1)}"
-    print(io, "(Y$annotation ", e.f, ")")
+    print(io, "(Y ", e.f, ")")
 end
-Base.copy(e::Y) = Y(copy(e.f), e.t0, e.t1)
+Base.copy(e::Y) = Y(copy(e.f))
 Base.:(==)(a::Y, b::Y) = a.f == b.f
 Base.hash(e::Y, h::UInt) = hash(e.f, hash(:Y, h))
 

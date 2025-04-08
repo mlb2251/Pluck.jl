@@ -89,11 +89,11 @@ struct BDDThunkUnion
                     if haskey(uniq_world_indices, world)
                         #@warn "Found duplicate world passed to BDDThunkUnion constructor: $world"
                         #Pluck.interesting_results[:thunk_union_collapse_time] += @elapsed
-                        uniq_guards[uniq_world_indices[world]] = traced_bdd_or(uniq_guards[uniq_world_indices[world]], traced_bdd_and(outer_bdd, bdd, state), state)
+                        uniq_guards[uniq_world_indices[world]] = uniq_guards[uniq_world_indices[world]] | (outer_bdd & bdd)
                     else
                         #Pluck.interesting_results[:thunk_union_collapse_time] += @elapsed 
                         push!(uniq_worlds, world)
-                        push!(uniq_guards, traced_bdd_and(outer_bdd, bdd, state))
+                        push!(uniq_guards, outer_bdd & bdd)
                         uniq_world_indices[world] = length(uniq_worlds)
                     end
                 end
@@ -101,7 +101,7 @@ struct BDDThunkUnion
             elseif haskey(uniq_world_indices, world)
                 #@warn "Found duplicate world passed to BDDThunkUnion constructor: $world"
                 # Pluck.interesting_results[:thunk_union_collapse_time] += @elapsed 
-                uniq_guards[uniq_world_indices[world]] = traced_bdd_or(uniq_guards[uniq_world_indices[world]], outer_bdd, state)
+                uniq_guards[uniq_world_indices[world]] = uniq_guards[uniq_world_indices[world]] | outer_bdd
             else
                 # Pluck.interesting_results[:thunk_union_collapse_time] += @elapsed 
                 push!(uniq_worlds, world)
@@ -239,52 +239,6 @@ mutable struct BDDEvalState
     end
 end
 
-
-@inline function traced_bdd_and(bdd1::BDD, bdd2::BDD, state::BDDEvalState)
-    bdd1 & bdd2
-    # if length(state.bdd_stats.queries) in []
-    #     withenv("RSDD_DEBUG_ITE" => "1") do
-    #         elapsed_time = @elapsed (result = bdd1 & bdd2)
-    #     end
-    # else
-    #     elapsed_time = @elapsed (result = bdd1 & bdd2)
-    # end
-    # bdd1size = RSDD.bdd_size(bdd1)
-    # bdd2size = RSDD.bdd_size(bdd2)
-    # resultsize = RSDD.bdd_size(result)
-    # push!(state.bdd_stats.queries, BDDQuery(:and, bdd1size, bdd2size, resultsize, elapsed_time))
-
-    # # Record JSON for query #4113.
-    # if length(state.bdd_stats.queries) in []
-    #     println("BDD AND: $bdd1size, $bdd2size, $(RSDD.bdd_size(result))")
-    #     println("BDD AND time: $elapsed_time")
-    #     record_bdd(state, bdd1)
-    #     record_bdd(state, bdd2)
-    #     record_bdd(state, result)
-    # end
-    # return result
-end
-
-@inline function traced_bdd_or(bdd1::BDD, bdd2::BDD, state::BDDEvalState)
-    bdd1 | bdd2
-    # elapsed_time = @elapsed (result = bdd1 | bdd2)
-    # bdd1size = RSDD.bdd_size(bdd1)
-    # bdd2size = RSDD.bdd_size(bdd2)
-    # resultsize = RSDD.bdd_size(result)
-    # push!(state.bdd_stats.queries, BDDQuery(:or, bdd1size, bdd2size, resultsize, elapsed_time))
-    # return result
-end
-
-@inline function traced_bdd_implies(bdd1::BDD, bdd2::BDD, state::BDDEvalState)
-    RSDD.bdd_implies(bdd1, bdd2)
-    # elapsed_time = @elapsed (result = bdd_implies(bdd1, bdd2))
-    # bdd1size = RSDD.bdd_size(bdd1)
-    # bdd2size = RSDD.bdd_size(bdd2)
-    # resultsize = RSDD.bdd_size(result)
-    # push!(state.bdd_stats.queries, BDDQuery(:implies, bdd1size, bdd2size, resultsize, elapsed_time))
-    # return result
-end
-
 function traced_bdd_forward(expr::PExpr, env::Env, available_information::BDD, state::BDDEvalState, strict_order_index::Int)
     # println(repeat(" ", state.depth) * "traced_bdd_forward: $expr")
     # Check whether available_information is false.
@@ -324,35 +278,23 @@ end
 # M (M X) = ([(([(X, InnerGuard)], InnerUsed)), OuterGuard)], Used)
 
 function combine_results(result_sets, used_information::BDD, available_information::BDD, state::BDDEvalState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
-    # TODO: check if determinism still holds
-
     join_results = Vector{World}()
     index_of_result = Dict{Union{Value, Closure, Float64}, Int}()
     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
     int_dist_results = Vector{Tuple{IntDist, BDD}}()
 
     for ((results, used_info), outer_guard) in result_sets
-        #Pluck.interesting_results[:used_info_and_time] += @elapsed 
         if !state.disable_used_information
-            used_information = traced_bdd_and(used_information, traced_bdd_implies(outer_guard, used_info, state), state)
+            used_information = used_information & outer_guard
         end
         for (result, inner_guard) in results
-            # OK, here is a / the bottleneck... is it because we are somehow calling it too many times, or because the individual calls are expensive?
-            #push!(Pluck.interesting_results[:inner_outer_guard_times], (@elapsed 
-            inner_and_outer = traced_bdd_and(inner_guard, outer_guard, state)
-            # if guard_time > 5e-6
-            # println("And-ing $(RSDD.bdd_size(inner_guard)) and $(RSDD.bdd_size(outer_guard))...")
-            # println("Done in $(guard_time) seconds, resulting size $(RSDD.bdd_size(inner_and_outer)).")
-            # Pluck.record_bdd(state, inner_guard)
-            # Pluck.record_bdd(state, outer_guard)
-            # Pluck.record_bdd(state, inner_and_outer)
-            # end
+            inner_and_outer = inner_guard & outer_guard
             if result isa Closure || result isa Float64 || (result isa Value && !state.use_thunk_unions)
                 result_index = Base.get!(index_of_result, result, length(join_results) + 1)
                 if result_index > length(join_results)
                     push!(join_results, (result, inner_and_outer))
                 else
-                    new_guard = traced_bdd_or(join_results[result_index][2], inner_and_outer, state)
+                    new_guard = join_results[result_index][2] | inner_and_outer
                     join_results[result_index] = (join_results[result_index][1], new_guard)
                 end
             elseif state.use_thunk_unions && result isa Value
@@ -380,39 +322,13 @@ function combine_results(result_sets, used_information::BDD, available_informati
                     push!(uniq_world_guards, guard)
                     uniq_world_indices[world] = length(uniq_worlds)
                 else
-                    #println("Combining guards for $constructor: $(RSDD.bdd_size(uniq_worlds[world])), $(RSDD.bdd_size(guard))")
-                    #@time 
-                    uniq_world_guards[uniq_world_indices[world]] = traced_bdd_or(uniq_world_guards[uniq_world_indices[world]], guard, state)
+                    uniq_world_guards[uniq_world_indices[world]] = uniq_world_guards[uniq_world_indices[world]] | guard
                 end
             end
             if length(uniq_worlds) > 1
-                #println(repeat(" ", state.depth) * "Reducing $(length(uniq_worlds)) BDDs for $constructor, of sizes $([Int(RSDD.bdd_size(bdd)) for (_, bdd) in pairs(uniq_worlds)])")
-                # println(repeat(" ", state.depth) * "BDDs:")
-                #for (world, bdd) in pairs(uniq_worlds)
-                #    println(repeat(" ", state.depth) * "$(world.args): $(bdd)")
-                #    Pluck.record_bdd(state, bdd)
-                #end
-                # println(repeat(" ", state.depth) * "Available information: $available_information")
-                # println("Values: $([world for (world, _) in pairs(uniq_worlds)])")
-                #@time 
-                #Pluck.interesting_results[:guard_reduce_time] += @elapsed 
-                overall_guard = reduce((x, y) -> traced_bdd_or(x, y, state), uniq_world_guards)
-                # overall_guard = state.BDD_FALSE
-                # for (_, bdd) in pairs(uniq_worlds) # in sort([bdd for (_, bdd) in pairs(uniq_worlds)], by = x -> Int(bdd_size(x)))
-                #     println("$(bdd_size(overall_guard)), $(bdd_size(bdd))")
-                #     @time overall_guard = overall_guard | bdd
-                # end
-                #println("Number of ors: $(length(uniq_worlds))")
-                # println("Overall guard size: $(RSDD.bdd_size(overall_guard))")
-                #simplified_args = [simplify_thunk_union(BDDThunkUnion([(world.args[i], bdd) for (world, bdd) in pairs(uniq_worlds)]), available_information, state) for i = 1:length(Pluck.args_of_constructor(constructor))]
-                #used_information = used_information & reduce(&, [used_info for (_, used_info) in simplified_args])
+                overall_guard = reduce((x, y) -> x | y, uniq_world_guards)
                 overall_args = [(BDDThunkUnion([(world.args[i], bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)], state)) for i = 1:length(Pluck.args_of_constructor(constructor))]
                 overall_value = Value(constructor, overall_args)
-                #overall_value = Value(Pluck.spt_of_constructor[constructor], constructor, [simplified_args[i][1] for i = 1:length(Pluck.args_of_constructor(constructor))])
-                # println(repeat(" ", state.depth) * "Overall value: S $(overall_value.args)")
-                #if overall_value.args[1] isa BDDThunkUnion
-                #    println(repeat(" ", state.depth) * "thunk union: $([(thunk.expr, bdd) for (thunk, bdd) in overall_value.args[1].thunks])")
-                #end
                 push!(join_results, (overall_value, overall_guard))
             else
                 push!(join_results, [(world, bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)]...)
@@ -433,7 +349,7 @@ function combine_int_dists(int_dist_results, state)
     overall_guard = state.BDD_FALSE
     for (int_dist, guard) in int_dist_results
         # should we compute an overall guard?
-        overall_guard = traced_bdd_or(overall_guard, guard, state)
+        overall_guard = overall_guard | guard
         @assert width == length(int_dist.bits)
         # For each bit, AND it with the guard then OR it into the result.
         for i = 1:width
@@ -441,8 +357,8 @@ function combine_int_dists(int_dist_results, state)
             # or if it should be (guard implies bit) iff acc
             # (both give the same result on a very simple example I did)
 
-            @inbounds new_bit = traced_bdd_and(int_dist.bits[i], guard, state)
-            @inbounds result.bits[i] = traced_bdd_or(result.bits[i], new_bit, state)
+            @inbounds new_bit = int_dist.bits[i] & guard
+            @inbounds result.bits[i] = result.bits[i] | new_bit
         end
     end
     return (result, overall_guard)
@@ -451,8 +367,7 @@ end
 function evaluate(thunk::BDDThunkUnion, available_information::BDD, state::BDDEvalState)
     intermediate_results = []
     for (result, guard) in thunk.thunks
-        #Pluck.interesting_results[:thunk_union_and_time] += @elapsed 
-        new_guard = traced_bdd_and(available_information, guard, state)
+        new_guard = available_information & guard
         push!(intermediate_results, (evaluate(result, new_guard, state), guard))
     end
 
@@ -465,24 +380,9 @@ function evaluate(thunk::BDDThunk, available_information::BDD, state::BDDEvalSta
     end
 
     # Check the cache
-    #start_time = time()
     for (bdd, results) in thunk.cache
-        #Pluck.interesting_results[:check_cache_time] += @elapsed 
-        does_cache_hit = bdd_is_true(traced_bdd_implies(available_information, bdd, state))
+        does_cache_hit = bdd_is_true(available_information & bdd)
         if does_cache_hit
-            #finish_time = time()
-            #println(repeat(" ", state.depth) * "$(thunk.expr) (cached, $((finish_time - start_time) * 1000) ms.)")
-            # TODO: Try filtering the results with the available information?
-            # used_information = bdd
-            # returned_results = []
-            # for (result, guard) in results
-            #     Pluck.interesting_results[:used_info_cache_filter_time] += @elapsed can_filter = bdd_is_false(available_information & guard)
-            #     if can_filter
-            #         Pluck.interesting_results[:used_info_cache_filter_time] += @elapsed used_information = used_information & bdd_implies(guard, state.BDD_FALSE)
-            #     else
-            #         push!(returned_results, (result, guard))
-            #     end
-            # end
             return (results, bdd)
         end
     end
@@ -528,8 +428,8 @@ function bdd_forward(expr::App, env::Env, available_information::BDD, state::BDD
         new_env = copy(f.env)
         x = thunked_argument
         pushfirst!(new_env, x)
-        results, used_info = traced_bdd_forward(f.expr, new_env, traced_bdd_and(available_information, f_guard, state), state, 2)
-        return results, traced_bdd_and(used_information, used_info, state)
+        results, used_info = traced_bdd_forward(f.expr, new_env, available_information & f_guard, state, 2)
+        return results, used_information & used_info
     end
 end
 
@@ -540,8 +440,6 @@ end
 
 function bdd_forward(expr::Construct, env::Env, available_information::BDD, state::BDDEvalState)
     # Constructors deterministically evaluate to a WHNF value, with their arguments thunked.
-    # Look up type of this constructor.
-    spt = Pluck.spt_of_constructor[expr.constructor]
     # Create a thunk for each argument.
     thunked_arguments = [BDDThunk(arg, env, state.callstack, Symbol("$(expr.constructor).arg$i"), i, state) for (i, arg) in enumerate(expr.args)] # TODO: use global args_syms to avoid runtime cost of Symbol?
     # Return the constructor and its arguments.
@@ -560,7 +458,7 @@ function bdd_forward(expr::CaseOf, env::Env, available_information::BDD, state::
         #println("Scrutinee val args: $(scrutinee.args)")
         if scrutinee.constructor in expr.constructors
             case_expr = expr.cases[scrutinee.constructor]
-            num_args = length(args_of_constructor(scrutinee.constructor))
+            num_args = length(args_of_constructor[scrutinee.constructor])
             updated_guard = bdd_and(scrutinee_guard, available_information)
             # println("Size of updated guard: $(RSDD.bdd_size(updated_guard))")
             # if RSDD.bdd_size(updated_guard) == 0
@@ -586,7 +484,7 @@ function bdd_forward(expr::CaseOf, env::Env, available_information::BDD, state::
                 end
                 # new_env = vcat(reverse(scrutinee.args), env)
                 results, used_info = traced_bdd_forward(case_expr, new_env, updated_guard, state, constructor_indices[scrutinee.constructor])
-                return results, traced_bdd_and(used_information, used_info, state)
+                return results, used_information & used_info
             end
         else
             # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
@@ -821,14 +719,14 @@ function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_j
                 for (bit_idx, bit_val) in enumerate(bits)
                     bit_formula = val.bits[bit_idx]
                     if bit_val
-                        bit_bdd = traced_bdd_and(bit_bdd, bit_formula, state)
+                        bit_bdd = bit_bdd & bit_formula
                     else
-                        bit_bdd = traced_bdd_and(bit_bdd, RSDD.bdd_negate(bit_formula), state)
+                        bit_bdd = bit_bdd & ~bit_formula
                     end
                 end
 
                 # AND with the original BDD and add to results
-                push!(enumerated_ret, (i, traced_bdd_and(bit_bdd, bdd, state)))
+                push!(enumerated_ret, (i, bit_bdd & bdd))
             end
         else
             push!(enumerated_ret, (val, bdd))
@@ -1041,7 +939,7 @@ function infer_full_distribution(initial_results, state)
             # Create a copy of the value with this thunk replaced
             new_val = replace_at_path(current_val, thunk_path, sub_val)
             # Add to queue with conjunction of bdds
-            push!(queue, (new_val, traced_bdd_and(current_bdd, sub_bdd, state)))
+            push!(queue, (new_val, current_bdd & sub_bdd))
         end
     end
 

@@ -4,7 +4,6 @@ export DEFINITIONS,
 struct Definition
     name::Symbol
     expr::PExpr
-    type::Union{PType,Nothing}
 end
 
 DUMMY_EXPRESSION = Construct(:Unit, PExpr[])
@@ -15,17 +14,15 @@ macro define(name, str)
     :(define($(QuoteNode(name)), $str))
 end
 
-macro define(name, typestr, str)
-    :(define($(QuoteNode(name)), $str; typestr=$typestr))
-end
-
-function define(name, str; typestr=nothing)
+function define(name, str)
     name = Symbol(name)
-    type = typestr === nothing ? nothing : parse_type(typestr)
-    DEFINITIONS[name] = Definition(name, DUMMY_EXPRESSION, type)
+    if haskey(DEFINITIONS, name)
+        @warn "definition for $name already exists, overwriting"
+    end
+    DEFINITIONS[name] = Definition(name, DUMMY_EXPRESSION)
     try
         expr = parse_expr(str)
-        DEFINITIONS[name] = Definition(name, expr, type)
+        DEFINITIONS[name] = Definition(name, expr)
     catch e
         delete!(DEFINITIONS, name)
         rethrow(e)
