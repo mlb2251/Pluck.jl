@@ -1,7 +1,6 @@
 export DEFINITIONS,
     @define, @lookup, reset_definitions, define
 
-
 struct Definition
     name::Symbol
     expr::PExpr

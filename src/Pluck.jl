@@ -19,7 +19,6 @@ include("likelihood/addresses.jl")
 include("likelihood/lazy_enumerator.jl")
 include("language/subexprs.jl")
 include("language/grammar.jl")
-include("language/definitions.jl")
 include("likelihood/bdd.jl")
 include("likelihood/bdd_suspend.jl")
 include("likelihood/bdd_eager.jl")
@@ -30,6 +29,6 @@ include("likelihood/bdd_viz.jl")
 
 export get_rsdd_time, clear_rsdd_time!, @rsdd_time
 
-def_constructors()
+prims_minimal()
 load_pluck_file(joinpath(@__DIR__, "language", "stdlib.pluck"))
 end # module
