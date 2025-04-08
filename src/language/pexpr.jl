@@ -568,9 +568,9 @@ function parse_expr_inner(tokens, defs, env)
                 push!(args, arg)
             end
             return Construct(spt, constructor, args), view(tokens, 2:length(tokens))
-        elseif haskey(primop_of_name, token) && !haskey(defs, Symbol(token))
-            op_type = primop_of_name[token]
-            arity = arity_of_primop[op_type]
+        elseif has_prim(token) && !haskey(defs, Symbol(token))
+            op_type = lookup_prim(token)
+            arity = prim_arity(op_type)
             tokens = view(tokens, 2:length(tokens))
             type_params, tokens = parse_type_params(tokens)
             op = op_type(type_params...)
