@@ -28,6 +28,8 @@ include("likelihood/posterior_sample.jl")
 include("language/toplevel.jl")
 include("likelihood/bdd_viz.jl")
 
+export get_rsdd_time, clear_rsdd_time!, @rsdd_time
+
 def_constructors()
 load_pluck_file(joinpath(@__DIR__, "language", "stdlib.pluck"))
 end # module
