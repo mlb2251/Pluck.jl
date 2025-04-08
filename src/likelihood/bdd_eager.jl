@@ -360,7 +360,7 @@ end
 
 function bdd_forward(expr::Defined, env::Env, state::BDDStrictEvalState)
     # Execute Defined with a blanked out environment.
-    return traced_bdd_forward(Pluck.get_def(expr.name).expr, Pluck.EMPTY_ENV, state)
+    return traced_bdd_forward(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, state)
 end
 
 function bdd_forward(expr::Root, env::Env, state::BDDStrictEvalState)

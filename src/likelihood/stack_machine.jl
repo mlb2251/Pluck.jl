@@ -649,7 +649,7 @@ function process(frame::ConstrainFrame, expr::Defined, step, outputs, state, eva
     # always execute Defined with a blanked out environment
     if step == 1
         return ConstrainFrame(
-            get_def(expr.name).expr,
+            lookup(expr.name).expr,
             EMPTY_ENV,
             frame.output,
             frame.spn,
@@ -664,7 +664,7 @@ function process(frame::ForwardFrame, expr::Defined, step, outputs, state, eval_
     # always execute Defined with a blanked out environment
     if step == 1
         return ForwardFrame(
-            get_def(expr.name).expr,
+            lookup(expr.name).expr,
             EMPTY_ENV,
             frame.spn,
             expr.name

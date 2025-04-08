@@ -18,13 +18,12 @@ macro define(name, str)
 end
 
 macro define(name, typestr, str)
-    :(define($(QuoteNode(name)), $typestr, $str))
+    :(define($(QuoteNode(name)), $str; typestr=$typestr))
 end
 
-
-function define(name, typestr, str)
+function define(name, str; typestr=nothing)
     name = Symbol(name)
-    type = parse_type(typestr)
+    type = typestr === nothing ? nothing : parse_type(typestr)
     DEFINITIONS[name] = Definition(name, DUMMY_EXPRESSION, type, false)
     try
         expr = parse_expr(str)
@@ -36,26 +35,8 @@ function define(name, typestr, str)
     return name
 end
 
-function define(name, str)
-    name = Symbol(name)
-    DEFINITIONS[name] = Definition(name, DUMMY_EXPRESSION, nothing, false)
-    try
-        expr = parse_expr(str)
-        DEFINITIONS[name] = Definition(name, expr, nothing, is_random(expr))
-    catch e
-        delete!(DEFINITIONS, name)
-        rethrow(e)
-    end
-    return name
-end
-
-function get_def(name::Symbol)::Definition
+function lookup(name::Symbol)::Definition
     DEFINITIONS[name]
-end
-
-
-macro lookup(name)
-    :(DEFINITIONS[$(QuoteNode(name))])
 end
 
 function reset_definitions()

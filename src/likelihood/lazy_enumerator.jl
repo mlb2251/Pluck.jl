@@ -423,7 +423,7 @@ end
 
 function lazy_enumerate(expr::Defined, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     # Execute Defined with a blanked out environment.
-    return traced_lazy_enumerate(Pluck.get_def(expr.name).expr, Pluck.EMPTY_ENV, trace, state, expr.name)
+    return traced_lazy_enumerate(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, trace, state, expr.name)
 end
 
 function lazy_enumerate(expr::Root, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)

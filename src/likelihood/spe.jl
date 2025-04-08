@@ -1110,7 +1110,7 @@ function constrain(expr::Defined, env, output, spn::SPN, eval_state::EvalState)
     # TODO: using stale symbols?
     # always execute Defined with a blanked out environment
     return traced_constrain(
-        get_def(expr.name).expr,
+        lookup(expr.name).expr,
         EMPTY_ENV,
         output,
         spn,
@@ -1122,7 +1122,7 @@ end
 function forward(expr::Defined, env, spn::SPN, eval_state::EvalState)
     # TODO: using stale symbols?
     # always execute Defined with a blanked out environment
-    return traced_forward(get_def(expr.name).expr, EMPTY_ENV, spn, eval_state, expr.name)
+    return traced_forward(lookup(expr.name).expr, EMPTY_ENV, spn, eval_state, expr.name)
 end
 
 function constrain(expr::Root, env, output, spn::SPN, eval_state::EvalState)

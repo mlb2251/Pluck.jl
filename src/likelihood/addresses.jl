@@ -248,7 +248,7 @@ function reachable_scope(e::App, env, state)
 end
 
 reachable_scope(e::Defined, env, state) =
-    traced_reachable_scope(get_def(e.name).expr, EMPTY_ENV, state, e.name)
+    traced_reachable_scope(lookup(e.name).expr, EMPTY_ENV, state, e.name)
 reachable_scope(e::Root, env, state) = reachable_scope(e.body, env, state)
 
 function reachable_scope(e::CaseOf, env, state)

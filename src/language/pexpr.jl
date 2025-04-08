@@ -895,7 +895,7 @@ is_random(e::ConstBool) = false
 is_random(e::If) = is_random(e.cond) || is_random(e.then_expr) || is_random(e.else_expr)
 is_random(e::Ylamlam) = is_random(e.body)
 is_random(e::Y) = is_random(e.f)
-is_random(e::Defined) = get_def(e.name).is_random
+is_random(e::Defined) = lookup(e.name).is_random
 is_random(e::Root) = is_random(e.body)
 is_random(e::PrimOp) = is_random(e.op) || any(is_random(arg) for arg in e.args)
 is_random(e::NullExpr) = false
@@ -1181,7 +1181,7 @@ struct ChildInfo
 end
 
 
-get_func_type(f::Defined, env) = get_def(f.name).type::PType
+get_func_type(f::Defined, env) = lookup(f.name).type::PType
 get_func_type(f::Var, env) = env[f.idx]
 function get_func_type(y::Y, env)
     @assert !isnothing(y.t0) && !isnothing(y.t1) "y operator type annotation required for inference"

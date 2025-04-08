@@ -795,7 +795,7 @@ end
 
 function bdd_forward(expr::Defined, env::Env, available_information::BDD, state::BDDEvalState)
     # Execute Defined with a blanked out environment.
-    return traced_bdd_forward(Pluck.get_def(expr.name).expr, Pluck.EMPTY_ENV, available_information, state, 0)
+    return traced_bdd_forward(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, available_information, state, 0)
 end
 
 function bdd_forward(expr::Root, env::Env, available_information::BDD, state::BDDEvalState)
@@ -1124,7 +1124,7 @@ end
 # end
 
 # function resolve_callstack_in_pexpr(pexpr::Defined, callstack::Callstack, env)
-#     return resolve_callstack_in_pexpr(Pluck.get_def(pexpr.name).expr, callstack, [])
+#     return resolve_callstack_in_pexpr(Pluck.lookup(pexpr.name).expr, callstack, [])
 # end
 
 

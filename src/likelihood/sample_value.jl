@@ -188,7 +188,7 @@ end
 
 function sample_value_forward(expr::Defined, env::Env, state::SampleValueState)
     # Execute Defined with a blanked out environment.
-    return traced_sample_value(Pluck.get_def(expr.name).expr, Pluck.EMPTY_ENV, state, 0)
+    return traced_sample_value(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, state, 0)
 end
 
 function sample_value_forward(expr::Root, env::Env, state::SampleValueState)
