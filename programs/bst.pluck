@@ -22,7 +22,7 @@
           (isBST right n max-val)))))
 
 (define (random-tree fuel)
-  (if (or (== fuel 0) (flip 0.1))
+  (if (or (nat=? fuel 0) (flip 0.1))
     (Leaf)
     (let ((left  (random-tree (- fuel 1)))
           (right (random-tree (- fuel 1))))
@@ -38,7 +38,7 @@
  (let ((tree (random-tree 4)))
    (PosteriorSamples
     tree
-    (and (== (length (nodes tree)) 8)
+    (and (nat=? (length (nodes tree)) 8)
          (isBST tree 0 10))
     500)))
 

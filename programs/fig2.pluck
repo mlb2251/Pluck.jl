@@ -7,7 +7,7 @@
 (query
  first-two-elements-are-zero
  (Marginal
-  (list=? ==
+  (list=? nat=?
           (take 2 (mkSortedList 0))
           (Cons 0 (Cons 0 (Nil))))))
 
@@ -16,8 +16,8 @@
  (let ((xs (mkSortedList 0)))
    (Posterior
     (index 1 xs)
-    (and (== (index 0 xs) 2)
-         (== (index 2 xs) 5)))))
+    (and (nat=? (index 0 xs) 2)
+         (nat=? (index 2 xs) 5)))))
 
 (query
  posterior-samples-given-sixth-elem-is-3
@@ -26,6 +26,6 @@
     ;; Query
     xs
     ;; Evidence
-    (== (index 5 xs) 3)
+    (nat=? (index 5 xs) 3)
     ;; Number of samples
     15)))
