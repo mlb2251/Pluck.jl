@@ -449,14 +449,14 @@ end
 function bdd_forward(expr::CaseOf, env::Env, available_information::BDD, state::BDDEvalState)
     scrutinee_values, scrutinee_used_information = traced_bdd_forward(expr.scrutinee, env, available_information, state, 0)
     constructor_indices = Dict{Symbol, Int}()
-    for (i, constructor) in enumerate(expr.constructors) # sort? reverse?
+    for (i, constructor) in enumerate(keys(expr.cases)) # sort? reverse?
         constructor_indices[constructor] = i
     end
     bdd_bind(scrutinee_values, available_information, scrutinee_used_information, state) do scrutinee, scrutinee_guard
         #println("Evaluated scrutinee expression $(expr.scrutinee)")
         #println("SCrutinee type: $(typeof(scrutinee))")
         #println("Scrutinee val args: $(scrutinee.args)")
-        if scrutinee.constructor in expr.constructors
+        if scrutinee.constructor in keys(expr.cases)
             case_expr = expr.cases[scrutinee.constructor]
             num_args = length(args_of_constructor[scrutinee.constructor])
             updated_guard = bdd_and(scrutinee_guard, available_information)

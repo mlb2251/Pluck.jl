@@ -109,7 +109,7 @@ function parse_expr_inner(tokens, defs, env)
             tokens[1] != ")" && error("expected closing paren")
             # Parse as a CaseOf expression.
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
-            return CaseOf(cond, Dict(:True => then_expr, :False => else_expr), [:True, :False]), view(tokens, 2:length(tokens))
+            return CaseOf(cond, OrderedDict(:True => then_expr, :False => else_expr)), view(tokens, 2:length(tokens))
         elseif token == "ylamlam"
             # Parse a Y lam lam
             tokens = view(tokens, 2:length(tokens))
@@ -134,8 +134,7 @@ function parse_expr_inner(tokens, defs, env)
             scrutinee, tokens = parse_expr_inner(tokens, defs, env)
             @assert tokens[1] == "of" || token == "match"
             tokens[1] == "of" && (tokens = view(tokens, 2:length(tokens)))
-            cases = Dict()
-            constructors = []
+            cases = OrderedDict{Symbol, PExpr}()
             while tokens[1] != ")"
                 constructor = Symbol(tokens[1])
                 tokens = view(tokens, 2:length(tokens))
@@ -158,14 +157,13 @@ function parse_expr_inner(tokens, defs, env)
                         body = Abs(body, arg)
                     end
                 end
-                @assert !in(constructor, constructors) "duplicate constructor in case..of"
-                push!(constructors, constructor)
+                @assert !haskey(cases, constructor) "duplicate constructor $constructor in case..of"
                 cases[constructor] = body
                 if tokens[1] == "|"
                     tokens = view(tokens, 2:length(tokens))
                 end
             end
-            return CaseOf(scrutinee, cases, constructors), view(tokens, 2:length(tokens))
+            return CaseOf(scrutinee, cases), view(tokens, 2:length(tokens))
         elseif token == "let"
             # Parse a let expression
             tokens = view(tokens, 2:length(tokens))

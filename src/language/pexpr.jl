@@ -1,5 +1,7 @@
 export PExpr, Primitive, Var, App, Abs, Y, Defined, PrimOp, ConstReal, CaseOf, Construct, RawInt
 
+import DataStructures: OrderedDict
+
 abstract type PExpr end
 abstract type Primitive end
 
@@ -145,8 +147,7 @@ Base.hash(e::ConstReal, h::UInt) = hash(e.val, hash(:ConstReal, h))
 
 mutable struct CaseOf <: PExpr
     scrutinee::PExpr
-    cases::Dict{Symbol,PExpr}
-    constructors::Vector{Symbol} # for deterministic enumeration of the cases
+    cases::OrderedDict{Symbol,PExpr}
 end
 
 var_is_free(e::CaseOf, var) =
@@ -154,9 +155,9 @@ var_is_free(e::CaseOf, var) =
 shortname(e::CaseOf) = "CaseOf"
 function Base.show(io::IO, e::CaseOf)
     print(io, "(case ", e.scrutinee, " of ")
-    for (i, constructor) in enumerate(e.constructors)
-        print(io, constructor, " => ", e.cases[constructor])
-        if i < length(e.constructors)
+    for (i, (constructor, case)) in enumerate(e.cases)
+        print(io, constructor, " => ", case)
+        if i < length(e.cases)
             print(io, " | ")
         end
     end
@@ -164,15 +165,13 @@ function Base.show(io::IO, e::CaseOf)
 end
 Base.copy(e::CaseOf) = CaseOf(
     copy(e.scrutinee),
-    Dict(constructor => copy(e.cases[constructor]) for constructor in keys(e.cases)),
-    copy(e.constructors),
+    OrderedDict(constructor => copy(e.cases[constructor]) for constructor in keys(e.cases)),
 )
 Base.:(==)(a::CaseOf, b::CaseOf) =
     a.scrutinee == b.scrutinee &&
-    a.constructors == b.constructors &&
-    all(constructor -> a.cases[constructor] == b.cases[constructor], a.constructors)
+    a.cases == b.cases
 Base.hash(e::CaseOf, h::UInt) =
-    hash(e.scrutinee, hash(e.cases, hash(e.constructors, hash(:CaseOf, h))))
+    hash(e.scrutinee, hash(e.cases, hash(:CaseOf, h)))
 
 mutable struct Construct <: PExpr
     constructor::Symbol

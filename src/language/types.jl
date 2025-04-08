@@ -1,6 +1,4 @@
 
-
-
 const type_of_constructor = Dict{Symbol,Symbol}()
 const constructors_of_type = Dict{Symbol,Vector{Symbol}}()
 const args_of_constructor = Dict{Symbol,Vector{Symbol}}()
@@ -17,13 +15,9 @@ function define_type!(type::Symbol, constructors::Dict{Symbol,Vector{Symbol}})
     nothing
 end
 
-
-
 define_type!(:nat, Dict(:S => Symbol[:nat], :O => Symbol[]))
 define_type!(:list, Dict(:Nil => Symbol[], :Cons => Symbol[:nat, :list]))
 define_type!(:snoclist, Dict(:SNil => Symbol[], :Snoc => Symbol[:snoclist, :nat]))
 define_type!(:bool, Dict(:True => Symbol[], :False => Symbol[]))
 define_type!(:unit, Dict(:Unit => Symbol[]))
-
-
 

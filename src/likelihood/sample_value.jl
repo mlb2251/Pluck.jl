@@ -63,7 +63,7 @@ end
 function sample_value_forward(expr::CaseOf, env::Env, state::SampleValueState)
     scrutinee_value = traced_sample_value(expr.scrutinee, env, state, 0)
     constructor_indices = Dict{Symbol, Int}()
-    for (i, constructor) in enumerate(expr.constructors) # sort? reverse?
+    for (i, constructor) in enumerate(keys(expr.cases)) # sort? reverse?
         constructor_indices[constructor] = i
     end
 

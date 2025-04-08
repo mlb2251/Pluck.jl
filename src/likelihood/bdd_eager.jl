@@ -203,9 +203,9 @@ function bdd_forward(expr::CaseOf, env::Env, state::BDDStrictEvalState)
     scrutinee_values = traced_bdd_forward(expr.scrutinee, env, state)
 
     bdd_bind(scrutinee_values, state) do scrutinee, scrutinee_guard
-        if scrutinee.constructor in expr.constructors
+        if scrutinee.constructor in keys(expr.cases)
             case_expr = expr.cases[scrutinee.constructor]
-            num_args = length(args_of_constructor(scrutinee.constructor))
+            num_args = length(args_of_constructor[scrutinee.constructor])
             if num_args == 0
                 return traced_bdd_forward(case_expr, env, state)
             else
