@@ -4,7 +4,6 @@ authors = ["Alex Lew <alexlew@mit.edu>", "Maddy Bowers <mlbowers@mit.edu>"]
 version = "0.1.0"
 
 [deps]
-AutoHashEquals = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 FunctionalCollections = "de31a74c-ac4f-5751-b3fd-e18cd04993ca"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"

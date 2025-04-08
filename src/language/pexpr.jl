@@ -179,7 +179,6 @@ Base.hash(e::CaseOf, h::UInt) =
     hash(e.scrutinee, hash(e.cases, hash(e.constructors, hash(:CaseOf, h))))
 
 mutable struct Construct <: PExpr
-    spt::SumProductType
     constructor::Symbol
     args::Vector{PExpr}
 end
@@ -199,19 +198,17 @@ function Base.show(io::IO, e::Construct)
     print(io, ")")
 end
 function maybe_const(e::Construct)
-    if e.spt.name == :nat
-        if e.constructor == :O
-            return 0
-        end
-        @assert e.constructor == :S
+    if e.constructor == :O
+        return 0
+    elseif e.constructor == :S
         inner = maybe_const(e.args[1])
         isnothing(inner) && return nothing
         return inner + 1
     end
     return nothing
 end
-Base.copy(e::Construct) = Construct(e.spt, e.constructor, [copy(arg) for arg in e.args])
+Base.copy(e::Construct) = Construct(e.constructor, [copy(arg) for arg in e.args])
 Base.:(==)(a::Construct, b::Construct) =
-    a.spt.name === b.spt.name && a.constructor === b.constructor && a.args == b.args
+    a.constructor === b.constructor && a.args == b.args
 Base.hash(e::Construct, h::UInt) =
-    hash(e.spt.name, hash(e.constructor, hash(e.args, hash(:Construct, h))))
+    hash(e.constructor, hash(e.args, hash(:Construct, h)))

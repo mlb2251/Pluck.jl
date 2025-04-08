@@ -1,20 +1,12 @@
-using AutoHashEquals
 
-export BaseType,
-    Arrow,
-    PType,
-    parse_type,
-    return_type,
-    expansion_targets,
-    arg_types,
-    args_of_constructor
-
-
-export Constructor, SumProductType, Value, value, nat, list, constructors, snoclist
 abstract type PType end
 
+struct BaseType <: PType
+    name::Symbol
+end
+Base.:(==)(x::BaseType, y::BaseType) = x.name === y.name
 
-@auto_hash_equals struct Arrow <: PType
+struct Arrow <: PType
     arg_types::Vector{PType}
     return_type::PType
 
@@ -23,33 +15,18 @@ abstract type PType end
     Arrow(arg_types, return_type::Arrow) =
         new(vcat(arg_types, return_type.arg_types), return_type.return_type)
 end
-
-@auto_hash_equals struct BaseType <: PType
-    name::Symbol
-end
-
-"""
-Like (list (list int)) and such
-"""
-@auto_hash_equals struct TypeConstructor <: PType
-    name::Symbol
-    args::Vector{PType}
-end
-
-
-
+Base.:(==)(x::Arrow, y::Arrow) = x.return_type === y.return_type && all(x.arg_types .== y.arg_types)
 
 mutable struct SumProductType
     name::Symbol
-    constructors::Dict{Symbol, Vector{Symbol}}
+    constructors::Dict{Symbol,Vector{Symbol}}
 end
 Base.:(==)(x::SumProductType, y::SumProductType) = x.name === y.name
 
-const spt_of_constructor = Dict{Symbol, SumProductType}()
-const type_of_spt = Dict{Symbol, PType}()
+const spt_of_constructor = Dict{Symbol,SumProductType}()
+const type_of_spt = Dict{Symbol,PType}()
 
-
-function define_type!(name::Symbol, constructors::Dict{Symbol, Vector{Symbol}})
+function define_type!(name::Symbol, constructors::Dict{Symbol,Vector{Symbol}})
     spt = SumProductType(name, constructors)
     for constructor in keys(constructors)
         spt_of_constructor[constructor] = spt
@@ -63,11 +40,11 @@ function define_type!(name::Symbol, constructors::Dict{Symbol, Vector{Symbol}})
     return spt
 end
 
-const nat = define_type!(:nat, Dict(:S => Symbol[:nat], :O => Symbol[]))
-const list = define_type!(:list, Dict(:Nil => Symbol[], :Cons => Symbol[:nat, :list]))
-const snoclist = define_type!(:snoclist, Dict(:SNil => Symbol[], :Snoc => Symbol[:snoclist, :nat]))
-const bool = define_type!(:bool, Dict(:True => Symbol[], :False => Symbol[]))
-const unit = define_type!(:unit, Dict(:Unit => Symbol[]))
+define_type!(:nat, Dict(:S => Symbol[:nat], :O => Symbol[]))
+define_type!(:list, Dict(:Nil => Symbol[], :Cons => Symbol[:nat, :list]))
+define_type!(:snoclist, Dict(:SNil => Symbol[], :Snoc => Symbol[:snoclist, :nat]))
+define_type!(:bool, Dict(:True => Symbol[], :False => Symbol[]))
+define_type!(:unit, Dict(:Unit => Symbol[]))
 
 function args_of_constructor(name::Symbol)
     spt_of_constructor[name].constructors[name]
@@ -77,20 +54,15 @@ end
 
 num_args(::BaseType) = 0
 num_args(t::Arrow) = length(t.arg_types)
-num_args(t::TypeConstructor) = 0
 
 return_type(t::BaseType) = t
 return_type(t::Arrow) = t.return_type
-return_type(t::TypeConstructor) = t
 
 arg_types(::BaseType) = PType[]
 arg_types(t::Arrow) = t.arg_types
-arg_types(::TypeConstructor) = PType[]
 
 Base.show(io::IO, t::BaseType) = print(io, t.name)
-Base.show(io::IO, t::Arrow) =
-    print(io, "(", join(t.arg_types, " -> "), " -> ", t.return_type, ")")
-Base.show(io::IO, t::TypeConstructor) = print(io, "(", t.name, " ", join(t.args, " "), ")")
+Base.show(io::IO, t::Arrow) = print(io, "(", join(t.arg_types, " -> "), " -> ", t.return_type, ")")
 
 Base.parse(::Type{PType}, s::String) = parse_type(s)
 parse_type(s::String) = parse_type(tokenize(s))
@@ -142,9 +114,6 @@ function parse_type(tokens)
         return types[1]
     elseif connective === :arrow
         return Arrow(types[1:end-1], types[end])
-    elseif connective === :constructor
-        @assert types[1] isa BaseType
-        return TypeConstructor(types[1].name, types[2:end])
     end
     error("unreachable")
 end

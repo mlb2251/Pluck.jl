@@ -407,7 +407,7 @@ function combine_results(result_sets, used_information::BDD, available_informati
                 #simplified_args = [simplify_thunk_union(BDDThunkUnion([(world.args[i], bdd) for (world, bdd) in pairs(uniq_worlds)]), available_information, state) for i = 1:length(Pluck.args_of_constructor(constructor))]
                 #used_information = used_information & reduce(&, [used_info for (_, used_info) in simplified_args])
                 overall_args = [(BDDThunkUnion([(world.args[i], bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)], state)) for i = 1:length(Pluck.args_of_constructor(constructor))]
-                overall_value = Value(Pluck.spt_of_constructor[constructor], constructor, overall_args)
+                overall_value = Value(constructor, overall_args)
                 #overall_value = Value(Pluck.spt_of_constructor[constructor], constructor, [simplified_args[i][1] for i = 1:length(Pluck.args_of_constructor(constructor))])
                 # println(repeat(" ", state.depth) * "Overall value: S $(overall_value.args)")
                 #if overall_value.args[1] isa BDDThunkUnion
@@ -545,7 +545,7 @@ function bdd_forward(expr::Construct, env::Env, available_information::BDD, stat
     # Create a thunk for each argument.
     thunked_arguments = [BDDThunk(arg, env, state.callstack, Symbol("$(expr.constructor).arg$i"), i, state) for (i, arg) in enumerate(expr.args)] # TODO: use global args_syms to avoid runtime cost of Symbol?
     # Return the constructor and its arguments.
-    return [(Value(spt, expr.constructor, thunked_arguments), state.BDD_TRUE)], state.BDD_TRUE
+    return [(Value(expr.constructor, thunked_arguments), state.BDD_TRUE)], state.BDD_TRUE
 end
 
 function bdd_forward(expr::CaseOf, env::Env, available_information::BDD, state::BDDEvalState)
@@ -943,8 +943,8 @@ function bdd_normalize(results)
 end
 
 function io_constrain(expr, io, eval_state::BDDEvalState)
-    inputs = make_list_from_julia_list.(from_value.(io.inputs))
-    output = make_list_from_julia_list(from_value(io.output))
+    inputs = pluck_list.(from_value.(io.inputs))
+    output = pluck_list(from_value(io.output))
 
     # wrap in lambdas
     for _ = 1:length(inputs)
@@ -1093,5 +1093,5 @@ function replace_at_path(val::Value, path::Vector{Int}, new_val)
         new_args[path[1]] = replace_at_path(val.args[path[1]], path[2:end], new_val)
     end
     
-    return Value(val.spt, val.constructor, new_args)
+    return Value(val.constructor, new_args)
 end

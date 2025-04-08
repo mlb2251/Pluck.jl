@@ -57,7 +57,7 @@ function sample_value_forward(expr::Construct, env::Env, state::SampleValueState
     # Evaluate each argument.
     evaluated_arguments = [(state.lazy ? BDDThunk(arg, env, state.callstack, Symbol("lazy_arg$(i)"), i, nothing) : traced_sample_value(arg, env, state, i)) for (i, arg) in enumerate(expr.args)]
     # Return the constructor and its arguments.
-    return Value(spt, expr.constructor, evaluated_arguments)
+    return Value(expr.constructor, evaluated_arguments)
 end
 
 function sample_value_forward(expr::CaseOf, env::Env, state::SampleValueState)

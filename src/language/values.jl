@@ -1,39 +1,16 @@
-export Closure,
-    YClosure,
-    List,
-    Nil,
-    Cons,
-    int_nan,
-    scm_list,
-    out_of_range,
-    scm_nat,
-    peano_str,
-    peano,
-    Thunk,
-    to_snoc
-
-export to_value, from_value, string_repr
+export pluck_list
 
 # result of evaluating a lambda. Takes 1 argument.
 mutable struct Closure
     expr::PExpr
     env::Vector{Any}
-    # linear :: Bool
-
-    function Closure(expr, env)
-        new(expr, env)
-    end
 end
 
 function make_self_loop(body, env)
     new_env = copy(env)
     pushfirst!(new_env, missing) # placeholder for the self-reference
     closure = Closure(body, new_env)
-    # pushfirst!(closure.env, missing) # placeholder for the self-reference
-    # now put in the actual self reference – if it was used (ie set to Nothing)
-    if ismissing(closure.env[1])
-        closure.env[1] = closure
-    end
+    closure.env[1] = closure # overwrite the Missing with the closure itself
     closure
 end
 
@@ -46,13 +23,7 @@ function Base.:(==)(x::Closure, y::Closure)
 end
 function Base.hash(x::Closure, h::UInt)
     h = hash(x.expr, h)
-    # start = is_self_loop(x) ? 2 : 1
-    # for i in start:length(x.env)
     h = hash(length(x.env), h) # bleh having trouble stopping the self loops
-    # for v in x.env
-    #     h = v isa Closure ? hash(:closure,h) :
-    #     v isa Thunk ? hash(v.expr,h) : hash(v, h)
-    # end
     return h
 end
 
@@ -65,7 +36,7 @@ function Base.show(io::IO, c::Closure)
             print(io, ", ", v)
         end
     end
-    print(io, ")")
+    print(io, "]")
 end
 
 function JSON.lower(x::Closure)
@@ -121,141 +92,47 @@ JSON.lower(x::Thunk) = Dict(
     "memoizing" => x.memoizing,
 )
 
+pluck_nat(n::Int) = foldr((_, acc) -> "(S " * acc * ")", 1:n; init = "(O)")
 
-abstract type List end
-struct Nil <: List end
-struct Cons <: List
-    head::Any
-    tail::List
-end
-
-
-const int_nan::Int = 500000
-const int_range::UnitRange{Int} = 0:9
-const int_range_and_nan::Vector{Int} = [int_range; int_nan]
-
-# identity for x in 0:9 or whatever the defined range of ints is, and returns the int_nan constant otherwise
-nan_if_oob(x) = x in int_range ? x : int_nan
-assert_valid_int(x) = @assert x in int_range || x == int_nan "invalid int: $x"
-
-abstract type Nat end
-struct Zero <: Nat end
-struct Succ <: Nat
-    pred::Any # can be a thunk
-end
-
-
-# this is more of a generic "parse into value" now lol
-scm_list(x) = x
-scm_list(vals::Vector) =
-    isempty(vals) ? Nil() : Cons(scm_list(vals[1]), scm_list(vals[2:end]))
-
-function scm_nat(n)
-    if n == 0
-        return Pluck.Zero()
+function pluck_list(l::AbstractVector)
+    if isempty(l)
+        return "(Nil)"
     else
-        return Pluck.Succ(scm_nat(n - 1))
+        head = l[1]
+        tail = pluck_list(l[2:end])
+        return "(Cons $head $tail)"
     end
 end
-
-
-Base.show(io::IO, x::Nil) = print(io, "[]")
-Base.show(io::IO, x::Cons) = begin
-    print(io, "[")
-    print(io, x.head)
-    while x.tail isa Cons
-        print(io, ", ")
-        print(io, x.tail.head)
-        x = x.tail
-    end
-    # @assert x.tail isa Nil x.tail
-    print(io, x.tail, "]")
-end
-
-type_of_val(::Int) = BaseType(:int)
-type_of_val(::Float64) = BaseType(:float)
-type_of_val(::Bool) = BaseType(:bool)
-type_of_val(::Vector) = BaseType(:list)
-type_of_val(::Cons) = BaseType(:list)
-type_of_val(::Nil) = BaseType(:list)
-
-
-
-
-
-# mutable struct Constructor
-#     type::Symbol
-#     constructor::Symbol
-#     args::Vector{Symbol}
-# end
-# Constructor(name) = Constructor(name, Symbol[])
-# Base.(==)(x::Constructor, y::Constructor) = x.name === y.name
-
-# (x::Constructor)(args...) = Value(x.name, args)
-
-
-# const natS = Constructor(:S, [:nat])
-# const natO = Constructor(:O)
-# const nat = SumProductType(:nat, [natO, natS])
-
-# const listNil = Constructor(:Nil)
-# const listCons = Constructor(:Cons, [:nat, :list])
-# const list = SumProductType(:list, [listNil, listCons])
-
-
-
-# const lookup_constructor = Dict{Symbol, Constructor}(
-#     :S => natS,
-#     :O => natO,
-#     :Nil => listNil,
-#     :Cons => listCons,
-# )
-# const lookup_type = Dict{Symbol, SumProductType}(
-#     :nat => nat,
-#     :list => list,
-# )
 
 struct Value
-    spt::SumProductType
     constructor::Symbol
     args::Vector{Any}
 end
-Value(type, constructor) = Value(type, constructor, [])
-Base.hash(x::Value, h::UInt) = hash(x.spt.name, hash(x.constructor, hash(x.args, h)))
-# Base.hash(x::Value, h::UInt) = hash(x.spt,hash(x.constructor, h))
-Base.:(==)(x::Value, y::Value) =
-    x.spt.name === y.spt.name && x.constructor === y.constructor && x.args == y.args
-
-(spt::SumProductType)(constructor::Symbol)::Value = Value(spt, constructor, [])
-(spt::SumProductType)(constructor::Symbol, args...)::Value =
-    Value(spt, constructor, collect(args))
+Value(constructor) = Value(constructor, [])
+Value(constructor, args...) = Value(constructor, collect(args))
+Base.hash(x::Value, h::UInt) = hash(x.constructor, hash(x.args, h))
+Base.:(==)(x::Value, y::Value) = x.constructor === y.constructor && x.args == y.args
+Base.:(==)(x::Value, y::Any) = error("Cannot compare Value with $(typeof(y))")
+Base.:(==)(x::Any, y::Value) = error("Cannot compare $(typeof(x)) with Value")
 
 
 function to_value(n::Int)
     @assert n >= 0
-    n == 0 && return nat(:O)
-    nat(:S, to_value(n - 1))
+    n == 0 && return Value(:O)
+    Value(:S, to_value(n - 1))
 end
 
-to_value(u::Tuple{}) = unit(:Unit)
-to_value(x::Bool) = x ? bool(:True) : bool(:False)
+to_value(::Tuple{}) = Value(:Unit)
+to_value(x::Bool) = x ? Value(:True) : Value(:False)
 to_value(x::Value) = x
 
 function to_value(xs::Vector)
-    isempty(xs) && return list(:Nil)
-    return list(:Cons, to_value(xs[1]), to_value(xs[2:end]))
+    isempty(xs) && return Value(:Nil)
+    return Value(:Cons, to_value(xs[1]), to_value(xs[2:end]))
 end
 
-
-digit_values::Vector{Value} = Value[to_value(i) for i ∈ 0:9]
-TRUE_VALUE::Value = to_value(true) # careful - wont update
-FALSE_VALUE::Value = to_value(false) # careful - wont update
-function make_digits_values()
-    global digit_values
-    digit_values = Value[to_value(i) for i ∈ 0:9]
-end
-
-
+TRUE_VALUE::Value = Value(:True)
+FALSE_VALUE::Value = Value(:False)
 
 from_value(x) = x
 function from_value(x::Value)
@@ -283,9 +160,6 @@ function from_value(x::Value)
     end
     return x
 end
-
-
-peano_str(n) = foldr((_, acc) -> "(S " * acc * ")", 1:n; init = "(O)")
 
 convert(::Type{Value}, x) = value(x)
 function Base.show(io::IO, x::Value)
@@ -318,10 +192,3 @@ function string_repr(x::Value)
     return res * ")"
 end
 
-
-out_of_range(x::Int) = x < 0
-out_of_range(x::Cons) = out_of_range(x.head) || out_of_range(x.tail)
-out_of_range(x::Nil) = false
-out_of_range(x::Value) = out_of_range(from_value(x))
-out_of_range(x::Vector) = any(out_of_range, x)
-out_of_range(x::Bool) = false

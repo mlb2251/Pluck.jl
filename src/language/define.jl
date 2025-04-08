@@ -7,7 +7,7 @@ struct Definition
     type::Union{PType,Nothing}
 end
 
-DUMMY_EXPRESSION = Construct(spt_of_constructor[:Unit], :Unit, PExpr[])
+DUMMY_EXPRESSION = Construct(:Unit, PExpr[])
 
 const DEFINITIONS::Dict{Symbol, Definition} = Dict{Symbol, PExpr}()
 

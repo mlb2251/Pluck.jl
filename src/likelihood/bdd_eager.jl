@@ -107,7 +107,7 @@ function merge_values(values::Vector{Tuple{Value, BDD}})
             end
         end
         overall_args = [merge_values(args_to_merge[i]) for i = 1:length(args_of_constructor(constructor))]
-        overall_value = Value(Pluck.spt_of_constructor[constructor], constructor, overall_args)
+        overall_value = Value(constructor, overall_args)
         push!(final_results, (overall_value, overall_guard))
     end
     return final_results

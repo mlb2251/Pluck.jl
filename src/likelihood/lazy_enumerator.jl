@@ -291,7 +291,7 @@ function lazy_enumerate(expr::Construct, env::Vector{Any}, trace::Trace, state::
                 new_trace = cat_trace(new_trace, arg_trace)
                 push!(new_args, arg)
             end
-            push!(results, (Value(spt, expr.constructor, new_args), new_trace))
+            push!(results, (Value(expr.constructor, new_args), new_trace))
         end
         return results
     end
@@ -299,7 +299,7 @@ function lazy_enumerate(expr::Construct, env::Vector{Any}, trace::Trace, state::
     # Create a thunk for each argument.
     thunked_arguments = [LazyEnumeratorThunk(arg, env, state, Symbol("$(expr.constructor).arg$i")) for (i, arg) in enumerate(expr.args)] # TODO: use global args_syms to avoid runtime cost of Symbol?
     # Return the constructor and its arguments.
-    return [(Value(spt, expr.constructor, thunked_arguments), trace)]
+    return [(Value(expr.constructor, thunked_arguments), trace)]
 end
 
 function lazy_enumerate(expr::CaseOf, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)

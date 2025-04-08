@@ -23,12 +23,12 @@ function parse_type_params(tokens)
 end
 
 function const_to_expr(v::Int)
-    parse_expr(peano_str(v))
+    parse_expr(pluck_nat(v))
 end
 
 const_to_expr(v::Float64) = ConstReal(v)
 const_to_expr(v::Bool) =
-    v ? Construct(bool, :True, Symbol[]) : Construct(bool, :False, Symbol[])
+    v ? Construct(:True, Symbol[]) : Construct(:False, Symbol[])
 
 
 # Parse from Scheme notation (string) into PExpr
@@ -229,7 +229,7 @@ function parse_expr_inner(tokens, defs, env)
                 arg, tokens = parse_expr_inner(tokens, defs, env)
                 push!(args, arg)
             end
-            return Construct(spt, constructor, args), view(tokens, 2:length(tokens))
+            return Construct(constructor, args), view(tokens, 2:length(tokens))
         elseif has_prim(token) && !haskey(defs, Symbol(token))
             op_type = lookup_prim(token)
             arity = prim_arity(op_type)
@@ -304,7 +304,7 @@ function parse_expr_inner(tokens, defs, env)
 
             # If no arguments provided, insert Unit constructor
             if isempty(args)
-                args = [Construct(spt_of_constructor[:Unit], :Unit, PExpr[])]
+                args = [Construct(:Unit, PExpr[])]
             end
 
             expr = f
