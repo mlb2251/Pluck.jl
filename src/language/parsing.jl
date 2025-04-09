@@ -204,7 +204,7 @@ function parse_expr_inner(tokens, defs, env)
             end
 
             return expr, view(tokens, 2:length(tokens))
-        elseif haskey(type_of_constructor, Symbol(token))
+        elseif haskey(args_of_constructor, Symbol(token))
             # parse a sum product type constructor
             constructor = Symbol(token)
             type = type_of_constructor[constructor]

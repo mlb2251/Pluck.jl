@@ -16,7 +16,7 @@ mutable struct BDDStrictEvalState
         max_depth::Union{Int, Nothing} = nothing,
         sample_after_max_depth::Bool = false,
     )
-        manager = Manager()
+        manager = RSDD.Manager()
         state = new(
             manager,
             0,
@@ -68,7 +68,7 @@ function merge_values(values::Vector{Tuple{Value, BDD}})
         overall_guard = reduce(|, [bdd for (_, bdd) in results])
         #println("BDDs: $([repr(bdd) for (_, bdd) in results])")
         args_to_merge = Vector{Tuple{Value, BDD}}[]
-        for arg = 1:length(args_of_constructor(constructor))
+        for arg = 1:length(args_of_constructor[constructor])
             push!(args_to_merge, Tuple{Value, BDD}[])
             for (result, outer_guard) in results
                 for (concrete_result, concrete_guard) in result.args[arg]
@@ -76,7 +76,7 @@ function merge_values(values::Vector{Tuple{Value, BDD}})
                 end
             end
         end
-        overall_args = [merge_values(args_to_merge[i]) for i = 1:length(args_of_constructor(constructor))]
+        overall_args = [merge_values(args_to_merge[i]) for i = 1:length(args_of_constructor[constructor])]
         overall_value = Value(constructor, overall_args)
         push!(final_results, (overall_value, overall_guard))
     end
@@ -160,12 +160,10 @@ function bdd_forward(expr::Abs, env::Env, state::BDDStrictEvalState)
 end
 
 function bdd_forward(expr::Construct, env::Env, state::BDDStrictEvalState)
-    # Look up type of this constructor.
-    spt = Pluck.spt_of_constructor[expr.constructor]
     # Evaluate each argument.
     evaluated_arguments = [traced_bdd_forward(arg, env, state) for arg in expr.args]
     # Return the constructor and its arguments.
-    return [(Value(spt, expr.constructor, evaluated_arguments), state.manager.BDD_TRUE)]
+    return [(Value(expr.constructor, evaluated_arguments), state.manager.BDD_TRUE)]
 end
 
 function bdd_forward(expr::CaseOf, env::Env, state::BDDStrictEvalState)
@@ -310,14 +308,14 @@ function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, recor
         end
     end
 
-    if state.cfg.show_bdd_size
+    if show_bdd_size
         summed_size = sum(Int(RSDD.bdd_size(bdd)) for (ret, (bdd)) in ret)
         num_vars = length(state.sorted_callstacks)
         printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
         println("BDD sizes: $([(ret, Int(RSDD.bdd_size(bdd))) for (ret, (bdd)) in ret])")
     end
 
-    if state.cfg.record_bdd_json
+    if record_bdd_json
         bdd = get_true_result(results, nothing)
         if isnothing(bdd)
             @warn "No true result found to record"
