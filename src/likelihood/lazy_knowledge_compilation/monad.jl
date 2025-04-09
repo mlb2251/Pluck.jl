@@ -1,10 +1,14 @@
 """
 Binds a continuation to the results of the first stage.
 """
-function bind_monad(cont, first_stage_results, available_information, used_information, state)
-    return join_monad([(cont(result, state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard), result_guard)
-                            for (result, result_guard) in first_stage_results],
-        used_information, available_information, state)
+function bind_monad(cont, worlds, available_information, used_information, state)
+    result_sets = []
+    for (val, result_guard) in worlds
+        path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard
+        cont_worlds, cont_used_info = cont(val, path_condition)
+        push!(result_sets, ((cont_worlds, cont_used_info), result_guard))
+    end
+    return join_monad(result_sets, used_information, available_information, state)
 end
 
 # This is the 'join' of the monad.
