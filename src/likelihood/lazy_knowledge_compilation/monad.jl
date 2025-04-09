@@ -18,7 +18,7 @@ function join_monad(result_sets, used_information::BDD, available_information::B
 
     for ((results, used_info), outer_guard) in result_sets
         if !state.cfg.disable_used_information
-            used_information = used_information & outer_guard
+            used_information = used_information & bdd_implies(outer_guard, used_info)
         end
         for (result, inner_guard) in results
             inner_and_outer = inner_guard & outer_guard
@@ -44,7 +44,7 @@ function join_monad(result_sets, used_information::BDD, available_information::B
             end
         end
     end
-    
+
     if state.cfg.use_thunk_unions
         for constructor in sort(collect(keys(results_for_constructor)))
             uniq_worlds = Vector{Value}()

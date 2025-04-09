@@ -38,7 +38,7 @@ function compile_inner(expr::CaseOf, env::Env, available_information::BDD, state
     bind_monad(scrutinee_values, available_information, scrutinee_used_information, state) do scrutinee, scrutinee_guard
         value_type = type_of_constructor[scrutinee.constructor]
         if !isempty(expr.cases) && !(value_type == caseof_type)
-            @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
+            # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
         end
         
         if !(scrutinee.constructor in keys(expr.cases))

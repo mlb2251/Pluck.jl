@@ -19,7 +19,7 @@ function lookup_prim(name::AbstractString)
     primop_of_name[name]
 end
 
-function prim_str(::Type{T}) where T <: Primitive
+function prim_str(::T) where T <: Primitive
     name_of_primop[T]
 end
 

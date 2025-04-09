@@ -93,7 +93,7 @@ function evaluate(thunk::LazyKCThunk, available_information::BDD, state::LazyKCS
 
     # Check the cache
     for (results, bdd) in thunk.cache
-        if bdd_is_true(available_information & bdd)
+        if bdd_is_true(bdd_implies(available_information, bdd))
             return (results, bdd)
         end
     end
