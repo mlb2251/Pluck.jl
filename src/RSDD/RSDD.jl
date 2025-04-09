@@ -122,11 +122,13 @@ macro rsdd_timed(expr)
     end
 end
 
+abstract type AbstractWmcParams end
 
-mutable struct WmcParams
+mutable struct WmcParams <: AbstractWmcParams
     ptr::Ptr{Cvoid}
     freed::Bool
 end
+
 
 # Define types
 const ManagerPtr = Ptr{Cvoid}
@@ -138,7 +140,7 @@ mutable struct Manager
     freed::Bool
     BDD_TRUE::Any
     BDD_FALSE::Any
-    weights::WmcParams
+    weights::AbstractWmcParams
 
     function Manager(; num_vars::Int=0)
         manager_ptr = ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
@@ -472,17 +474,21 @@ function new_weights()
     WmcParams(ptr, false)
 end
 
-
-function set_weight(mgr::Manager, var::Label, low::Float64, high::Float64)
-    wmc_param_f64_set_weight(mgr.weights, var, low, high)
-end
-
 """
 Sets the weight for a variable in the WmcParams object.
 """
-function wmc_param_f64_set_weight(params::WmcParams, var::Label, low::Float64, high::Float64)
+function set_weight(mgr::Manager, var::Label, low::Float64, high::Float64)
+    set_weight(mgr.weights, var, low, high)
+end
+
+function set_weight(params::WmcParams, var::Label, low::Float64, high::Float64)
     @rsdd_timed ccall(wmc_param_f64_set_weight_ptr, Cvoid, (Ptr{Cvoid}, Label, Float64, Float64), params.ptr, var, low, high)
 end
+
+# function set_weight(params::WmcParamsDual, var::Label, low::Float64, high::Float64)
+#     @rsdd_timed ...
+# end
+
 
 """
 Performs weighted model counting on a BDD.
