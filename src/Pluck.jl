@@ -3,6 +3,8 @@ module Pluck
 using JSON: JSON
 
 include("RSDD/RSDD.jl")
+using .RSDD
+
 include("util/util.jl")
 include("language/types.jl")
 include("language/pexpr.jl")

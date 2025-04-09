@@ -18,9 +18,6 @@ export normalize, bdd_forward, BDDEvalState
 #   - a name: a symbol representing the name of the thunk. Used for debugging and printing.
 # When we evaluate a thunk, we first check the cache to see if `available_information` implies any of the BDDs in the cache. If so, we use the cached values, and return the guard BDD as the `used_information`.
 
-using .RSDD
-
-
 const Callstack = Vector{Int}
 const Env = Vector{Any}
 const World = Tuple{Any, BDD}

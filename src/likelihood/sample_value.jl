@@ -1,5 +1,3 @@
-using .RSDD
-
 export sample_value, SampleValueState
 
 # Representations of values:

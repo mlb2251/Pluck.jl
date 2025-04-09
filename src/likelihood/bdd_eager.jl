@@ -1,4 +1,3 @@
-using .RSDD
 
 export bdd_forward_strict, BDDStrictEvalState
 
