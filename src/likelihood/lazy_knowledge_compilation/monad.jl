@@ -44,6 +44,7 @@ function join_monad(result_sets, used_information::BDD, available_information::B
             end
         end
     end
+    
     if state.cfg.use_thunk_unions
         for constructor in sort(collect(keys(results_for_constructor)))
             uniq_worlds = Vector{Value}()

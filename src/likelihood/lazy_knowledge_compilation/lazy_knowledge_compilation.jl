@@ -13,12 +13,12 @@ Base.@kwdef struct LazyKCConfig
     use_reverse_order::Bool = false
     use_thunk_cache::Bool = false
     use_thunk_unions::Bool = true
-    record_json::Bool = false
     disable_used_information::Bool = false
     disable_path_conditions::Bool = false
     singleton_cache::Bool = true
     show_bdd_size::Bool = false
     record_bdd_json::Bool = false
+    record_json::Bool = false
 end
 
 """
