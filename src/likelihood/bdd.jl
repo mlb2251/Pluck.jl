@@ -47,22 +47,14 @@ struct BDDThunk
             return env[expr.idx]
         end
 
-        # if expr isa Var && env[expr.idx] isa BDDThunkUnion
-        #     return env[expr.idx]
-        # end
-
         key = (expr, env, callstack)
         if state !== nothing && state.use_thunk_cache && haskey(state.thunk_cache, key)
-            # println("cache hit: $expr, $callstack, $name, $strict_order_index")
             return state.thunk_cache[key]
         else
             thunk = new(expr, env, [], copy(callstack), name, strict_order_index)
             if state !== nothing && state.use_thunk_cache
                 state.thunk_cache[(expr, copy(env), copy(callstack))] = thunk
             end
-            # if state !== nothing
-            #     push!(state.thunks, thunk)
-            # end
             return thunk
         end
     end
@@ -71,9 +63,6 @@ end
 struct BDDThunkUnion
     thunks::Vector{Tuple{BDDThunk, BDD}}
     function BDDThunkUnion(worlds::Vector{Tuple{T, BDD}}, state) where T
-        # if length(worlds) == 1
-        #     return first(worlds)
-        # end
 
         # collapse identical worlds
         uniq_worlds = Vector{BDDThunk}()
@@ -83,15 +72,11 @@ struct BDDThunkUnion
         for (world, outer_bdd) in worlds
 
             if world isa BDDThunkUnion
-                #@warn "Removing a layer of indirection..."
                 # remove a layer of indirection
                 for (world, bdd) in world.thunks
                     if haskey(uniq_world_indices, world)
-                        #@warn "Found duplicate world passed to BDDThunkUnion constructor: $world"
-                        #Pluck.interesting_results[:thunk_union_collapse_time] += @elapsed
                         uniq_guards[uniq_world_indices[world]] = uniq_guards[uniq_world_indices[world]] | (outer_bdd & bdd)
                     else
-                        #Pluck.interesting_results[:thunk_union_collapse_time] += @elapsed 
                         push!(uniq_worlds, world)
                         push!(uniq_guards, outer_bdd & bdd)
                         uniq_world_indices[world] = length(uniq_worlds)
@@ -99,11 +84,8 @@ struct BDDThunkUnion
                 end
 
             elseif haskey(uniq_world_indices, world)
-                #@warn "Found duplicate world passed to BDDThunkUnion constructor: $world"
-                # Pluck.interesting_results[:thunk_union_collapse_time] += @elapsed 
                 uniq_guards[uniq_world_indices[world]] = uniq_guards[uniq_world_indices[world]] | outer_bdd
             else
-                # Pluck.interesting_results[:thunk_union_collapse_time] += @elapsed 
                 push!(uniq_worlds, world)
                 push!(uniq_guards, outer_bdd)
                 uniq_world_indices[world] = length(uniq_worlds)
@@ -120,7 +102,6 @@ function Base.show(io::IO, x::BDDThunkUnion)
     print(io, "BDDThunkUnion{", length(x.thunks), "}(")
     for (i, (world, bdd)) in enumerate(x.thunks)
         print(io, world)
-        #print(io, " [", x.wts[i], "]")
         if i < length(x.thunks)
             print(io, " | ")
         end
@@ -132,9 +113,6 @@ function Base.show(io::IO, x::BDDThunk)
     # print(io, "BDDThunk(", x.expr, ", ", x.callstack, ", ", x.name, ")")
     print(io, "BDDThunk(", x.expr, ")")
 end
-
-
-
 
 mutable struct BDDQuery
     query::Symbol
@@ -199,7 +177,6 @@ mutable struct BDDEvalState
         true_thunk = BDDThunk(Construct(:True), Pluck.EMPTY_ENV, Callstack(), :truebr, 0, nothing)
         false_thunk = BDDThunk(Construct(:False), Pluck.EMPTY_ENV, Callstack(), :falsebr, 1, nothing)
 
-
         weights = RSDD.new_wmc_params_f64()
         state = new(
             Int[],
@@ -231,7 +208,6 @@ mutable struct BDDEvalState
             nothing,
         )
 
-
         if record_json
             state.viz = BDDJSONLogger(state)
         end
@@ -245,9 +221,6 @@ function traced_bdd_forward(expr::PExpr, env::Env, available_information::BDD, s
     if !state.disable_used_information && bdd_is_false(available_information)
         return [], state.BDD_FALSE
     end
-    # start_time = time()
-    #println(repeat(" ", state.depth) * "$expr")
-
 
     if state.max_depth !== nothing && state.depth > state.max_depth && !state.sample_after_max_depth
         return [], state.BDD_TRUE
@@ -269,7 +242,6 @@ function traced_bdd_forward(expr::PExpr, env::Env, available_information::BDD, s
     pop!(state.callstack)
     state.num_forward_calls += 1
     state.depth -= 1
-    # println(repeat(" ", state.depth) * "($((time() - start_time) * 1000) ms)")
     return result, used_information
 end
 
@@ -353,10 +325,6 @@ function combine_int_dists(int_dist_results, state)
         @assert width == length(int_dist.bits)
         # For each bit, AND it with the guard then OR it into the result.
         for i = 1:width
-            # I'm not sure if it should be (guard & bit) || acc
-            # or if it should be (guard implies bit) iff acc
-            # (both give the same result on a very simple example I did)
-
             @inbounds new_bit = int_dist.bits[i] & guard
             @inbounds result.bits[i] = result.bits[i] | new_bit
         end
@@ -480,10 +448,6 @@ function bdd_forward(expr::CaseOf, env::Env, available_information::BDD, state::
         new_env = copy(env)
         used_information = state.BDD_TRUE
         for (i, arg) in enumerate(scrutinee.args)
-            # if arg isa BDDThunkUnion
-            #     arg, used_info = simplify_thunk_union(arg, available_information, state)
-            #     used_information = used_information & used_info
-            # end
             pushfirst!(new_env, arg)
         end
         # new_env = vcat(reverse(scrutinee.args), env)
@@ -491,19 +455,6 @@ function bdd_forward(expr::CaseOf, env::Env, available_information::BDD, state::
         return results, used_information & used_info
     end
 end
-
-# function simplify_thunk_union(thunk::BDDThunkUnion, available_information::BDD, state::BDDEvalState)
-#     used_information = state.BDD_TRUE
-#     returned_thunks = Tuple{BDDThunk, BDD}[]
-#     for (thunk, guard) in thunk.thunks
-#         if bdd_is_false(available_information & guard)
-#             used_information = used_information & bdd_implies(guard, state.BDD_FALSE)
-#         else
-#             push!(returned_thunks, (thunk, guard))
-#         end
-#     end
-#     return BDDThunkUnion(returned_thunks), used_information
-# end
 
 function bdd_forward(expr::Y, env::Env, available_information::BDD, state::BDDEvalState)
     @assert expr.f isa Abs && expr.f.body isa Abs "y-combinator must be applied to a double-lambda"
@@ -529,24 +480,7 @@ function bdd_make_address(state::BDDEvalState, p::Float64, available_information
         callstack = copy(state.callstack)
 
         if !state.use_strict_order
-            # Create the new variable.
-            # if state.use_reverse_order
-            #     addr = RSDD.bdd_new_var_at_position(state.manager, 0, true)
-            # elseif state.use_experimental_order
-            #     last_var = RSDD.bdd_last_var(available_information)
-            #     if last_var !== nothing
-            #         last_variable_position = RSDD.bdd_var_position(state.manager, last_var)
-            #         addr = RSDD.bdd_new_var_at_position(state.manager, last_variable_position + 1, true)
-            #     else
-            #         addr = RSDD.bdd_new_var(state.manager, true)
-            #     end
-            # else
-            #     addr = RSDD.bdd_new_var(state.manager, true)
-            # end
             addr = RSDD.bdd_new_var(state.manager, true)
-            # println(repeat(" ", state.depth) * "New var: $(bdd_topvar(addr))")
-            # println("New var at position 0")
-            # addr = RSDD.bdd_new_var_at_position(state.manager, 0, true)
         else
             i = searchsortedfirst(state.sorted_callstacks, (state.callstack, p); by = x -> x[1], rev = state.use_reverse_order)
             # Insert the callstack in the sorted list.
