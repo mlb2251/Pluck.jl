@@ -61,7 +61,7 @@ function join_monad(result_sets, used_information::BDD, available_information::B
             end
             if length(uniq_worlds) > 1
                 overall_guard = reduce((x, y) -> x | y, uniq_world_guards)
-                overall_args = [(LazyKCThunkUnion([(world.args[i], bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)], state)) for i = 1:length(Pluck.args_of_constructor(constructor))]
+                overall_args = [(LazyKCThunkUnion([(world.args[i], bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)], state)) for i = 1:length(Pluck.args_of_constructor[constructor])]
                 overall_value = Value(constructor, overall_args)
                 push!(join_results, (overall_value, overall_guard))
             else
