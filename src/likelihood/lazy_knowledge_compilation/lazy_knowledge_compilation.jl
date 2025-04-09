@@ -101,7 +101,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     end
 
     # weighted model count to get the actual probabilities
-    weighted_results = [(v, RSDD.bdd_wmc(bdd, state.manager)) for (v, bdd) in ret]
+    weighted_results = [(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret]
 
     free_bdd_manager(state.manager)
 

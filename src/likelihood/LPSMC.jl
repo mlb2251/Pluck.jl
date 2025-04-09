@@ -41,15 +41,15 @@ function bdd_forward_with_suspension(expr; kwargs...)
         # Now, the ret will contain a list of pairs (sb, bdd).
         for (sb, guard) in ret
             if sb.constructor == :FinallyTrue
-                true_probability += multiplier * RSDD.bdd_wmc(available_information & guard, s.weights)
+                true_probability += multiplier * RSDD.bdd_wmc(available_information & guard)
             elseif sb.constructor == :FinallyFalse
-                false_probability += multiplier * RSDD.bdd_wmc(available_information & guard, s.weights)
+                false_probability += multiplier * RSDD.bdd_wmc(available_information & guard)
             elseif sb.constructor == :Suspend
                 @assert !more_to_do # we should only have one :Suspend.
                 more_to_do = true
-                posterior_sample, posterior_probability = RSDD.weighted_sample(available_information & guard, s.weights)
+                posterior_sample, posterior_probability = RSDD.weighted_sample(available_information & guard)
                 available_information = available_information & posterior_sample
-                multiplier *= (1 / posterior_probability) # (total_guard / RSDD.bdd_wmc(available_information, s.weights))
+                multiplier *= (1 / posterior_probability) # (total_guard / RSDD.bdd_wmc(available_information))
                 ret, used_info = Pluck.evaluate(sb.args[1], available_information, s)
             else
                 error("Expected a suspended boolean, got $(sb).")
@@ -80,16 +80,16 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
         # Now, the ret will contain a list of pairs (sb, bdd).
         for (sb, guard) in ret
             if sb.constructor == :FinallyTrue
-                true_probability += multiplier * RSDD.bdd_wmc(available_information & guard, s.weights)
+                true_probability += multiplier * RSDD.bdd_wmc(available_information & guard)
             elseif sb.constructor == :FinallyFalse
-                false_probability += multiplier * RSDD.bdd_wmc(available_information & guard, s.weights)
+                false_probability += multiplier * RSDD.bdd_wmc(available_information & guard)
             elseif sb.constructor == :Suspend
                 @assert !more_to_do # we should only have one :Suspend.
                 more_to_do = true
 
                 # Create a "sum-and-sample" BDD.
                 available_information = available_information & guard
-                top_k_bdd = RSDD.bdd_top_k_paths(available_information, k, s.weights)
+                top_k_bdd = RSDD.bdd_top_k_paths(available_information, k)
                 posterior_guard = available_information & !top_k_bdd
                 if RSDD.bdd_is_false(posterior_guard)
                     # The top K paths contained all the available information. We can just recurse.
@@ -97,7 +97,7 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                     continue
                 end
 
-                (sampled_bdd, sampled_probability) = RSDD.weighted_sample(posterior_guard, s.weights)
+                (sampled_bdd, sampled_probability) = RSDD.weighted_sample(posterior_guard)
 
                 # Likely unnecessary...
                 sampled_bdd = posterior_guard & sampled_bdd
@@ -121,7 +121,7 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                 new_variable = RSDD.bdd_new_var(s.manager, true) # this adds at *end* of variable order -- that might be bad?
                 new_bdd = RSDD.bdd_ite(new_variable, sampled_bdd, top_k_bdd)
                 new_variable_weight = 1 / mult_increment
-                RSDD.wmc_param_f64_set_weight(s.weights, RSDD.bdd_topvar(new_variable), new_variable_weight, 1.0 - new_variable_weight)
+                RSDD.set_weight(s.manager, RSDD.bdd_topvar(new_variable), new_variable_weight, 1.0 - new_variable_weight)
                 available_information = available_information & new_bdd
                 ret, used_info = Pluck.evaluate(sb.args[1], available_information, s)
             else

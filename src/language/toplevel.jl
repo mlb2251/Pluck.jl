@@ -38,7 +38,7 @@ end
 function marginal_query(val, state)
     ret, _ = evaluate(val.args[1], state.BDD_TRUE, state)
     full_ret = infer_full_distribution(ret, state)
-    results = [v => RSDD.bdd_wmc(b, state.weights) for (v, b) in full_ret]
+    results = [v => RSDD.bdd_wmc(b) for (v, b) in full_ret]
     return results
 end
 
@@ -48,7 +48,7 @@ function posterior_query(val, state)
     # TODO: reconsider strict order index to use?
     ret, _ = traced_compile_inner(given_expr, env, state.BDD_TRUE, state, 0)
     full_ret = infer_full_distribution(ret, state)
-    results = normalize([v => RSDD.bdd_wmc(b, state.weights) for (v, b) in full_ret])
+    results = normalize([v => RSDD.bdd_wmc(b) for (v, b) in full_ret])
     return results
 end
 

@@ -7,10 +7,7 @@ export bdd_forward_strict, BDDStrictEvalState
 # - Value: a list of possible constructors, each guarded by a BDD, and each with a list of arguments, themselves values.
 
 mutable struct BDDStrictEvalState
-    weights::WmcParams
     manager::RSDD.Manager
-    BDD_TRUE::BDD
-    BDD_FALSE::BDD
     depth::Int
     max_depth::Union{Int, Nothing}
     sample_after_max_depth::Bool
@@ -19,15 +16,9 @@ mutable struct BDDStrictEvalState
         max_depth::Union{Int, Nothing} = nothing,
         sample_after_max_depth::Bool = false,
     )
-        manager = RSDD.mk_bdd_manager_default_order(0)
-        BDD_TRUE = RSDD.bdd_true(manager)
-        BDD_FALSE = RSDD.bdd_false(manager)
-        weights = RSDD.new_weights()
+        manager = Manager()
         state = new(
-            weights,
             manager,
-            BDD_TRUE,
-            BDD_FALSE,
             0,
             max_depth,
             sample_after_max_depth,
@@ -129,8 +120,8 @@ function merge_int_dists(results_to_merge_int_dist::Vector{Tuple{IntDist, BDD}},
         return []
     end
     width = length(results_to_merge_int_dist[1][1].bits)
-    result = IntDist(fill(state.BDD_FALSE, width))
-    overall_guard = state.BDD_FALSE
+    result = IntDist(fill(state.manager.BDD_FALSE, width))
+    overall_guard = state.manager.BDD_FALSE
     for (int_dist, guard) in results_to_merge_int_dist
         overall_guard = overall_guard | guard
         @assert width == length(int_dist.bits)
@@ -165,7 +156,7 @@ end
 
 function bdd_forward(expr::Abs, env::Env, state::BDDStrictEvalState)
     # A lambda term deterministically evaluates to a closure.
-    return [(Closure(expr.body, env), state.BDD_TRUE)]
+    return [(Closure(expr.body, env), state.manager.BDD_TRUE)]
 end
 
 function bdd_forward(expr::Construct, env::Env, state::BDDStrictEvalState)
@@ -174,7 +165,7 @@ function bdd_forward(expr::Construct, env::Env, state::BDDStrictEvalState)
     # Evaluate each argument.
     evaluated_arguments = [traced_bdd_forward(arg, env, state) for arg in expr.args]
     # Return the constructor and its arguments.
-    return [(Value(spt, expr.constructor, evaluated_arguments), state.BDD_TRUE)]
+    return [(Value(spt, expr.constructor, evaluated_arguments), state.manager.BDD_TRUE)]
 end
 
 function bdd_forward(expr::CaseOf, env::Env, state::BDDStrictEvalState)
@@ -211,7 +202,7 @@ function bdd_forward(expr::Y, env::Env, state::BDDStrictEvalState)
     closure = Pluck.make_self_loop(expr.f.body.body, env)
 
     # set up a closure with a circular reference
-    return [(closure, state.BDD_TRUE)]
+    return [(closure, state.manager.BDD_TRUE)]
 end
 
 function bdd_forward(expr::PrimOp, env::Env, state::BDDStrictEvalState)
@@ -223,26 +214,9 @@ function bdd_prim_forward(op::MkIntOp, args, env::Env, state::BDDStrictEvalState
     bitwidth = args[1]::RawInt
     val = args[2]::RawInt
     bools = digits(Bool, val.val, base = 2, pad = bitwidth.val)
-    bits = map(b -> b ? state.BDD_TRUE : state.BDD_FALSE, bools)
+    bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
 
-    return [(IntDist(bits), state.BDD_TRUE)]
-end
-
-
-"""
-Equality of two int distributions is an AND over the equality (bdd_iff) of each bit.
-"""
-function int_dist_eq(x::IntDist, y::IntDist, state::BDDStrictEvalState)::BDD
-    width = length(x.bits)
-    @assert width == length(y.bits)
-    result = state.BDD_TRUE
-    for i = 1:width
-        @inbounds result = result & bdd_iff(x.bits[i], y.bits[i])
-        if bdd_is_false(result)
-            return state.BDD_FALSE
-        end
-    end
-    return result
+    return [(IntDist(bits), state.manager.BDD_TRUE)]
 end
 
 
@@ -251,7 +225,7 @@ function bdd_prim_forward(op::IntDistEqOp, args, env::Env, state::BDDStrictEvalS
     bdd_bind(first_int_dist, state) do first_int_dist, first_int_dist_guard
         second_int_dist = traced_bdd_forward(args[2], env, state)
         bdd_bind(second_int_dist, state) do second_int_dist, second_int_dist_guard
-            bdd = int_dist_eq(first_int_dist, second_int_dist, state)
+            bdd = int_dist_eq(first_int_dist, second_int_dist, state.manager)
             # do we put second_int_dist_guard anywhere?
             return [(Pluck.TRUE_VALUE, bdd), (Pluck.FALSE_VALUE, !bdd)]
         end
@@ -270,14 +244,14 @@ function bdd_prim_forward(op::FlipOp, args, env::Env, state::BDDStrictEvalState)
             # this flip is new (not previously instantiated), THEN sample a value.
             if state.max_depth !== nothing && state.depth > state.max_depth && state.sample_after_max_depth
                 sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-                return [(sampled_value, state.BDD_TRUE)]
+                return [(sampled_value, state.manager.BDD_TRUE)]
             end
 
             # Otherwise, we perform the usual logic.
             # BDDs do not represent quantitative probabilities. Therefore, for each 
             # different probability `p`, we need to create a new variable in the BDD.
             addr = bdd_new_var(state.manager, true)
-            wmc_param_f64_set_weight(state.weights, bdd_topvar(addr), 1.0 - p, p)
+            RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
             return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)]
         end
     end
@@ -290,9 +264,9 @@ function bdd_prim_forward(op::ConstructorEqOp, args, env::Env, state::BDDStrictE
         second_arg_results = traced_bdd_forward(args[2], env, state)
         bdd_bind(second_arg_results, state) do arg2, arg2_guard
             if arg1.constructor == arg2.constructor
-                return [(Pluck.TRUE_VALUE, state.BDD_TRUE)]
+                return [(Pluck.TRUE_VALUE, state.manager.BDD_TRUE)]
             else
-                return [(Pluck.FALSE_VALUE, state.BDD_TRUE)]
+                return [(Pluck.FALSE_VALUE, state.manager.BDD_TRUE)]
             end
         end
     end
@@ -306,7 +280,7 @@ function bdd_forward(expr::Var, env::Env, state::BDDStrictEvalState)
     end
 
     if env[expr.idx] isa Closure
-        return [(env[expr.idx], state.BDD_TRUE)]
+        return [(env[expr.idx], state.manager.BDD_TRUE)]
     end
     return env[expr.idx]
 end
@@ -317,63 +291,44 @@ function bdd_forward(expr::Defined, env::Env, state::BDDStrictEvalState)
 end
 
 function bdd_forward(expr::ConstReal, env::Env, state::BDDStrictEvalState)
-    return [(expr.val, state.BDD_TRUE)]
+    return [(expr.val, state.manager.BDD_TRUE)]
 end
 
 function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, record_bdd_json = false, state = BDDStrictEvalState())
     if expr isa String
         expr = parse_expr(expr)
     end
-    ret = traced_bdd_forward(expr, Pluck.EMPTY_ENV, state)
+    inner_ret = traced_bdd_forward(expr, Pluck.EMPTY_ENV, state)
+    
     # When ret contains IntDists, enumerate the 2^n options
-    enumerated_ret = []
-    for (val, bdd) in ret
+    ret = []
+    for (val, bdd) in inner_ret
         if val isa IntDist
-            # Enumerate all 2^n possibilities (all setting of n bits)
-            for i = 0:(2^length(val.bits)-1)
-                bits = digits(Bool, i, base = 2, pad = length(val.bits))
-                # Get BDD for this setting of the bits
-                # Start with TRUE BDD
-                bit_bdd = state.BDD_TRUE
-
-                # For each bit, AND with either the bit's BDD or its negation based on our desired value
-                for (bit_idx, bit_val) in enumerate(bits)
-                    bit_formula = val.bits[bit_idx]
-                    if bit_val
-                        bit_bdd = bit_bdd & bit_formula
-                    else
-                        bit_bdd = bit_bdd & RSDD.bdd_negate(bit_formula)
-                    end
-                end
-
-                # AND with the original BDD and add to results
-                push!(enumerated_ret, (i, bit_bdd & bdd))
-            end
+            append!(ret, enumerate_int_dist(val, bdd))
         else
-            push!(enumerated_ret, (val, bdd))
+            push!(ret, (val, bdd))
         end
     end
-    ret = enumerated_ret
 
-
-    # Get bdd size
-    if show_bdd_size
+    if state.cfg.show_bdd_size
+        summed_size = sum(Int(RSDD.bdd_size(bdd)) for (ret, (bdd)) in ret)
+        num_vars = length(state.sorted_callstacks)
+        printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
         println("BDD sizes: $([(ret, Int(RSDD.bdd_size(bdd))) for (ret, (bdd)) in ret])")
-        @show state.num_forward_calls
-    end
-    # Trying a model count of each possibility.
-    if show_bdd
-        results = [(v, repr(bdd), RSDD.bdd_wmc(bdd, state.weights)) for (v, bdd) in ret]
-    else
-        results = [(v, RSDD.bdd_wmc(bdd, state.weights)) for (v, bdd) in ret]
     end
 
-    if record_bdd_json
-        println(ret[2][1])
-        true_results = findall(x -> x[1] == Pluck.TRUE_VALUE || x[1].constructor == :True, ret)
-        @assert length(true_results) == 1 "Expected exactly one true result, got $(length(true_results))"
-        record_bdd(state, ret[true_results[1]][2])
+    if state.cfg.record_bdd_json
+        bdd = get_true_result(results, nothing)
+        if isnothing(bdd)
+            @warn "No true result found to record"
+        else
+            record_bdd(state, bdd)
+        end
     end
+
+    # Trying a model count of each possibility.
+    results = [(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret]
+
     free_bdd_manager(state.manager)
     return results
 end

@@ -86,7 +86,7 @@ function adaptive_rejection_sampling(val, state)
         sample_state.lazy = true
         sample_state.trace = Dict{Tuple{Vector{Int}, Float64}, Bool}()
         @assert !RSDD.bdd_is_false(constraint) "Constraint is false..."
-        println("Rejected trace. Total mass remaining: $(RSDD.bdd_wmc(constraint, state.weights))")
+        println("Rejected trace. Total mass remaining: $(RSDD.bdd_wmc(constraint))")
     end
 
 end

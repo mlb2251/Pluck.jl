@@ -488,10 +488,11 @@ end
 Performs weighted model counting on a BDD.
 Returns: Float64
 """
-function bdd_wmc(bdd::BDD, manager::Manager)
-    bdd_wmc(bdd, manager.weights)
+function bdd_wmc(bdd::BDD)
+    bdd_wmc_manual(bdd, bdd.manager.weights)
 end
-function bdd_wmc(bdd::BDD, params::WmcParams)
+
+function bdd_wmc_manual(bdd::BDD, params::WmcParams)
     @rsdd_timed ccall(bdd_wmc_ptr, Float64, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
 end
 
