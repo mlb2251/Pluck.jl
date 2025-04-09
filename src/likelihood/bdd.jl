@@ -38,6 +38,10 @@ struct LazyKCThunk
     end
 end
 
+function Base.show(io::IO, x::LazyKCThunk)
+    print(io, "LazyKCThunk(", x.expr, ")")
+end
+
 struct LazyKCThunkUnion
     thunks::Vector{Tuple{LazyKCThunk, BDD}}
     function LazyKCThunkUnion(worlds::Vector{Tuple{T, BDD}}, state) where T
@@ -75,7 +79,6 @@ struct LazyKCThunkUnion
     end
 end
 
-
 function Base.show(io::IO, x::LazyKCThunkUnion)
     print(io, "LazyKCThunkUnion{", length(x.thunks), "}(")
     for (i, (world, bdd)) in enumerate(x.thunks)
@@ -85,10 +88,6 @@ function Base.show(io::IO, x::LazyKCThunkUnion)
         end
     end
     print(io, ")")
-end
-
-function Base.show(io::IO, x::LazyKCThunk)
-    print(io, "LazyKCThunk(", x.expr, ")")
 end
 
 
@@ -110,16 +109,10 @@ end
 
 mutable struct LazyKCState
     callstack::Callstack
-    thunks::Vector{LazyKCThunk}
     var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
     sorted_callstacks::Vector{Tuple{Callstack, Float64}}
     sorted_var_labels::Vector{Int}
-    weights::WmcParams
     manager::RSDD.Manager
-    BDD_TRUE::BDD
-    BDD_FALSE::BDD
-    true_thunk::LazyKCThunk
-    false_thunk::LazyKCThunk
     depth::Int
     thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, LazyKCThunk}
     num_forward_calls::Int
@@ -132,25 +125,13 @@ mutable struct LazyKCState
     end
 
     function LazyKCState(cfg::LazyKCConfig)
-        manager = RSDD.mk_bdd_manager_default_order(0)
-        BDD_TRUE = RSDD.bdd_true(manager)
-        BDD_FALSE = RSDD.bdd_false(manager)
-        true_thunk = LazyKCThunk(Construct(:True), Pluck.EMPTY_ENV, Callstack(), :truebr, 0, nothing)
-        false_thunk = LazyKCThunk(Construct(:False), Pluck.EMPTY_ENV, Callstack(), :falsebr, 1, nothing)
-
-        weights = RSDD.new_wmc_params_f64()
+        manager = RSDD.Manager()
         state = new(
-            Int[],
-            LazyKCThunk[],
+            Callstack(),
             Dict{Tuple{Callstack, Float64}, BDD}(),
             Tuple{Callstack, Float64}[],
             Int[],
-            weights,
             manager,
-            BDD_TRUE,
-            BDD_FALSE,
-            true_thunk,
-            false_thunk,
             0,
             Dict{Tuple{PExpr, Env, Callstack}, LazyKCThunk}(),
             0,
@@ -169,11 +150,11 @@ function traced_compile_inner(expr::PExpr, env::Env, available_information::BDD,
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
     # Check whether available_information is false.
     if !state.cfg.disable_used_information && bdd_is_false(available_information)
-        return [], state.BDD_FALSE
+        return [], state.manager.BDD_FALSE
     end
 
     if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth
-        return [], state.BDD_TRUE
+        return [], state.manager.BDD_TRUE
     end
 
     state.depth += 1
@@ -267,8 +248,8 @@ end
 
 function combine_int_dists(int_dist_results, state)
     width = length(int_dist_results[1][1].bits)
-    result = IntDist(fill(state.BDD_FALSE, width))
-    overall_guard = state.BDD_FALSE
+    result = IntDist(fill(state.manager.BDD_FALSE, width))
+    overall_guard = state.manager.BDD_FALSE
     for (int_dist, guard) in int_dist_results
         # should we compute an overall guard?
         overall_guard = overall_guard | guard
@@ -289,12 +270,12 @@ function evaluate(thunk::LazyKCThunkUnion, available_information::BDD, state::La
         push!(intermediate_results, (evaluate(result, new_guard, state), guard))
     end
 
-    return combine_results(intermediate_results, state.BDD_TRUE, available_information, state)
+    return combine_results(intermediate_results, state.manager.BDD_TRUE, available_information, state)
 end
 
 function evaluate(thunk::LazyKCThunk, available_information::BDD, state::LazyKCState)
     if !state.cfg.disable_used_information && bdd_is_false(available_information)
-        return [], state.BDD_FALSE
+        return [], state.manager.BDD_FALSE
     end
 
     # Check the cache
@@ -319,7 +300,7 @@ function evaluate(thunk::LazyKCThunk, available_information::BDD, state::LazyKCS
     if state.cfg.singleton_cache && length(thunk.cache) == 1
         (worlds, used) = thunk.cache[1]
         # The code we're imagining is (if thunk.cache[1][1] then e else e)
-        res, overall_used = combine_results([((worlds, used), used), ((result, used_information), !used)], state.BDD_TRUE, available_information, state)
+        res, overall_used = combine_results([((worlds, used), used), ((result, used_information), !used)], state.manager.BDD_TRUE, available_information, state)
         thunk.cache[1] = (res, overall_used)
         return (res, overall_used)
     else
@@ -330,7 +311,7 @@ function evaluate(thunk::LazyKCThunk, available_information::BDD, state::LazyKCS
 end
 
 function bdd_bind(cont, first_stage_results, available_information, used_information, state)
-    return combine_results([(cont(result, state.cfg.disable_path_conditions ? state.BDD_TRUE : result_guard), result_guard)
+    return combine_results([(cont(result, state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard), result_guard)
                             for (result, result_guard) in first_stage_results],
         used_information, available_information, state)
 end
@@ -350,7 +331,7 @@ end
 
 function compile_inner(expr::Abs, env::Env, available_information::BDD, state::LazyKCState)
     # A lambda term deterministically evaluates to a closure.
-    return [(Closure(expr.body, env), state.BDD_TRUE)], state.BDD_TRUE
+    return [(Closure(expr.body, env), state.manager.BDD_TRUE)], state.manager.BDD_TRUE
 end
 
 function compile_inner(expr::Construct, env::Env, available_information::BDD, state::LazyKCState)
@@ -358,7 +339,7 @@ function compile_inner(expr::Construct, env::Env, available_information::BDD, st
     # Create a thunk for each argument.
     thunked_arguments = [LazyKCThunk(arg, env, state.callstack, Symbol("$(expr.constructor).arg$i"), i, state) for (i, arg) in enumerate(expr.args)] # TODO: use global args_syms to avoid runtime cost of Symbol?
     # Return the constructor and its arguments.
-    return [(Value(expr.constructor, thunked_arguments), state.BDD_TRUE)], state.BDD_TRUE
+    return [(Value(expr.constructor, thunked_arguments), state.manager.BDD_TRUE)], state.manager.BDD_TRUE
 end
 
 function compile_inner(expr::CaseOf, env::Env, available_information::BDD, state::LazyKCState)
@@ -376,7 +357,7 @@ function compile_inner(expr::CaseOf, env::Env, available_information::BDD, state
         
         if !(scrutinee.constructor in keys(expr.cases))
             # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
-            return [], state.BDD_TRUE
+            return [], state.manager.BDD_TRUE
         end
 
         case_expr = expr.cases[scrutinee.constructor]
@@ -393,7 +374,7 @@ function compile_inner(expr::CaseOf, env::Env, available_information::BDD, state
         end
         # In each of the scrutinee arguments, filter out options that contradict the available information.
         new_env = copy(env)
-        used_information = state.BDD_TRUE
+        used_information = state.manager.BDD_TRUE
         for arg in scrutinee.args
             pushfirst!(new_env, arg)
         end
@@ -405,7 +386,7 @@ end
 function compile_inner(expr::Y, env::Env, available_information::BDD, state::LazyKCState)
     @assert expr.f isa Abs && expr.f.body isa Abs "y-combinator must be applied to a double-lambda"
     closure = Pluck.make_self_loop(expr.f.body.body, env)
-    return [(closure, state.BDD_TRUE)], state.BDD_TRUE
+    return [(closure, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
 end
 
 function compile_inner(expr::PrimOp, env::Env, available_information::BDD, state::LazyKCState)
@@ -441,15 +422,15 @@ function compile_prim(op::FlipOp, args, env::Env, available_information::BDD, st
     bdd_bind(ps, available_information, used_information, state) do p, p_guard
         p = p.value
         if isapprox(p, 0.0)
-            return [(Pluck.FALSE_VALUE, p_guard)], state.BDD_TRUE
+            return [(Pluck.FALSE_VALUE, p_guard)], state.manager.BDD_TRUE
         elseif isapprox(p, 1.0)
-            return [(Pluck.TRUE_VALUE, p_guard)], state.BDD_TRUE
+            return [(Pluck.TRUE_VALUE, p_guard)], state.manager.BDD_TRUE
         else
             # If we are past the max depth, AND we are sampling after the max depth, AND 
             # this flip is new (not previously instantiated), THEN sample a value.
             if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
                 sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-                return [(sampled_value, state.BDD_TRUE)], state.BDD_TRUE
+                return [(sampled_value, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
             end
 
             # Otherwise, we perform the usual logic.
@@ -457,9 +438,9 @@ function compile_prim(op::FlipOp, args, env::Env, available_information::BDD, st
             # different probability `p`, we need to create a new variable in the BDD.
             push!(state.callstack, 1)
             addr = bdd_make_address(state, p, available_information)
-            wmc_param_f64_set_weight(state.weights, bdd_topvar(addr), 1.0 - p, p)
+            RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
             pop!(state.callstack)
-            return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)], state.BDD_TRUE
+            return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)], state.manager.BDD_TRUE
         end
     end
 end
@@ -471,9 +452,9 @@ function compile_prim(op::ConstructorEqOp, args, env::Env, available_information
         second_arg_results, second_arg_used_information = traced_compile_inner(args[2], env, arg1_guard & available_information, state, 1)
         bdd_bind(second_arg_results, available_information, second_arg_used_information, state) do arg2, arg2_guard
             if arg1.constructor == arg2.constructor
-                return [(Pluck.TRUE_VALUE, state.BDD_TRUE)], state.BDD_TRUE
+                return [(Pluck.TRUE_VALUE, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
             else
-                return [(Pluck.FALSE_VALUE, state.BDD_TRUE)], state.BDD_TRUE
+                return [(Pluck.FALSE_VALUE, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
             end
         end
     end
@@ -486,9 +467,9 @@ function compile_prim(op::MkIntOp, args, env::Env, available_information::BDD, s
     bitwidth = args[1]::RawInt
     val = args[2]::RawInt
     bools = digits(Bool, val.val, base = 2, pad = bitwidth.val)
-    bits = map(b -> b ? state.BDD_TRUE : state.BDD_FALSE, bools)
+    bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
 
-    return [(IntDist(bits), state.BDD_TRUE)], state.BDD_TRUE
+    return [(IntDist(bits), state.manager.BDD_TRUE)], state.manager.BDD_TRUE
 end
 
 function compile_prim(op::IntDistEqOp, args, env::Env, available_information::BDD, state::LazyKCState)
@@ -498,7 +479,7 @@ function compile_prim(op::IntDistEqOp, args, env::Env, available_information::BD
         bdd_bind(second_int_dist, available_information, second_used_information, state) do second_int_dist, second_int_dist_guard
             bdd = int_dist_eq(first_int_dist, second_int_dist, state)
             # do we put second_int_dist_guard anywhere?
-            return [(Pluck.TRUE_VALUE, bdd), (Pluck.FALSE_VALUE, !bdd)], state.BDD_TRUE
+            return [(Pluck.TRUE_VALUE, bdd), (Pluck.FALSE_VALUE, !bdd)], state.manager.BDD_TRUE
         end
     end
 end
@@ -510,11 +491,11 @@ Equality of two int distributions is an AND over the equality (bdd_iff) of each 
 function int_dist_eq(x::IntDist, y::IntDist, state::LazyKCState)::BDD
     width = length(x.bits)
     @assert width == length(y.bits)
-    result = state.BDD_TRUE
+    result = state.manager.BDD_TRUE
     for i = 1:width
         @inbounds result = bdd_and(result, bdd_iff(x.bits[i], y.bits[i]))
         if bdd_is_false(result)
-            return state.BDD_FALSE
+            return state.manager.BDD_FALSE
         end
     end
     return result
@@ -525,7 +506,7 @@ function compile_inner(expr::Var, env::Env, available_information::BDD, state::L
     # Look up the variable in the environment.
     if expr.idx > length(env)
         @warn "Variable $expr not found in environment; shaving off probability."
-        return [], state.BDD_TRUE
+        return [], state.manager.BDD_TRUE
     end
 
     v = env[expr.idx]
@@ -534,7 +515,7 @@ function compile_inner(expr::Var, env::Env, available_information::BDD, state::L
     else
         # Does this case ever arise? One example is that for recursive calls,
         # we create a closure (not a thunk) and store it in the environment.
-        return [(v, state.BDD_TRUE)], state.BDD_TRUE
+        return [(v, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
     end
 end
 
@@ -545,7 +526,7 @@ end
 
 
 function compile_inner(expr::ConstReal, env::Env, available_information::BDD, state::LazyKCState)
-    return [(FloatValue(expr.val), state.BDD_TRUE)], state.BDD_TRUE
+    return [(FloatValue(expr.val), state.manager.BDD_TRUE)], state.manager.BDD_TRUE
 end
 
 """
@@ -555,7 +536,7 @@ function int_dist_at_int(val::IntDist, i::Int)
     bits = digits(Bool, i, base = 2, pad = length(val.bits))
     # Get BDD for this setting of the bits
     # Start with TRUE BDD
-    bdd = state.BDD_TRUE
+    bdd = state.manager.BDD_TRUE
 
     # For each bit, AND with either the bit's BDD or its negation based on our desired value
     for (bit_idx, bit_val) in enumerate(bits)
@@ -583,7 +564,7 @@ end
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
 
-    inner_ret, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.BDD_TRUE, state, 0)
+    inner_ret, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
 
     # expand IntDists into their 2^N possible values
     ret = []
@@ -618,10 +599,9 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     end
 
     # weighted model count to get the actual probabilities
-    weighted_results = [(v, RSDD.bdd_wmc(bdd, state.weights)) for (v, bdd) in ret]
+    weighted_results = [(v, RSDD.bdd_wmc(bdd, state.manager)) for (v, bdd) in ret]
 
     free_bdd_manager(state.manager)
-    free_wmc_params(state.weights)
 
     return weighted_results
 end

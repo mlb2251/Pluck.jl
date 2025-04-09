@@ -59,7 +59,6 @@ function bdd_forward_with_suspension(expr; kwargs...)
     end
 
     RSDD.free_bdd_manager(s.manager)
-    RSDD.free_wmc_params(s.weights)
 
     return (true => true_probability, false => false_probability)
 end
@@ -133,7 +132,6 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
     end
 
     RSDD.free_bdd_manager(s.manager)
-    RSDD.free_wmc_params(s.weights)
 
     return (true => true_probability, false => false_probability)
 end

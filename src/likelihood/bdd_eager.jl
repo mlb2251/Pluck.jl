@@ -22,7 +22,7 @@ mutable struct BDDStrictEvalState
         manager = RSDD.mk_bdd_manager_default_order(0)
         BDD_TRUE = RSDD.bdd_true(manager)
         BDD_FALSE = RSDD.bdd_false(manager)
-        weights = RSDD.new_wmc_params_f64()
+        weights = RSDD.new_weights()
         state = new(
             weights,
             manager,
@@ -375,6 +375,5 @@ function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, recor
         record_bdd(state, ret[true_results[1]][2])
     end
     free_bdd_manager(state.manager)
-    free_wmc_params(state.weights)
     return results
 end

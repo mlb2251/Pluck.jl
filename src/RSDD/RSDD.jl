@@ -4,6 +4,40 @@ export RSDD
 module RSDD
 using Libdl
 
+export WmcParams, new_weights, wmc_param_f64_set_weight, bdd_wmc
+
+export BDD,
+    bdd_and,
+    bdd_or,
+    bdd_iff,
+    bdd_xor,
+    bdd_negate,
+    bdd_is_true,
+    bdd_is_false,
+    bdd_true,
+    bdd_false,
+    bdd_ite,
+    bdd_eq,
+    bdd_high,
+    bdd_low,
+    bdd_topvar,
+    bdd_num_recursive_calls,
+    print_bdd_string,
+    bdd_exists,
+    bdd_condition,
+    bdd_compose,
+    bdd_size,
+    bdd_is_var,
+    man_print_stats,
+    bdd_is_const,
+    bdd_vector_compose,
+    bdd_new_var,
+    mk_bdd_manager_default_order,
+    bdd_has_variable,
+    bdd_implies,
+    bdd_json
+
+
 # Declare global variables
 const librsdd_path = joinpath(@__DIR__, "rsdd", "target", "release", "librsdd")
 let
@@ -67,13 +101,6 @@ function clear_rsdd_time!()
     bdd_stats.rsdd_time = 0.0
 end
 
-# function rsdd_timed!(f::F) where F <: Function
-#     tstart = time()
-#     res = f()
-#     rsdd_time!(time() - tstart)
-#     return res
-# end
-
 macro rsdd_time(expr)
     quote
         clear_rsdd_time!()
@@ -95,14 +122,11 @@ macro rsdd_timed(expr)
     end
 end
 
-# function @rsdd_timed ccall(fptr, rettype, argtypes, x, args...)
-#     tstart = time()
-#     res = @ccall(fptr, rettype, (argtypes...,), x, args...)
-#     rsdd_time!(time() - tstart)
-#     return res
-# end
 
-
+mutable struct WmcParams
+    ptr::Ptr{Cvoid}
+    freed::Bool
+end
 
 # Define types
 const ManagerPtr = Ptr{Cvoid}
@@ -112,7 +136,31 @@ mutable struct Manager
     ptr::ManagerPtr
     bdds::Vector{Any}
     freed::Bool
+    BDD_TRUE::Any
+    BDD_FALSE::Any
+    weights::WmcParams
+
+    function Manager(; num_vars::Int=0)
+        manager_ptr = ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+        weights = new_weights()
+        manager = new(manager_ptr, [], false, nothing, nothing, weights)
+        manager.BDD_TRUE = bdd_true(manager)
+        manager.BDD_FALSE = bdd_false(manager)
+        return manager
+    end
 end
+
+
+struct BDD
+    manager::Manager
+    ptr::Csize_t
+    function BDD(manager::Manager, ptr::Csize_t)
+        bdd = new(manager, ptr)
+        push!(manager.bdds, bdd)
+        return bdd
+    end
+end
+
 
 
 # Helper function to look up symbols
@@ -149,50 +197,20 @@ function __init__()
     global bdd_compose_ptr = get_symbol("bdd_compose")
     global bdd_size_ptr = get_symbol("bdd_size")
     global bdd_has_variable_ptr = get_symbol("bdd_has_variable")
-    # global bdd_is_var_ptr = get_symbol("bdd_is_var")
-    # global man_print_stats_ptr = get_symbol("man_print_stats")
-    # global bdd_is_const_ptr = get_symbol("bdd_is_const")
-    # global bdd_hash_ptr = get_symbol("bdd_hash")
-    # Add these new symbol lookups
     global new_wmc_params_f64_ptr = get_symbol("new_wmc_params_f64")
     global wmc_param_f64_set_weight_ptr = get_symbol("wmc_param_f64_set_weight")
     global bdd_wmc_ptr = get_symbol("bdd_wmc")
-    # Add these to the __init__() function
     global free_bdd_ptr = get_symbol("free_bdd")
     global free_bdd_manager_ptr = get_symbol("free_bdd_manager")
     global free_wmc_params_ptr = get_symbol("free_wmc_params")
     global bdd_new_var_at_position_ptr = get_symbol("bdd_new_var_at_position")
     global robdd_weighted_sample_ptr = get_symbol("robdd_weighted_sample")
     global robdd_top_k_paths_ptr = get_symbol("robdd_top_k_paths")
-    # global bdd_last_var_ptr = get_symbol("bdd_last_var")
-    # global bdd_var_position_ptr = get_symbol("bdd_var_position")
-    # println("Initialized RSDD")
-end
-
-
-
-# Define BDD struct
-struct BDD
-    manager::Manager
-    ptr::Csize_t
-    function BDD(manager::Manager, ptr::Csize_t)
-        bdd = new(manager, ptr)
-        push!(manager.bdds, bdd)
-        return bdd
-    end
 end
 
 # Show method for BDD
 Base.show(io::IO, bdd::BDD) = print(io, print_bdd_string(bdd))
 
-"""
-Creates a new BDD manager with default variable order.
-Returns: Manager (Ptr{Cvoid})
-"""
-function mk_bdd_manager_default_order(num_vars::Integer)
-    ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
-    Manager(ptr, [], false)
-end
 
 """
 Creates a new BDD variable.
@@ -202,19 +220,6 @@ function bdd_new_var(manager::Manager, polarity::Bool)
     ptr = @rsdd_timed ccall(bdd_new_var_ptr, Csize_t, (ManagerPtr, Bool), manager.ptr, polarity)
     BDD(manager, ptr)
 end
-
-export BDDTime, bdd_time, reset_bdd_time
-mutable struct BDDTime
-    bdd_and::Float64
-    bdd_or::Float64
-end
-const bdd_time = BDDTime(0.0, 0.0)
-
-function reset_bdd_time()
-    bdd_time.bdd_and = 0.0
-    bdd_time.bdd_or = 0.0
-end
-
 
 """
 Performs logical AND operation on two BDDs.
@@ -437,18 +442,6 @@ function bdd_vector_compose(f::BDD, vars::Vector{Label}, bdds::Vector{BDD})
     result
 end
 
-
-
-# """
-# Computes the hash of a BDD.
-# Returns: UInt64
-# """
-# bdd_hash(bdd::BDD) = @rsdd_timed ccall(bdd_hash_ptr, UInt64, (Csize_t,), bdd.ptr)
-
-# function Base.hash(bdd::BDD, h::UInt)
-#     return Base.hash(bdd_hash(bdd), h)
-# end
-
 function Base.isequal(a::BDD, b::BDD)
     return bdd_eq(a, b)
 end
@@ -468,20 +461,20 @@ Base.:⊻(a::BDD, b::BDD) = bdd_xor(a, b)
 Base.:(==)(a::BDD, b::BDD) = bdd_eq(a, b)
 Base.:(!=)(a::BDD, b::BDD) = !bdd_eq(a, b)
 (⟺)(a::BDD, b::BDD) = bdd_iff(a, b)
-# (⟹)(a::BDD, b::BDD) = bdd_implies(a, b)
 
-# Define WmcParams struct
-struct WmcParams
-    ptr::Ptr{Cvoid}
-end
 
 """
 Creates a new WmcParams object for floating-point weights.
 Returns: WmcParams
 """
-function new_wmc_params_f64()
+function new_weights()
     ptr = @rsdd_timed ccall(new_wmc_params_f64_ptr, Ptr{Cvoid}, ())
-    WmcParams(ptr)
+    WmcParams(ptr, false)
+end
+
+
+function set_weight(mgr::Manager, var::Label, low::Float64, high::Float64)
+    wmc_param_f64_set_weight(mgr.weights, var, low, high)
 end
 
 """
@@ -495,68 +488,13 @@ end
 Performs weighted model counting on a BDD.
 Returns: Float64
 """
+function bdd_wmc(bdd::BDD, manager::Manager)
+    bdd_wmc(bdd, manager.weights)
+end
 function bdd_wmc(bdd::BDD, params::WmcParams)
     @rsdd_timed ccall(bdd_wmc_ptr, Float64, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
 end
 
-# """
-# Constructs a WmcParams object from a dictionary mapping Labels to floats.
-# The float values represent the high parameter, and 1 - float gives the low parameter.
-
-# Parameters:
-# - manager: The BDD manager
-# - weights: A dictionary mapping Labels to floats
-
-# Returns: WmcParams
-# """
-# function construct_wmc(weights::Dict{Label, Float64})
-#     params = new_wmc_params_f64()
-
-#     for label in keys(weights)
-#         high = weights[label]
-#         low = 1.0 - high
-#         wmc_param_f64_set_weight(params, label, low, high)
-#     end
-
-#     return params
-# end
-
-
-
-# Add exports for the new functions
-export WmcParams, new_wmc_params_f64, wmc_param_f64_set_weight, bdd_wmc
-
-export BDD,
-    bdd_and,
-    bdd_or,
-    bdd_iff,
-    bdd_xor,
-    bdd_negate,
-    bdd_is_true,
-    bdd_is_false,
-    bdd_true,
-    bdd_false,
-    bdd_ite,
-    bdd_eq,
-    bdd_high,
-    bdd_low,
-    bdd_topvar,
-    bdd_num_recursive_calls,
-    print_bdd_string,
-    bdd_exists,
-    bdd_condition,
-    bdd_compose,
-    bdd_size,
-    bdd_is_var,
-    man_print_stats,
-    bdd_is_const,
-    bdd_vector_compose,
-    bdd_new_var,
-    mk_bdd_manager_default_order,
-    bdd_has_variable,
-    bdd_implies,
-    bdd_json
-# Add these functions after the existing functions
 
 # """
 # Frees the memory associated with a BDD.
@@ -569,6 +507,7 @@ end
 Frees the memory associated with a BDD manager.
 """
 function free_bdd_manager(manager::Manager)
+    free_wmc_params(manager.weights)
     manager.freed && return
     for bdd in manager.bdds
         free_bdd(bdd)
@@ -582,7 +521,10 @@ end
 Frees the memory associated with a WmcParams object.
 """
 function free_wmc_params(params::WmcParams)
+    params.freed && return
     @rsdd_timed ccall(free_wmc_params_ptr, Cvoid, (Ptr{Cvoid},), params.ptr)
+    params.freed = true
+    return
 end
 
 """
@@ -600,24 +542,6 @@ function bdd_new_var_at_position(manager::Manager, position::Integer, polarity::
     ptr = @rsdd_timed ccall(bdd_new_var_at_position_ptr, Csize_t, (ManagerPtr, Csize_t, Bool), manager.ptr, position, polarity)
     BDD(manager, ptr)
 end
-
-# """
-# Gets the last variable in the variable order of a BDD.
-# Returns: Union{Label,Nothing} - The last variable in the order, or nothing if the BDD is constant
-# """
-# function bdd_last_var(bdd::BDD)
-#     var = @rsdd_timed ccall(bdd_last_var_ptr, Int64, (Manager, Csize_t), bdd.manager, bdd.ptr)
-#     if var == -1
-#         return nothing
-#     end
-#     return Label(var)
-# end
-
-# """
-# Gets the position of a variable in the variable order of a BDD.
-# Returns: UInt64
-# """
-# bdd_var_position(builder::Manager, var::Label) = @rsdd_timed ccall(bdd_var_position_ptr, UInt64, (Manager, Label), builder, var)
 
 struct WeightedSampleResult
     sample::Csize_t
