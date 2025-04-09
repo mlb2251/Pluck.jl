@@ -21,45 +21,6 @@ Base.@kwdef struct LazyKCConfig
     record_bdd_json::Bool = false
 end
 
-mutable struct LazyKCState
-    callstack::Callstack
-    var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
-    sorted_callstacks::Vector{Tuple{Callstack, Float64}}
-    sorted_var_labels::Vector{Int}
-    manager::RSDD.Manager
-    depth::Int
-    thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, Any}
-    num_forward_calls::Int
-    viz::Any # Union{Nothing, BDDJSONLogger}
-    cfg::LazyKCConfig
-
-    function LazyKCState(;kwargs...)
-        cfg = LazyKCConfig(;kwargs...)
-        LazyKCState(cfg)
-    end
-
-    function LazyKCState(cfg::LazyKCConfig)
-        manager = RSDD.Manager()
-        state = new(
-            Callstack(),
-            Dict{Tuple{Callstack, Float64}, BDD}(),
-            Tuple{Callstack, Float64}[],
-            Int[],
-            manager,
-            0,
-            Dict{Tuple{PExpr, Env, Callstack}, Any}(),
-            0,
-            nothing,
-            cfg
-        )
-
-        if cfg.record_json
-            state.viz = BDDJSONLogger(state)
-        end
-        return state
-    end
-end
-
 """
 Top-level compile function for lazy knowledge compilation.
 """
@@ -106,6 +67,45 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     free_bdd_manager(state.manager)
 
     return weighted_results
+end
+
+mutable struct LazyKCState
+    callstack::Callstack
+    var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
+    sorted_callstacks::Vector{Tuple{Callstack, Float64}}
+    sorted_var_labels::Vector{Int}
+    manager::RSDD.Manager
+    depth::Int
+    thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, Any}
+    num_forward_calls::Int
+    viz::Any # Union{Nothing, BDDJSONLogger}
+    cfg::LazyKCConfig
+
+    function LazyKCState(;kwargs...)
+        cfg = LazyKCConfig(;kwargs...)
+        LazyKCState(cfg)
+    end
+
+    function LazyKCState(cfg::LazyKCConfig)
+        manager = RSDD.Manager()
+        state = new(
+            Callstack(),
+            Dict{Tuple{Callstack, Float64}, BDD}(),
+            Tuple{Callstack, Float64}[],
+            Int[],
+            manager,
+            0,
+            Dict{Tuple{PExpr, Env, Callstack}, Any}(),
+            0,
+            nothing,
+            cfg
+        )
+
+        if cfg.record_json
+            state.viz = BDDJSONLogger(state)
+        end
+        return state
+    end
 end
 
 function traced_compile_inner(expr::PExpr, env::Env, available_information::BDD, state::LazyKCState, strict_order_index::Int)
