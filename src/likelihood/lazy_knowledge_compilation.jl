@@ -6,11 +6,64 @@ const World = Tuple{Any, BDD}
 const ForwardResult = Tuple{Vector{World}, BDD}
 const EMPTY_ENV::Env = Any[]
 
-struct IntDist
-    bits::Vector{BDD}
+Base.@kwdef struct LazyKCConfig
+    max_depth::Union{Int, Nothing} = nothing
+    sample_after_max_depth::Bool = false
+    use_strict_order::Bool = true
+    use_reverse_order::Bool = false
+    use_thunk_cache::Bool = false
+    use_thunk_unions::Bool = true
+    record_json::Bool = false
+    disable_used_information::Bool = false
+    disable_path_conditions::Bool = false
+    singleton_cache::Bool = true
+    show_bdd_size::Bool = false
+    record_bdd_json::Bool = false
 end
-Base.show(io::IO, x::IntDist) = print(io, "IntDist{$(length(x.bits))}")
 
+mutable struct LazyKCState
+    callstack::Callstack
+    var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
+    sorted_callstacks::Vector{Tuple{Callstack, Float64}}
+    sorted_var_labels::Vector{Int}
+    manager::RSDD.Manager
+    depth::Int
+    thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, Any}
+    num_forward_calls::Int
+    viz::Any # Union{Nothing, BDDJSONLogger}
+    cfg::LazyKCConfig
+
+    function LazyKCState(;kwargs...)
+        cfg = LazyKCConfig(;kwargs...)
+        LazyKCState(cfg)
+    end
+
+    function LazyKCState(cfg::LazyKCConfig)
+        manager = RSDD.Manager()
+        state = new(
+            Callstack(),
+            Dict{Tuple{Callstack, Float64}, BDD}(),
+            Tuple{Callstack, Float64}[],
+            Int[],
+            manager,
+            0,
+            Dict{Tuple{PExpr, Env, Callstack}, Any}(),
+            0,
+            nothing,
+            cfg
+        )
+
+        if cfg.record_json
+            state.viz = BDDJSONLogger(state)
+        end
+        return state
+    end
+end
+
+
+################
+#### THUNKS ####
+################
 
 struct LazyKCThunk
     expr::PExpr
@@ -92,59 +145,6 @@ end
 
 
 
-Base.@kwdef struct LazyKCConfig
-    max_depth::Union{Int, Nothing} = nothing
-    sample_after_max_depth::Bool = false
-    use_strict_order::Bool = true
-    use_reverse_order::Bool = false
-    use_thunk_cache::Bool = false
-    use_thunk_unions::Bool = true
-    record_json::Bool = false
-    disable_used_information::Bool = false
-    disable_path_conditions::Bool = false
-    singleton_cache::Bool = true
-    show_bdd_size::Bool = false
-    record_bdd_json::Bool = false
-end
-
-mutable struct LazyKCState
-    callstack::Callstack
-    var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
-    sorted_callstacks::Vector{Tuple{Callstack, Float64}}
-    sorted_var_labels::Vector{Int}
-    manager::RSDD.Manager
-    depth::Int
-    thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, LazyKCThunk}
-    num_forward_calls::Int
-    viz::Any # Union{Nothing, BDDJSONLogger}
-    cfg::LazyKCConfig
-
-    function LazyKCState(;kwargs...)
-        cfg = LazyKCConfig(;kwargs...)
-        LazyKCState(cfg)
-    end
-
-    function LazyKCState(cfg::LazyKCConfig)
-        manager = RSDD.Manager()
-        state = new(
-            Callstack(),
-            Dict{Tuple{Callstack, Float64}, BDD}(),
-            Tuple{Callstack, Float64}[],
-            Int[],
-            manager,
-            0,
-            Dict{Tuple{PExpr, Env, Callstack}, LazyKCThunk}(),
-            0,
-            nothing,
-            cfg
-        )
-
-        if cfg.record_json
-            state.viz = BDDJSONLogger(state)
-        end
-        return state
-    end
-end
 
 function traced_compile_inner(expr::PExpr, env::Env, available_information::BDD, state::LazyKCState, strict_order_index::Int)
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
@@ -244,23 +244,6 @@ function combine_results(result_sets, used_information::BDD, available_informati
     end
 
     return join_results, used_information
-end
-
-function combine_int_dists(int_dist_results, state)
-    width = length(int_dist_results[1][1].bits)
-    result = IntDist(fill(state.manager.BDD_FALSE, width))
-    overall_guard = state.manager.BDD_FALSE
-    for (int_dist, guard) in int_dist_results
-        # should we compute an overall guard?
-        overall_guard = overall_guard | guard
-        @assert width == length(int_dist.bits)
-        # For each bit, AND it with the guard then OR it into the result.
-        for i = 1:width
-            @inbounds new_bit = int_dist.bits[i] & guard
-            @inbounds result.bits[i] = result.bits[i] | new_bit
-        end
-    end
-    return (result, overall_guard)
 end
 
 function evaluate(thunk::LazyKCThunkUnion, available_information::BDD, state::LazyKCState)
@@ -460,9 +443,6 @@ function compile_prim(op::ConstructorEqOp, args, env::Env, available_information
     end
 end
 
-const int_dist_of_bitwidth = Symbol[:Int1, :Int2, :Int3, :Int4]
-
-
 function compile_prim(op::MkIntOp, args, env::Env, available_information::BDD, state::LazyKCState)
     bitwidth = args[1]::RawInt
     val = args[2]::RawInt
@@ -484,22 +464,6 @@ function compile_prim(op::IntDistEqOp, args, env::Env, available_information::BD
     end
 end
 
-
-"""
-Equality of two int distributions is an AND over the equality (bdd_iff) of each bit.
-"""
-function int_dist_eq(x::IntDist, y::IntDist, state::LazyKCState)::BDD
-    width = length(x.bits)
-    @assert width == length(y.bits)
-    result = state.manager.BDD_TRUE
-    for i = 1:width
-        @inbounds result = bdd_and(result, bdd_iff(x.bits[i], y.bits[i]))
-        if bdd_is_false(result)
-            return state.manager.BDD_FALSE
-        end
-    end
-    return result
-end
 
 
 function compile_inner(expr::Var, env::Env, available_information::BDD, state::LazyKCState)
@@ -528,38 +492,6 @@ end
 function compile_inner(expr::ConstReal, env::Env, available_information::BDD, state::LazyKCState)
     return [(FloatValue(expr.val), state.manager.BDD_TRUE)], state.manager.BDD_TRUE
 end
-
-"""
-Get the BDD for a given integer value of an IntDist
-"""
-function int_dist_at_int(val::IntDist, i::Int)
-    bits = digits(Bool, i, base = 2, pad = length(val.bits))
-    # Get BDD for this setting of the bits
-    # Start with TRUE BDD
-    bdd = state.manager.BDD_TRUE
-
-    # For each bit, AND with either the bit's BDD or its negation based on our desired value
-    for (bit_idx, bit_val) in enumerate(bits)
-        bit_formula = val.bits[bit_idx]
-        if bit_val
-            bdd &= bit_formula
-        else
-            bdd &= ~bit_formula
-        end
-    end
-    return bdd
-end
-
-function enumerate_int_dist(val::IntDist, bdd::BDD)
-    worlds = Tuple{Int, BDD}[]
-    # Enumerate all 2^n possibilities (all setting of n bits)
-    for i = 0:(2^length(val.bits)-1)
-        bdd = int_dist_at_int(val, i) & bdd
-        push!(worlds, (i, bdd))
-    end
-    return worlds
-end
-
 
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
@@ -606,6 +538,9 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     return weighted_results
 end
 
+"""
+Process thunks into fully resolved values.
+"""
 function infer_full_distribution(initial_results, state)
     # Queue of (value, bdd) pairs to process
     queue = initial_results
