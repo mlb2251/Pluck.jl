@@ -452,11 +452,11 @@ function bdd_forward(expr::CaseOf, env::Env, available_information::BDD, state::
     for (i, constructor) in enumerate(keys(expr.cases)) # sort? reverse?
         constructor_indices[constructor] = i
     end
+    caseof_type = type_of_constructor[first(keys(expr.cases))]
     bdd_bind(scrutinee_values, available_information, scrutinee_used_information, state) do scrutinee, scrutinee_guard
         value_type = type_of_constructor[scrutinee.constructor]
-        caseof_type = type_of_constructor[expr.cases[1].constructor]
         if !isempty(expr.cases) && !(value_type == caseof_type)
-            error("TypeError: Scrutinee constructor $(scrutinee.constructor) of type $(type_of_constructor[scrutinee.constructor]) is not the same as the case statement type  $(type_of_constructor[expr.cases[1].constructor])")
+            error("TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type")
         end
         
         if !(scrutinee.constructor in keys(expr.cases))
@@ -672,41 +672,48 @@ function bdd_forward(expr::ConstReal, env::Env, available_information::BDD, stat
     return [(FloatValue(expr.val), state.BDD_TRUE)], state.BDD_TRUE
 end
 
+function bdd_bit(val::IntDist, i::Int)
+    bits = digits(Bool, i, base = 2, pad = length(val.bits))
+    # Get BDD for this setting of the bits
+    # Start with TRUE BDD
+    bit_bdd = state.BDD_TRUE
+
+    # For each bit, AND with either the bit's BDD or its negation based on our desired value
+    for (bit_idx, bit_val) in enumerate(bits)
+        bit_formula = val.bits[bit_idx]
+        if bit_val
+            bit_bdd = bit_bdd & bit_formula
+        else
+            bit_bdd = bit_bdd & ~bit_formula
+        end
+    end
+    return bit_bdd
+end
+function expand_int_dist(val::IntDist, bdd::BDD)
+    worlds = Tuple{Int, BDD}[]
+    # Enumerate all 2^n possibilities (all setting of n bits)
+    for i = 0:(2^length(val.bits)-1)
+        bdd = bdd_bit(val, i) & bdd
+        push!(worlds, (i, bdd))
+    end
+    return worlds
+end
+
 function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_json = false, make_state = () -> BDDEvalState(), return_bdd_stats = false)
     if expr isa String
         expr = parse_expr(expr)
     end
     state = make_state()
-    ret, used_information = traced_bdd_forward((expr), Pluck.EMPTY_ENV, state.BDD_TRUE, state, 0)
+    inner_ret, used_information = traced_bdd_forward((expr), Pluck.EMPTY_ENV, state.BDD_TRUE, state, 0)
     # When ret contains IntDists, enumerate the 2^n options
-    enumerated_ret = []
-    for (val, bdd) in ret
+    ret = []
+    for (val, bdd) in inner_ret
         if val isa IntDist
-            # Enumerate all 2^n possibilities (all setting of n bits)
-            for i = 0:(2^length(val.bits)-1)
-                bits = digits(Bool, i, base = 2, pad = length(val.bits))
-                # Get BDD for this setting of the bits
-                # Start with TRUE BDD
-                bit_bdd = state.BDD_TRUE
-
-                # For each bit, AND with either the bit's BDD or its negation based on our desired value
-                for (bit_idx, bit_val) in enumerate(bits)
-                    bit_formula = val.bits[bit_idx]
-                    if bit_val
-                        bit_bdd = bit_bdd & bit_formula
-                    else
-                        bit_bdd = bit_bdd & ~bit_formula
-                    end
-                end
-
-                # AND with the original BDD and add to results
-                push!(enumerated_ret, (i, bit_bdd & bdd))
-            end
+            append!(ret, expand_int_dist(val, bdd))
         else
-            push!(enumerated_ret, (val, bdd))
+            push!(ret, (val, bdd))
         end
     end
-    ret = enumerated_ret
 
     if show_bdd_size
         summed_size = sum(Int(RSDD.bdd_size(bdd)) for (ret, (bdd)) in ret)
@@ -714,6 +721,7 @@ function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_j
         printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
         println("BDD sizes: $([(ret, Int(RSDD.bdd_size(bdd))) for (ret, (bdd)) in ret])")
     end
+
     # Trying a model count of each possibility.
     if show_bdd
         results = [(v, repr(bdd), RSDD.bdd_wmc(bdd, state.weights)) for (v, bdd) in ret]
@@ -728,25 +736,23 @@ function bdd_forward(expr; show_bdd = false, show_bdd_size = false, record_bdd_j
         @assert length(true_results) == 1 "Expected exactly one true result, got $(length(true_results))"
         record_bdd(state, ret[true_results[1]][2])
     end
+
     free_bdd_manager(state.manager)
     free_wmc_params(state.weights)
+
     if state.record_json
         dir = timestamp_dir(; base = "out/bdd")
         write_out(state.viz, joinpath(dir, "bdd_forward.json"))
         println(webaddress("html/bdd_forward.html", joinpath(dir, "bdd_forward.json"), false))
     end
+
     res = show_bdd ? (results, used_information) : results
+
     if return_bdd_stats
         return res, state.bdd_stats
     else
         return res
     end
-end
-
-function normalize(results)
-    probabilities = [res[2] for res in results]
-    total = sum(probabilities)
-    return [(res[1], res[2] / total) for res in results]
 end
 
 function infer_full_distribution(initial_results, state)

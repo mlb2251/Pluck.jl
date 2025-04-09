@@ -1,4 +1,4 @@
-export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out
+export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize
 
 function logaddexp(x::Float64, y::Float64)::Float64
     if x == -Inf
@@ -11,6 +11,12 @@ function logaddexp(x::Float64, y::Float64)::Float64
         # If res is very close to 0, return 0
         return (res > 0.0 && isapprox(res, 0.0; atol = eps(1.0))) ? 0.0 : res
     end
+end
+
+function normalize(results)
+    probabilities = [res[2] for res in results]
+    total = sum(probabilities)
+    return [(res[1], res[2] / total) for res in results]
 end
 
 function timestamp_dir(; base = "out/results")
