@@ -1,7 +1,7 @@
 mutable struct BDDJSONLogger
     root::Union{Dict, Nothing}
     children::Vector{Dict}
-    state::BDDEvalState
+    state::LazyKCState
 end
 function JSON.lower(viz::BDDJSONLogger)
     @show viz_size(viz.root)
@@ -14,7 +14,7 @@ function viz_size(node::Dict)
     return 1 + sum(viz_size(child) for child in node["children"]; init = 0)
 end
 
-BDDJSONLogger(state::BDDEvalState) = BDDJSONLogger(nothing, [], state)
+BDDJSONLogger(state::LazyKCState) = BDDJSONLogger(nothing, [], state)
 
 function record_forward!(viz::BDDJSONLogger, expr, env, available_information, strict_order_index)
     frame = Dict(
@@ -92,7 +92,7 @@ function viz_lower_world(value, guard::BDD, viz::BDDJSONLogger)
     )
 end
 
-function viz_lower(thunk::BDDThunk, viz::BDDJSONLogger)
+function viz_lower(thunk::LazyKCThunk, viz::BDDJSONLogger)
     return Dict(
         "type" => "Thunk",
         "expr" => viz_lower(thunk.expr, viz),
@@ -102,7 +102,7 @@ function viz_lower(thunk::BDDThunk, viz::BDDJSONLogger)
     )
 end
 
-function viz_lower(union::BDDThunkUnion, viz::BDDJSONLogger)
+function viz_lower(union::LazyKCThunkUnion, viz::BDDJSONLogger)
     return Dict(
         "type" => "ThunkUnion",
         "worlds" => [
@@ -128,7 +128,7 @@ function viz_lower(float::Float64, viz::BDDJSONLogger)
     return string(float)
 end
 
-function viz_lower(state::BDDEvalState, viz::BDDJSONLogger)
+function viz_lower(state::LazyKCState, viz::BDDJSONLogger)
     return Dict(
         "callstack" => copy(state.callstack),
         "num_forward_calls" => state.num_forward_calls,

@@ -55,26 +55,6 @@ end
 # Now, ite(guard, val1, val2) creates a new value... oh, but the thunks are annoying because they don't have a fixed number or order, like the constructors do.
 # We could do a little + circuit where you + on the length of the options... but not really b/c some options might be in common in a merge.
 
-
-# function merge_values(values::Vector{Tuple{Value, BDD}})
-#     length(values) == 0 && return []
-#     length(values) == 1 && return values
-
-#     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
-#     for (value, guard) in values
-#         if !haskey(results_for_constructor, value.constructor)
-#             results_for_constructor[value.constructor] = [(value, guard)]
-#         else
-#             push!(results_for_constructor[value.constructor], (value, guard))
-#         end
-#     end
-
-#     final_results = Vector{Tuple{Value, BDD}}()
-
-
-# end
-
-
 function merge_values(values::Vector{Tuple{Value, BDD}})
     length(values) == 0 && return []
     length(values) == 1 && return values

@@ -1,4 +1,4 @@
-export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize
+export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result
 
 function logaddexp(x::Float64, y::Float64)::Float64
     if x == -Inf
@@ -13,10 +13,26 @@ function logaddexp(x::Float64, y::Float64)::Float64
     end
 end
 
+function compile(expr::String, cfg::T) where T
+    expr = parse_expr(expr)
+    compile(expr, cfg)
+end
+
 function normalize(results)
     probabilities = [res[2] for res in results]
     total = sum(probabilities)
     return [(res[1], res[2] / total) for res in results]
+end
+
+function get_true_result(results, default)
+    res = nothing
+    for (val, x) in results
+        if val == Pluck.TRUE_VALUE || val == true
+            @assert isnothing(res) "Multiple true results found"
+            res = x
+        end
+    end
+    return isnothing(res) ? default : res
 end
 
 function timestamp_dir(; base = "out/results")

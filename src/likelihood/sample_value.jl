@@ -37,7 +37,7 @@ end
 
 function sample_value_forward(expr::App, env::Env, state::SampleValueState)
     f = traced_sample_value(expr.f, env, state, 0)
-    arg = state.lazy ? BDDThunk(expr.x, env, state.callstack, :lazy_arg, 1, nothing) : traced_sample_value(expr.x, env, state, 1)
+    arg = state.lazy ? LazyKCThunk(expr.x, env, state.callstack, :lazy_arg, 1, nothing) : traced_sample_value(expr.x, env, state, 1)
 
     new_env = copy(f.env)
     pushfirst!(new_env, arg)
@@ -53,7 +53,7 @@ function sample_value_forward(expr::Construct, env::Env, state::SampleValueState
     # Look up type of this constructor.
     spt = Pluck.spt_of_constructor[expr.constructor]
     # Evaluate each argument.
-    evaluated_arguments = [(state.lazy ? BDDThunk(arg, env, state.callstack, Symbol("lazy_arg$(i)"), i, nothing) : traced_sample_value(arg, env, state, i)) for (i, arg) in enumerate(expr.args)]
+    evaluated_arguments = [(state.lazy ? LazyKCThunk(arg, env, state.callstack, Symbol("lazy_arg$(i)"), i, nothing) : traced_sample_value(arg, env, state, i)) for (i, arg) in enumerate(expr.args)]
     # Return the constructor and its arguments.
     return Value(expr.constructor, evaluated_arguments)
 end
@@ -157,7 +157,7 @@ function sample_value_prim_forward(op::ConstructorEqOp, args, env::Env, state::S
     end
 end
 
-function sample_thunk(t::BDDThunk, state::SampleValueState)
+function sample_thunk(t::LazyKCThunk, state::SampleValueState)
     # Remember old callstack
     old_callstack = state.callstack
     state.callstack = copy(t.callstack)
@@ -166,8 +166,8 @@ function sample_thunk(t::BDDThunk, state::SampleValueState)
     return result
 end
 
-function sample_thunk(t::BDDThunkUnion, state::SampleValueState)
-    error("BDDThunkUnion found while posterior sampling; this should not happen unless a PosteriorSample query was *randomly* generated.")
+function sample_thunk(t::LazyKCThunkUnion, state::SampleValueState)
+    error("LazyKCThunkUnion found while posterior sampling; this should not happen unless a PosteriorSample query was *randomly* generated.")
 end
 
 function sample_value_forward(expr::Var, env::Env, state::SampleValueState)
@@ -177,7 +177,7 @@ function sample_value_forward(expr::Var, env::Env, state::SampleValueState)
         return nothing
     end
 
-    if env[expr.idx] isa BDDThunk || env[expr.idx] isa BDDThunkUnion
+    if env[expr.idx] isa LazyKCThunk || env[expr.idx] isa LazyKCThunkUnion
         return sample_thunk(env[expr.idx], state)
     else
         return env[expr.idx]
@@ -200,7 +200,7 @@ end
 
 function force_value(v::Value, state::SampleValueState)
     for i in 1:length(v.args)
-        if v.args[i] isa BDDThunk
+        if v.args[i] isa LazyKCThunk
             v.args[i] = force_value(sample_thunk(v.args[i], state), state)
         end
     end

@@ -46,7 +46,7 @@ function posterior_query(val, state)
     env = Any[val.args[1], val.args[2]]
     given_expr = App(App(Defined(:given), Var(2, :b)), Var(1, :a))
     # TODO: reconsider strict order index to use?
-    ret, _ = traced_bdd_forward(given_expr, env, state.BDD_TRUE, state, 0)
+    ret, _ = traced_compile_inner(given_expr, env, state.BDD_TRUE, state, 0)
     full_ret = infer_full_distribution(ret, state)
     results = normalize([v => RSDD.bdd_wmc(b, state.weights) for (v, b) in full_ret])
     return results
@@ -54,8 +54,8 @@ end
 
 # Add this helper function to process queries
 function process_query(expr::PExpr, query_str::AbstractString; kwargs...)
-    state = BDDEvalState(; kwargs...)
-    ret, used_information = traced_bdd_forward(expr, Pluck.EMPTY_ENV, state.BDD_TRUE, state, 0)
+    state = LazyKCState(; kwargs...)
+    ret, used_information = traced_compile_inner(expr, Pluck.EMPTY_ENV, state.BDD_TRUE, state, 0)
 
     if length(ret) != 1
         error("A query must either be a Marginal, Posterior, or PosteriorSample query, got $(expr).")

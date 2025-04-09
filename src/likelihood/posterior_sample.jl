@@ -1,4 +1,5 @@
-export posterior_sample
+export posterior_sample, adaptive_rejection_sampling
+
 function posterior_sample(val, state)    
     # First evaluate the evidence thunk to get true/false BDDs
     evidence_results, _ = evaluate(val.args[2], state.BDD_TRUE, state)
@@ -21,8 +22,6 @@ function posterior_sample(val, state)
     
         # Create a sampling state that uses the evidence BDD as a constraint
         # We need to preserve the callstack from the query thunk
-        # println("Evidence BDD: $evidence_bdd")
-        # println("Callstack: $(sort(collect(keys(state.var_of_callstack))))")
         query_thunk = val.args[1]
         sample_state = SampleValueState(
             evidence_bdd,
@@ -32,10 +31,6 @@ function posterior_sample(val, state)
         )
     
         # Sample from the query under the evidence constraint
-        # println("Query thunk env: $(query_thunk.env)")
-        # println("Evidence thunk env: $(val.args[2].expr)")
-        # println("Query thunk callstack: $(query_thunk.callstack)")
-        # sampled_value = sample_value_forward(query_thunk.expr, query_thunk.env, sample_state)
         sampled_value = sample_thunk(query_thunk, sample_state)
         push!(samples, force_value(sampled_value, sample_state))
     end

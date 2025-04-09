@@ -21,7 +21,7 @@ export bdd_forward_with_suspension, bdd_forward_with_suspension_top_k
 
 
 function bdd_forward_with_suspension(expr; kwargs...)
-    s = Pluck.BDDEvalState(; kwargs...)
+    s = Pluck.LazyKCState(; kwargs...)
 
     if expr isa String
         expr = parse_expr(expr)
@@ -65,7 +65,7 @@ function bdd_forward_with_suspension(expr; kwargs...)
 end
 
 function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
-    s = Pluck.BDDEvalState(; kwargs...)
+    s = Pluck.LazyKCState(; kwargs...)
 
     ret, used_info = Pluck.bdd_forward(parse_expr(expr), Pluck.EMPTY_ENV, s.BDD_TRUE, s)
 

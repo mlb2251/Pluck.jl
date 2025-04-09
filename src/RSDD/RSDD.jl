@@ -1,11 +1,8 @@
 # Julia bindings for the Rust RSDD library.
 # To use, first make sure to build rsdd with the ffi feature flag on.
 export RSDD
-
 module RSDD
-
 using Libdl
-
 
 # Declare global variables
 const librsdd_path = joinpath(@__DIR__, "rsdd", "target", "release", "librsdd")
