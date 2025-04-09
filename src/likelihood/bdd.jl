@@ -453,43 +453,42 @@ function bdd_forward(expr::CaseOf, env::Env, available_information::BDD, state::
         constructor_indices[constructor] = i
     end
     bdd_bind(scrutinee_values, available_information, scrutinee_used_information, state) do scrutinee, scrutinee_guard
-        #println("Evaluated scrutinee expression $(expr.scrutinee)")
-        #println("SCrutinee type: $(typeof(scrutinee))")
-        #println("Scrutinee val args: $(scrutinee.args)")
-        if scrutinee.constructor in keys(expr.cases)
-            case_expr = expr.cases[scrutinee.constructor]
-            num_args = length(args_of_constructor[scrutinee.constructor])
-            updated_guard = bdd_and(scrutinee_guard, available_information)
-            # println("Size of updated guard: $(RSDD.bdd_size(updated_guard))")
-            # if RSDD.bdd_size(updated_guard) == 0
-            #     @show scrutinee_guard
-            #     @show available_information
-            # end
-            if num_args == 0
-                return traced_bdd_forward(case_expr, env, updated_guard, state, constructor_indices[scrutinee.constructor])
-            else
-                for _ = 1:num_args
-                    @assert case_expr isa Abs "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
-                    case_expr = case_expr.body
-                end
-                # In each of the scrutinee arguments, filter out options that contradict the available information.
-                new_env = copy(env)
-                used_information = state.BDD_TRUE
-                for (i, arg) in enumerate(scrutinee.args)
-                    # if arg isa BDDThunkUnion
-                    #     arg, used_info = simplify_thunk_union(arg, available_information, state)
-                    #     used_information = used_information & used_info
-                    # end
-                    pushfirst!(new_env, arg)
-                end
-                # new_env = vcat(reverse(scrutinee.args), env)
-                results, used_info = traced_bdd_forward(case_expr, new_env, updated_guard, state, constructor_indices[scrutinee.constructor])
-                return results, used_information & used_info
-            end
-        else
+        value_type = type_of_constructor[scrutinee.constructor]
+        caseof_type = type_of_constructor[expr.cases[1].constructor]
+        if !isempty(expr.cases) && !(value_type == caseof_type)
+            error("TypeError: Scrutinee constructor $(scrutinee.constructor) of type $(type_of_constructor[scrutinee.constructor]) is not the same as the case statement type  $(type_of_constructor[expr.cases[1].constructor])")
+        end
+        
+        if !(scrutinee.constructor in keys(expr.cases))
             # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return [], state.BDD_TRUE
         end
+
+        case_expr = expr.cases[scrutinee.constructor]
+        num_args = length(args_of_constructor[scrutinee.constructor])
+        updated_guard = scrutinee_guard & available_information
+
+        if num_args == 0
+            return traced_bdd_forward(case_expr, env, updated_guard, state, constructor_indices[scrutinee.constructor])
+        end
+
+        for _ = 1:num_args
+            @assert case_expr isa Abs "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
+            case_expr = case_expr.body
+        end
+        # In each of the scrutinee arguments, filter out options that contradict the available information.
+        new_env = copy(env)
+        used_information = state.BDD_TRUE
+        for (i, arg) in enumerate(scrutinee.args)
+            # if arg isa BDDThunkUnion
+            #     arg, used_info = simplify_thunk_union(arg, available_information, state)
+            #     used_information = used_information & used_info
+            # end
+            pushfirst!(new_env, arg)
+        end
+        # new_env = vcat(reverse(scrutinee.args), env)
+        results, used_info = traced_bdd_forward(case_expr, new_env, updated_guard, state, constructor_indices[scrutinee.constructor])
+        return results, used_information & used_info
     end
 end
 
