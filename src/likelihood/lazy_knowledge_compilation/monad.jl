@@ -2,7 +2,7 @@
 Binds a continuation to the results of the first stage.
 """
 function bind_monad(cont, worlds, available_information, used_information, state)
-    result_sets = []
+    result_sets = Vector{Tuple{GuardedWorlds, BDD}}()
     for (val, result_guard) in worlds
         path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard
         cont_worlds, cont_used_info = cont(val, path_condition)
@@ -26,7 +26,14 @@ function join_monad(result_sets, used_information::BDD, available_information::B
         end
         for (result, inner_guard) in results
             inner_and_outer = inner_guard & outer_guard
-            if result isa Closure || result isa FloatValue || (result isa Value && !state.cfg.use_thunk_unions)
+            if state.cfg.use_thunk_unions && result isa Value
+                constructor = result.constructor
+                if !haskey(results_for_constructor, constructor)
+                    results_for_constructor[constructor] = [(result, inner_and_outer)]
+                else
+                    push!(results_for_constructor[constructor], (result, inner_and_outer))
+                end
+            elseif result isa Closure || result isa FloatValue || result isa Value
                 result_index = Base.get!(index_of_result, result, length(join_results) + 1)
                 if result_index > length(join_results)
                     push!(join_results, (result, inner_and_outer))
@@ -34,17 +41,10 @@ function join_monad(result_sets, used_information::BDD, available_information::B
                     new_guard = join_results[result_index][2] | inner_and_outer
                     join_results[result_index] = (join_results[result_index][1], new_guard)
                 end
-            elseif state.cfg.use_thunk_unions && result isa Value
-                constructor = result.constructor
-                if !haskey(results_for_constructor, constructor)
-                    results_for_constructor[constructor] = [(result, inner_and_outer)]
-                else
-                    push!(results_for_constructor[constructor], (result, inner_and_outer))
-                end
             elseif result isa IntDist
                 push!(int_dist_results, (result, inner_and_outer))
             else
-                @assert false "join_monad found a result that is not a Value, Closure, or Float64: $result"
+                error("join_monad found a result that is not a Value, Closure, or Float64: $result")
             end
         end
     end

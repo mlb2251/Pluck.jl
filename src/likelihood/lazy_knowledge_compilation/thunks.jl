@@ -1,7 +1,7 @@
 struct LazyKCThunk
     expr::PExpr
     env::Env
-    cache::Vector{ForwardResult}
+    cache::Vector{GuardedWorlds}
     callstack::Callstack
     name::Symbol
     strict_order_index::Int

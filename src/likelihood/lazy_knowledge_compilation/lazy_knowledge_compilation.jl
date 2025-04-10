@@ -3,7 +3,7 @@ export normalize, compile, LazyKCState, LazyKCConfig
 const Callstack = Vector{Int}
 const Env = Vector{Any}
 const World = Tuple{Any, BDD}
-const ForwardResult = Tuple{Vector{World}, BDD}
+const GuardedWorlds = Tuple{Vector{World}, BDD}
 const EMPTY_ENV::Env = Any[]
 
 Base.@kwdef struct LazyKCConfig
