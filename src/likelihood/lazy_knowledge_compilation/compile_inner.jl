@@ -48,10 +48,10 @@ function compile_inner(expr::CaseOf, env::Env, available_information::BDD, state
 
         case_expr = expr.cases[scrutinee.constructor]
         num_args = length(args_of_constructor[scrutinee.constructor])
-        updated_guard = scrutinee_guard & available_information
+        path_condition = scrutinee_guard & available_information
 
         if num_args == 0
-            return traced_compile_inner(case_expr, env, updated_guard, state, constructor_indices[scrutinee.constructor])
+            return traced_compile_inner(case_expr, env, path_condition, state, constructor_indices[scrutinee.constructor])
         end
 
         for _ = 1:num_args
@@ -64,7 +64,7 @@ function compile_inner(expr::CaseOf, env::Env, available_information::BDD, state
         for arg in scrutinee.args
             pushfirst!(new_env, arg)
         end
-        results, used_info = traced_compile_inner(case_expr, new_env, updated_guard, state, constructor_indices[scrutinee.constructor])
+        results, used_info = traced_compile_inner(case_expr, new_env, path_condition, state, constructor_indices[scrutinee.constructor])
         return results, used_information & used_info
     end
 end

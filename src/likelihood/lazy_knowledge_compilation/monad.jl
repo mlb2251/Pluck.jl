@@ -1,7 +1,5 @@
-"""
-Binds a continuation to the results of the first stage.
-"""
-function bind_monad(cont, worlds, available_information, used_information, state)
+
+function bind_monad(cont::F, worlds, available_information, used_information, state) where F <: Function
     result_sets = Vector{Tuple{GuardedWorlds, BDD}}()
     for (val, result_guard) in worlds
         path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard
