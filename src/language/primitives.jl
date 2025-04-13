@@ -34,6 +34,9 @@ Base.:(==)(::Primitive, ::Primitive) = true
 struct FlipOp <: Primitive end
 define_prim!("flip", FlipOp, 1)
 
+struct FlipOpDual <: Primitive end
+define_prim!("flipd", FlipOpDual, 1)
+
 struct ConstructorEqOp <: Primitive end
 define_prim!("constructors_equal", ConstructorEqOp, 2)
 

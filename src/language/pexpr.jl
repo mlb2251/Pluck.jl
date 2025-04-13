@@ -1,4 +1,4 @@
-export PExpr, Primitive, Var, App, Abs, Y, Defined, PrimOp, ConstReal, CaseOf, Construct, RawInt
+export PExpr, Primitive, DiffVar, Var, App, Abs, Y, Defined, PrimOp, ConstReal, CaseOf, Construct, RawInt
 
 import DataStructures: OrderedDict
 
@@ -28,6 +28,20 @@ Base.show(io::IO, e::Var) =
 Base.copy(e::Var) = Var(e.idx, e.name)
 Base.:(==)(a::Var, b::Var) = a.idx == b.idx
 Base.hash(e::Var, h::UInt) = hash(e.idx, hash(:Var, h))
+
+struct DiffVar <: PExpr
+    idx::UInt
+    name::Symbol
+end
+DiffVar(idx::Int) = DiffVar(idx, :noname)
+
+var_is_free(e::DiffVar, var) = e.idx == var
+shortname(e::DiffVar) = string(e)
+Base.show(io::IO, e::DiffVar) =
+    e.name === :noname ? print(io, "#", e.idx) : print(io, e.name, "#", e.idx)
+Base.copy(e::DiffVar) = DiffVar(e.idx, e.name)
+Base.:(==)(a::DiffVar, b::DiffVar) = a.idx == b.idx
+Base.hash(e::DiffVar, h::UInt) = hash(e.idx, hash(:Var, h))
 
 # function application
 mutable struct App <: PExpr

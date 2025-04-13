@@ -4,7 +4,17 @@ export RSDD
 module RSDD
 using Libdl
 
-export WmcParams, new_weights, wmc_param_f64_set_weight, bdd_wmc
+export WmcParams, 
+    WmcParamsDual, 
+    getWmcDual,
+    new_wmc_params_f64, 
+    new_wmc_params_f64_dual, 
+    set_weight, 
+    set_weight_deriv, 
+    set_weight_dual,
+    var_partial,
+    bdd_wmc, 
+    bdd_wmc_dual
 
 export BDD,
     bdd_and,
@@ -70,10 +80,15 @@ let
     global bdd_hash_ptr = C_NULL
     global new_wmc_params_f64_ptr = C_NULL
     global wmc_param_f64_set_weight_ptr = C_NULL
+    global wmc_param_f64_set_weight_deriv_dual_ptr = C_NULL
+    global wmc_param_f64_set_weight_dual_ptr = C_NULL
+    global wmc_param_f64_var_partial_ptr = C_NULL
     global bdd_wmc_ptr = C_NULL
+    global bdd_wmc_dual_ptr = C_NULL
     global free_bdd_ptr = C_NULL
     global free_bdd_manager_ptr = C_NULL
     global free_wmc_params_ptr = C_NULL
+    global free_wmc_params_dual_ptr = C_NULL
     global bdd_new_var_at_position_ptr = C_NULL
     global robdd_weighted_sample_ptr = C_NULL
     global robdd_top_k_paths_ptr = C_NULL
@@ -82,6 +97,8 @@ let
 end
 
 export get_rsdd_time, clear_rsdd_time!, rsdd_time!, rsdd_timed, @rsdd_time
+
+const NPARTIALS = 3
 
 mutable struct BDDStats
     rsdd_time::Float64
@@ -129,6 +146,20 @@ mutable struct WmcParams <: AbstractWmcParams
     freed::Bool
 end
 
+mutable struct WmcParamsDual <: AbstractWmcParams
+    ptr::Ptr{Cvoid}
+    freed::Bool
+end
+
+struct WmcDual
+    _0::Float64
+    _1::Ptr{Float64}
+end
+
+function getWmcDual(wmc::Tuple{Float64, Ptr{Float64}})
+    partials = [var_partial(wmc[2], unsigned(i)) for i=0:NPARTIALS-1]
+    return wmc[1], partials
+end
 
 # Define types
 const ManagerPtr = Ptr{Cvoid}
@@ -141,17 +172,25 @@ mutable struct Manager
     BDD_TRUE::Any
     BDD_FALSE::Any
     weights::AbstractWmcParams
-
-    function Manager(; num_vars::Int=0)
-        manager_ptr = ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
-        weights = new_weights()
-        manager = new(manager_ptr, [], false, nothing, nothing, weights)
-        manager.BDD_TRUE = bdd_true(manager)
-        manager.BDD_FALSE = bdd_false(manager)
-        return manager
-    end
 end
 
+function Manager(; num_vars::Int=0)
+    manager_ptr = ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    weights = new_weights()
+    manager = Manager(manager_ptr, [], false, nothing, nothing, weights)
+    manager.BDD_TRUE = bdd_true(manager)
+    manager.BDD_FALSE = bdd_false(manager)
+    return manager
+end
+
+function ManagerDual(; num_vars::Int=0)
+    manager_ptr = ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    weights = new_weights_dual()
+    manager = Manager(manager_ptr, [], false, nothing, nothing, weights)
+    manager.BDD_TRUE = bdd_true(manager)
+    manager.BDD_FALSE = bdd_false(manager)
+    return manager
+end
 
 struct BDD
     manager::Manager
@@ -200,11 +239,17 @@ function __init__()
     global bdd_size_ptr = get_symbol("bdd_size")
     global bdd_has_variable_ptr = get_symbol("bdd_has_variable")
     global new_wmc_params_f64_ptr = get_symbol("new_wmc_params_f64")
+    global new_wmc_params_f64_dual_ptr = get_symbol("new_wmc_params_f64_dual")
     global wmc_param_f64_set_weight_ptr = get_symbol("wmc_param_f64_set_weight")
+    global wmc_param_f64_set_weight_deriv_dual_ptr = get_symbol("wmc_param_f64_set_weight_deriv_dual")
+    global wmc_param_f64_set_weight_dual_ptr = get_symbol("wmc_param_f64_set_weight_dual")
+    global wmc_param_f64_var_partial_ptr = get_symbol("wmc_param_f64_var_partial")
     global bdd_wmc_ptr = get_symbol("bdd_wmc")
+    global bdd_wmc_dual_ptr = get_symbol("bdd_wmc_dual")
     global free_bdd_ptr = get_symbol("free_bdd")
     global free_bdd_manager_ptr = get_symbol("free_bdd_manager")
     global free_wmc_params_ptr = get_symbol("free_wmc_params")
+    global free_wmc_params_dual_ptr = get_symbol("free_wmc_params_dual")
     global bdd_new_var_at_position_ptr = get_symbol("bdd_new_var_at_position")
     global robdd_weighted_sample_ptr = get_symbol("robdd_weighted_sample")
     global robdd_top_k_paths_ptr = get_symbol("robdd_top_k_paths")
@@ -475,20 +520,55 @@ function new_weights()
 end
 
 """
+Creates a new WmcParams object for dual floating-point weights.
+Returns: WmcParams
+"""
+function new_weights_dual()
+    ptr = @rsdd_timed ccall(new_wmc_params_f64_dual_ptr, Ptr{Cvoid}, ())
+    WmcParamsDual(ptr, false)
+end
+
+"""
 Sets the weight for a variable in the WmcParams object.
 """
 function set_weight(mgr::Manager, var::Label, low::Float64, high::Float64)
     set_weight(mgr.weights, var, low, high)
 end
 
+"""
+Sets the weight for a variable in the WmcParams object. 
+"""
 function set_weight(params::WmcParams, var::Label, low::Float64, high::Float64)
     @rsdd_timed ccall(wmc_param_f64_set_weight_ptr, Cvoid, (Ptr{Cvoid}, Label, Float64, Float64), params.ptr, var, low, high)
 end
 
-# function set_weight(params::WmcParamsDual, var::Label, low::Float64, high::Float64)
-#     @rsdd_timed ...
-# end
+"""
+Sets the weight for a variable in the WmcParamsDual object. 
+"""
+function set_weight_dual(mgr::Manager, var::Label, metaparam::UInt, low::Float64, high::Float64)
+    set_weight_dual(mgr.weights, var, metaparam, low, high)
+end
 
+"""
+Sets the weight for a variable in the WmcParamsDual object. 
+"""
+function set_weight_dual(params::WmcParamsDual, var::Label, metaparam::UInt, low::Float64, high::Float64)
+    @rsdd_timed ccall(wmc_param_f64_set_weight_dual_ptr, Cvoid, (Ptr{Cvoid}, Label, Csize_t, Float64, Float64), params.ptr, var, metaparam, low, high)
+end
+
+"""
+Sets the weight and derivative for a variable in the WmcParamsDual object. 
+"""
+function set_weight_deriv(params::WmcParamsDual, var::Label, low::Float64, low_dual::Vector{Float64}, high::Float64, high_dual::Vector{Float64})
+    @rsdd_timed ccall(wmc_param_f64_set_weight_deriv_dual_ptr, Cvoid, (Ptr{Cvoid}, Label, Float64, Ptr{Float64}, Float64, Ptr{Float64}), params.ptr, var, low, low_dual, high, high_dual)
+end
+
+"""
+Get a partial derivative from a vector pointer.
+"""
+function var_partial(partials::Ptr{Float64}, metaparam::UInt)
+    @rsdd_timed ccall(wmc_param_f64_var_partial_ptr, Float64, (Ptr{Float64}, Csize_t), partials, metaparam)
+end
 
 """
 Performs weighted model counting on a BDD.
@@ -502,6 +582,15 @@ function bdd_wmc_manual(bdd::BDD, params::WmcParams)
     @rsdd_timed ccall(bdd_wmc_ptr, Float64, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
 end
 
+function bdd_wmc_manual(bdd::BDD, params::WmcParamsDual)
+    @rsdd_timed result = ccall(bdd_wmc_dual_ptr, WmcDual, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
+    (result._0, result._1)
+end
+
+function bdd_wmc_dual(bdd::BDD, params::WmcParamsDual)
+    result = ccall(bdd_wmc_dual_ptr, WmcDual, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
+    (result._0, result._1)
+end
 
 # """
 # Frees the memory associated with a BDD.
@@ -530,6 +619,16 @@ Frees the memory associated with a WmcParams object.
 function free_wmc_params(params::WmcParams)
     params.freed && return
     @rsdd_timed ccall(free_wmc_params_ptr, Cvoid, (Ptr{Cvoid},), params.ptr)
+    params.freed = true
+    return
+end
+
+"""
+Frees the memory associated with a WmcParams object.
+"""
+function free_wmc_params(params::WmcParamsDual)
+    params.freed && return
+    @rsdd_timed ccall(free_wmc_params_dual_ptr, Cvoid, (Ptr{Cvoid},), params.ptr)
     params.freed = true
     return
 end
@@ -575,6 +674,15 @@ function bdd_top_k_paths(bdd::BDD, k::Integer, wmc_params::WmcParams)
 end
 
 # Add these to the exports at the end of the file
-export free_bdd, free_bdd_manager, free_wmc_params, bdd_new_var_at_position, weighted_sample, bdd_top_k_paths, bdd_var_position, bdd_last_var
+export free_bdd, 
+free_bdd_manager, 
+free_wmc_params, 
+bdd_new_var_at_position, 
+weighted_sample, 
+bdd_top_k_paths, 
+free_wmc_params_dual, 
+bdd_var_position, 
+bdd_last_var
+
 
 end # module

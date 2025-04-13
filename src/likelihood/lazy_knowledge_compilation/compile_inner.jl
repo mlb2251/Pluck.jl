@@ -92,6 +92,10 @@ function compile_inner(expr::Var, env::Env, available_information::BDD, state::L
     end
 end
 
+function compile_inner(expr::DiffVar, env::Env, available_information::BDD, state::LazyKCState)
+    return [(expr.idx, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
+end
+
 function compile_inner(expr::Defined, env::Env, available_information::BDD, state::LazyKCState)
     # Execute Defined with a blanked out environment.
     return traced_compile_inner(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, available_information, state, 0)
@@ -139,6 +143,26 @@ function compile_prim(op::FlipOp, args, env::Env, available_information::BDD, st
         end
     end
 end
+
+function compile_prim(op::FlipOpDual, args, env::Env, available_information::BDD, state::LazyKCState)
+    metaparams, used_information = traced_compile_inner(args[1], env, available_information, state, 0)
+    p_init = 0.5
+    # All we want to do is update a dictionary in BDDEvalState saying that bdd_topvar(addr) is associated with args[1].metaparam
+    bind_monad(metaparams, available_information, used_information, state) do metaparam, _
+        push!(state.callstack, 1)
+        addr = current_bdd_address(state, p_init, available_information)
+        topvar = bdd_topvar(addr)
+        state.param2metaparam[topvar] = metaparam
+        partials_hi = zeros(NPARTIALS)
+        partials_hi[metaparam+1] = 1.0
+        partials_lo = zeros(NPARTIALS)
+        partials_lo[metaparam+1] = -1.0
+        set_weight_deriv(state.manager.weights, topvar, p_init, partials_lo, p_init, partials_hi)
+        pop!(state.callstack)
+        return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)], state.manager.BDD_TRUE
+    end
+end
+
 
 function compile_prim(op::ConstructorEqOp, args, env::Env, available_information::BDD, state::LazyKCState)
     # Evaluate both arguments.
