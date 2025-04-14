@@ -74,28 +74,10 @@ end
 
 """
 join :: M (M X) -> M X
-
-(As used in the paper formalization)
 """
 function join_monad(guarded_worlds::GuardedWorlds, path_condition, state)
     bind_monad(identity, guarded_worlds, path_condition, state)
 end
-
-
-
-# function join_used_information(used_information, result_sets, state)
-#     state.cfg.disable_used_information && return state.manager.BDD_TRUE
-#     for ((_, used_info), outer_guard) in result_sets
-#         used_information &= bdd_implies(outer_guard, used_info)
-#     end
-#     return used_information
-# end
-
-# This is the 'join' of the monad.
-# M X = Tuple{Vector{Tuple{X, BDD}}, BDD} = ([(X, Guard)], Used)
-# M (M X) = ([(([(X, InnerGuard)], InnerUsed)), OuterGuard)], Used)
-
-
 
 function join_worlds(result_sets::Vector{Vector{World}}, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
     join_results = Vector{World}()
