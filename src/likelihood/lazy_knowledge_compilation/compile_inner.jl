@@ -71,10 +71,7 @@ end
 
 function compile_inner(expr::Var, env::Env, path_condition::BDD, state::LazyKCState)
     # Look up the variable in the environment.
-    if expr.idx > length(env)
-        @warn "Variable $expr not found in environment; shaving off probability."
-        return shave_probabilty(state)
-    end
+    @assert expr.idx <= length(env) "Variable $expr not found in environment"
 
     v = env[expr.idx]
     if v isa LazyKCThunk || v isa LazyKCThunkUnion

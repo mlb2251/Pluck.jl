@@ -7,17 +7,19 @@ struct LazyKCThunk
     strict_order_index::Int
 
     function LazyKCThunk(expr::PExpr, env::Env, callstack::Callstack, name::Symbol, strict_order_index::Int, state)
+        
         if expr isa Var && env[expr.idx] isa LazyKCThunk
             return env[expr.idx]
         end
 
         key = (expr, env, callstack)
-        if state !== nothing && state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
+        if state.cfg.use_thunk_cache && state !== nothing && haskey(state.thunk_cache, key)
             return state.thunk_cache[key]
         else
+            # cache miss or not using cache
             cache = [([], state.manager.BDD_FALSE)] # esp for singleton cache case
             thunk = new(expr, env, cache, copy(callstack), name, strict_order_index)
-            if state !== nothing && state.cfg.use_thunk_cache
+            if state.cfg.use_thunk_cache && state !== nothing
                 state.thunk_cache[(expr, copy(env), copy(callstack))] = thunk
             end
             return thunk
