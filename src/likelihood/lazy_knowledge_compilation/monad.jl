@@ -110,29 +110,35 @@ function join_worlds(result_sets::Vector{Vector{World}}, state::LazyKCState)
 
     if state.cfg.use_thunk_unions
         for constructor in keys(results_for_constructor)
-            uniq_worlds = Vector{Value}()
-            uniq_world_guards = Vector{BDD}()
-            uniq_world_indices = Dict{Value, Int}()
-            for (world, guard) in results_for_constructor[constructor]
-                if !haskey(uniq_world_indices, world)
-                    push!(uniq_worlds, world)
-                    push!(uniq_world_guards, guard)
-                    uniq_world_indices[world] = length(uniq_worlds)
-                else
-                    uniq_world_guards[uniq_world_indices[world]] |= guard
+            world_of_value = Dict{Value, World}()
+            for (value, guard) in results_for_constructor[constructor]
+                old_world = get(world_of_value, value, nothing)
+                old_guard = isnothing(old_world) ? state.manager.BDD_FALSE : old_world[2]
+                new_guard = old_guard | guard
+                world_of_value[value] = (value, new_guard)
+            end
+            if length(world_of_value) <= 1
+                append!(join_results, World[Tuple(world) for world in values(world_of_value)])
+                continue
+            end
+
+            # multiple worlds case
+            overall_guard = state.manager.BDD_FALSE
+            thunks_of_arg = [World[] for _ in 1:length(Pluck.args_of_constructor[constructor])]
+            for (val, guard) in values(world_of_value)
+                overall_guard |= guard
+                for (i, arg) in enumerate(val.args)
+                    push!(thunks_of_arg[i], (arg, guard))
                 end
             end
-            if length(uniq_worlds) > 1
-                overall_guard = reduce(|, uniq_world_guards)
-                overall_args = map(1:length(Pluck.args_of_constructor[constructor])) do i
-                    thunks = [(world.args[i], bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)]
-                    LazyKCThunkUnion(thunks, state)
-                end
-                overall_value = Value(constructor, overall_args)
-                push!(join_results, (overall_value, overall_guard))
-            else
-                push!(join_results, [(world, bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)]...)
-            end
+            overall_args = [LazyKCThunkUnion(thunks, state) for thunks in thunks_of_arg]
+
+            # overall_args = map(1:length(Pluck.args_of_constructor[constructor])) do i
+            #     thunks = [(world.args[i], bdd) for (world, bdd) in zip(uniq_values, uniq_world_guards)]
+            #     LazyKCThunkUnion(thunks, state)
+            # end
+            overall_value = Value(constructor, overall_args)
+            push!(join_results, (overall_value, overall_guard))
         end
     end
 
