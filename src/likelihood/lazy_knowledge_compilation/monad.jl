@@ -79,7 +79,7 @@ function join_monad(guarded_worlds::GuardedWorlds, path_condition, state)
     bind_monad(identity, guarded_worlds, path_condition, state)
 end
 
-function join_worlds(result_sets::Vector{Vector{World}}, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
+function join_worlds(result_sets::Vector{Vector{World}}, state::LazyKCState)
     join_results = Vector{World}()
     index_of_result = Dict{AbstractValue, Int}()
     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
@@ -109,7 +109,7 @@ function join_worlds(result_sets::Vector{Vector{World}}, state::LazyKCState) #::
     end
 
     if state.cfg.use_thunk_unions
-        for constructor in sort(collect(keys(results_for_constructor)))
+        for constructor in keys(results_for_constructor)
             uniq_worlds = Vector{Value}()
             uniq_world_guards = Vector{BDD}()
             uniq_world_indices = Dict{Value, Int}()
@@ -123,8 +123,11 @@ function join_worlds(result_sets::Vector{Vector{World}}, state::LazyKCState) #::
                 end
             end
             if length(uniq_worlds) > 1
-                overall_guard = reduce((x, y) -> x | y, uniq_world_guards)
-                overall_args = [(LazyKCThunkUnion([(world.args[i], bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)], state)) for i = 1:length(Pluck.args_of_constructor[constructor])]
+                overall_guard = reduce(|, uniq_world_guards)
+                overall_args = map(1:length(Pluck.args_of_constructor[constructor])) do i
+                    thunks = [(world.args[i], bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)]
+                    LazyKCThunkUnion(thunks, state)
+                end
                 overall_value = Value(constructor, overall_args)
                 push!(join_results, (overall_value, overall_guard))
             else

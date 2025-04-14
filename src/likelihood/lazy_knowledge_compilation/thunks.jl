@@ -6,8 +6,7 @@ struct LazyKCThunk
     name::Symbol
     strict_order_index::Int
 
-    function LazyKCThunk(expr::PExpr, env::Env, callstack::Callstack, name::Symbol, strict_order_index::Int, state)
-        
+    function LazyKCThunk(expr::PExpr, env::Env, callstack::Callstack, name::Symbol, strict_order_index::Int, state)        
         if expr isa Var && env[expr.idx] isa LazyKCThunk
             return env[expr.idx]
         end
