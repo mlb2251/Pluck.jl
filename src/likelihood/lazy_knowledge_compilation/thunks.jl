@@ -93,12 +93,13 @@ end
 
 function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     # non-singleton cache case
-    if !state.cfg.singleton_cache
-        for (results, guard) in thunk.cache
-            if bdd_is_true(bdd_implies(path_condition, guard))
-                return results, guard
-            end
+    for (results, guard) in thunk.cache
+        if bdd_is_true(bdd_implies(path_condition, guard))
+            return results, guard
         end
+    end 
+
+    if !state.cfg.singleton_cache
         res = evaluate_no_cache(thunk, path_condition, state)
         push!(thunk.cache, res)
         return res
@@ -106,27 +107,31 @@ function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
 
     cached_worlds, cache_guard = thunk.cache[1]
 
-    # We want to run the code: (if cache_guard then cached_worlds else evaluated_worlds)
-    # Using the path condition: path_condition | cache_guard
-    # OR-ing in the cache guard ensures that we don't lose any of the information we had previously stored in the cache.
+    """
+    We want to run the code: (if cache_guard then cached_worlds else evaluated_worlds)
+    Using the path condition: path_condition | cache_guard
+    OR-ing in the cache guard ensures that we don't lose any of the information we had previously stored in the cache.
 
+    We could do this by writing:
+
+    ```
     hit_cache_worlds = if_then_else_monad(true, false, cache_guard, state)
     path_condition |= cache_guard
     thunk.cache[1] = bind_monad(hit_cache_worlds, path_condition, state) do hit_cache, path_condition, state
         hit_cache ? (cached_worlds, state.manager.BDD_TRUE) : evaluate_no_cache(thunk, path_condition, state)
     end
-
+    ```
+    
+    However the following is a fair bit faster
     """
-    The above part of the above code that generates new_cache_worlds can alternatively be written
-    out without bind_monad like so:
 
     inner_path_condition = path_condition & !cache_guard
     result, used_information = evaluate_no_cache(thunk, inner_path_condition, state)
-    cached_worlds = condition_worlds(cached_worlds, cache_guard)
-    added_worlds = condition_worlds(result, !cache_guard)
+    cached_worlds = condition_worlds!(cached_worlds, cache_guard)
+    added_worlds = condition_worlds!(result, !cache_guard)
     new_worlds = join_worlds([cached_worlds, added_worlds], state)
     new_cache_guard = bdd_implies(!cache_guard, used_information)
-    """
+    thunk.cache[1] = (new_worlds, new_cache_guard)
 
     return thunk.cache[1]
 end
