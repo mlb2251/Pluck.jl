@@ -82,22 +82,6 @@ function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCSta
     bind_monad(evaluate, (thunk.thunks, state.manager.BDD_TRUE), path_condition, state)
 end
 
-# function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCState)
-#     all_worlds = []
-#     overall_used_information = state.manager.BDD_TRUE
-#     for (thunk, guard) in thunk.thunks
-#         new_path_condition = path_condition & guard
-#         worlds, used_info = evaluate(thunk, new_path_condition, state)
-#         worlds = condition_worlds(worlds, guard)
-#         push!(all_worlds, worlds)
-#         overall_used_information &= bdd_implies(guard, used_info)
-#     end
-
-#     worlds = join_worlds(all_worlds, state)
-
-#     return worlds, overall_used_information
-# end
-
 function evaluate_no_cache(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     old_callstack = state.callstack
     state.callstack = thunk.callstack
@@ -145,61 +129,6 @@ function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
 
     return thunk.cache[1]
 end
-
-
-    # outer_path_condition = state.manager.BDD_TRUE # ensure we explore both branches... I think this is needed?
-    # inner_path_condition = path_condition & !cache_guard
-    # res = bind_monad(hit_cache_worlds, outer_path_condition, state) do hit_cache, _, state
-    #     hit_cache ? (cached_worlds, state.manager.BDD_TRUE) : evaluate_no_cache(thunk, inner_path_condition, state)
-    # end
-
-
-
-
-# function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
-#     # TODO I think we can remove this?
-#     !state.cfg.disable_used_information && bdd_is_false(path_condition) && return [], state.manager.BDD_FALSE
-
-#     # Check the cache
-#     for (results, bdd) in thunk.cache
-#         if bdd_is_true(bdd_implies(path_condition, bdd))
-#             return (results, bdd)
-#         end
-#     end
-
-#     # Otherwise we have to evaluate the thunk. Set the callstack to the thunk's callstack.
-
-#     # if the cache is not singleton or it's empty, we do usual thunk evaluation
-#     if !state.cfg.singleton_cache || isempty(thunk.cache)
-#         result, used_information = evaluate_no_cache(thunk, path_condition, state)
-#         push!(thunk.cache, (result, used_information))
-#         return result, used_information
-#     end
-
-#     # non-empty singleton cache case!
-#     @assert length(thunk.cache) == 1
-
-#     cached_worlds, cache_guard = thunk.cache[1]
-#     inner_path_condition = path_condition & !cache_guard
-
-#     result, used_information = evaluate_no_cache(thunk, inner_path_condition, state)
-
-#     # The code we're imagining is (if cache_guard then cached_worlds else evaluated_worlds)
-#     # "used" is either true or false – this tells us whether we're in the old or new set of cached worlds
-#     # our new cache is valid if we can prove used_information given !used (and anything in our path condition)
-#     # (or if we just prove cache_guard to be true)
-#     new_cache_guard = bdd_implies(!cache_guard, used_information)
-
-#     # we can join the old and new worlds only after ensuring their
-#     # mutual exclusivity by conditioning on the cache guard
-#     cached_worlds = condition_worlds(cached_worlds, cache_guard)
-#     added_worlds = condition_worlds(result, !cache_guard)
-
-#     new_worlds = join_worlds([cached_worlds, added_worlds], state)
-
-#     thunk.cache[1] = (new_worlds, new_cache_guard)
-#     return new_worlds, new_cache_guard
-# end
 
 """
 Process thunks into fully resolved values.

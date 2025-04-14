@@ -25,7 +25,7 @@ end
 Condition every world in a set of worlds on a condition
 """
 function condition_worlds(worlds::Vector{World}, condition::BDD)
-    return [(val, guard & condition) for (val, guard) in worlds]
+    return World[(val, guard & condition) for (val, guard) in worlds]
 end
 
 """
