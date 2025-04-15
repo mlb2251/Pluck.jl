@@ -122,14 +122,8 @@ function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     end
     ```
     
-    However the following is a fair bit faster
+    However writing it out explicitly is a fair bit faster
     """
-
-    # hit_cache_worlds = if_then_else_monad(true, false, cache_guard, state)
-    # path_condition |= cache_guard
-    # thunk.cache[1] = bind_monad(hit_cache_worlds, path_condition, state) do hit_cache, path_condition, state
-    #     hit_cache ? (cached_worlds, state.manager.BDD_TRUE) : evaluate_no_cache(thunk, path_condition, state)
-    # end
 
     inner_path_condition = path_condition & !cache_guard
     result, used_information = evaluate_no_cache(thunk, inner_path_condition, state)
