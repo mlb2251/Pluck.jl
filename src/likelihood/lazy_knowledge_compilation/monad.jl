@@ -10,21 +10,21 @@ end
 Construct a single world with the given value. Lifts a deterministic
 value into the monad.
 """
-function pure_monad(val::T, state)::GuardedWorlds where T
+@inline function pure_monad(val, state)
     return World[(val, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
 end
 
 """
 Constructs a pair of worlds, one with the condition true and one with the condition false.
 """
-function if_then_else_monad(val_if_true::T1, val_if_false::T2, condition::BDD, state)::GuardedWorlds where {T1, T2}
+@inline function if_then_else_monad(val_if_true, val_if_false, condition, state)
     return World[(val_if_true, condition), (val_if_false, !condition)], state.manager.BDD_TRUE
 end
 
 """
 Condition every world in a set of worlds on a condition
 """
-function condition_worlds!(worlds::Vector{World}, condition::BDD)
+@inline function condition_worlds!(worlds, condition)
     for i in eachindex(worlds)
         worlds[i] = (worlds[i][1], worlds[i][2] & condition)
     end
@@ -38,7 +38,7 @@ M X = GuardedWorlds{X} = Tuple{Vector{World{X}}, BDD}
 pure :: a -> M a
 bind :: M a -> (a -> M b) -> M b
 """
-function bind_monad(cont::F, guarded_worlds, path_condition, state) where F <: Function
+function bind_monad(cont::F, guarded_worlds, path_condition::BDD, state::LazyKCState) where F <: Function
     pre_worlds, used_information = guarded_worlds
 
     post_worlds = Vector{Vector{World}}()
@@ -82,7 +82,7 @@ function join_monad(guarded_worlds::GuardedWorlds, path_condition, state)
     bind_monad(identity, guarded_worlds, path_condition, state)
 end
 
-function join_worlds(result_sets::Vector{Vector{World}}, state::LazyKCState)
+function join_worlds(result_sets, state::LazyKCState)
     join_results = Vector{World}()
     index_of_result = Dict{AbstractValue, Int}()
     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
@@ -137,7 +137,7 @@ function join_worlds(result_sets::Vector{Vector{World}}, state::LazyKCState)
             overall_args = [LazyKCThunkUnion(thunks, state) for thunks in thunks_of_arg]
 
             # overall_args = map(1:length(Pluck.args_of_constructor[constructor])) do i
-            #     thunks = [(world.args[i], bdd) for (world, bdd) in zip(uniq_values, uniq_world_guards)]
+            #     thunks = [(world.args[i], bdd) for (world, bdd) in values(world_of_value)]
             #     LazyKCThunkUnion(thunks, state)
             # end
             overall_value = Value(constructor, overall_args)
