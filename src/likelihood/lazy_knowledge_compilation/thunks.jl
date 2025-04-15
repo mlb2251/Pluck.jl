@@ -125,10 +125,16 @@ function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     However the following is a fair bit faster
     """
 
+    # hit_cache_worlds = if_then_else_monad(true, false, cache_guard, state)
+    # path_condition |= cache_guard
+    # thunk.cache[1] = bind_monad(hit_cache_worlds, path_condition, state) do hit_cache, path_condition, state
+    #     hit_cache ? (cached_worlds, state.manager.BDD_TRUE) : evaluate_no_cache(thunk, path_condition, state)
+    # end
+
     inner_path_condition = path_condition & !cache_guard
     result, used_information = evaluate_no_cache(thunk, inner_path_condition, state)
-    cached_worlds = condition_worlds!(cached_worlds, cache_guard)
-    added_worlds = condition_worlds!(result, !cache_guard)
+    cached_worlds = condition_worlds(cached_worlds, cache_guard)
+    added_worlds = condition_worlds(result, !cache_guard)
     new_worlds = join_worlds([cached_worlds, added_worlds], state)
     new_cache_guard = bdd_implies(!cache_guard, used_information)
     thunk.cache[1] = (new_worlds, new_cache_guard)

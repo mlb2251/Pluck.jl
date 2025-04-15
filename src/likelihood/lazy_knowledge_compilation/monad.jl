@@ -24,11 +24,8 @@ end
 """
 Condition every world in a set of worlds on a condition
 """
-@inline function condition_worlds!(worlds, condition)
-    for i in eachindex(worlds)
-        worlds[i] = (worlds[i][1], worlds[i][2] & condition)
-    end
-    return worlds
+@inline function condition_worlds(worlds, condition)
+    return World[(val, guard & condition) for (val, guard) in worlds]
 end
 
 """
@@ -60,7 +57,7 @@ function bind_monad(cont::F, guarded_worlds, path_condition::BDD, state::LazyKCS
         # we were doing that we would have just included path condition in the basic
         # pure_monad worlds directly. The reason we don't do either of those things
         # is because we want to cache our results.
-        post_world = condition_worlds!(cont_worlds, pre_guard)
+        post_world = condition_worlds(cont_worlds, pre_guard)
         push!(post_worlds, post_world)
 
         # you can reuse this part of the result if you can prove 
