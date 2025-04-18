@@ -106,27 +106,64 @@ mutable struct LazyKCState
 end
 
 function traced_compile_inner(expr::PExpr, env::Env, path_condition::BDD, state::LazyKCState, strict_order_index::Int)
-    # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
-    # Check whether available_information is false.
-    # !state.cfg.disable_used_information && bdd_is_false(path_condition) && return [], state.manager.BDD_FALSE
+    continuation_stack = ContinuationFrame[]
+    frame = CompileFrame(expr, env, strict_order_index)
 
-    if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth
-        return shave_probabilty(state)
+    while true
+        if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth
+            frame = PureFrame(shave_probabilty(state))
+        end
+
+        while frame isa BindFrame
+            push!(continuation_stack, frame.post_frame)
+            frame = frame.pre_frame
+        end
+
+        if frame isa CompileFrame
+            # Actually compile the expression.
+            state.depth += 1
+            push!(state.callstack, frame.strict_order_index)
+            state.cfg.record_json && record_forward!(state.viz, expr, env, path_condition, strict_order_index)        
+            frame = compile_inner(frame, state)
+            state.cfg.record_json && record_result!(state.viz, result, used_information)
+            state.num_forward_calls += 1
+        elseif frame isa PureFrame
+            # pop the result
+            state.depth -= 1
+            pop!(state.callstack)
+            worlds = frame.worlds
+            if isempty(continuation_stack)
+                # we're done, return the result
+                return worlds
+            end
+
+            # More to do, so propagate the result to the continuation
+            cont_frame = pop!(continuation_stack)
+
+            pre_worlds, pre_used_info = worlds
+
+            for (val, pre_guard) in pre_worlds
+
+            end
+
+            """
+            Hmm we need to do a bind. And then a join at the end. And accumulate the used information.
+            We could have a stack of joins I suppose. Saying at what frame index you join. And a stack
+            of used informations in that too - they can be the same. But how do you know when a result
+            belongs to some join?
+
+            
+            """
+
+            # bind_monad(cont_frame.continuation, worlds, path_condition, state)
+
+            # todo actually do the bind. run continuation on EACH world. sot his hsould be a bind or something.
+
+            frame = cont_frame.continuation(worlds, state, cont_frame.data, cont_frame.parent)
+        else
+            error("Unknown frame type: $frame")
+        end
     end
-
-    state.depth += 1
-    push!(state.callstack, strict_order_index)
-
-    state.cfg.record_json && record_forward!(state.viz, expr, env, path_condition, strict_order_index)
-
-    result, used_information = compile_inner(expr, env, path_condition, state)
-
-    state.cfg.record_json && record_result!(state.viz, result, used_information)
-
-    pop!(state.callstack)
-    state.depth -= 1
-    state.num_forward_calls += 1
-    return result, used_information
 end
 
 
