@@ -108,10 +108,10 @@ mutable struct LazyKCState
     end
 end
 
-function traced_compile_inner(expr::PExpr, env::Env, available_information::BDD, state::LazyKCState, strict_order_index::Int)
+function traced_compile_inner(expr::PExpr, env::Env, path_condition::BDD, state::LazyKCState, strict_order_index::Int)
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
-    # Check whether available_information is false.
-    if !state.cfg.disable_used_information && bdd_is_false(available_information)
+    # Check whether path_condition is false.
+    if !state.cfg.disable_used_information && bdd_is_false(path_condition)
         return [], state.manager.BDD_FALSE
     end
 
@@ -123,10 +123,10 @@ function traced_compile_inner(expr::PExpr, env::Env, available_information::BDD,
     push!(state.callstack, strict_order_index)
 
     if state.cfg.record_json
-        record_forward!(state.viz, expr, env, available_information, strict_order_index)
+        record_forward!(state.viz, expr, env, path_condition, strict_order_index)
     end
 
-    result, used_information = compile_inner(expr, env, available_information, state)
+    result, used_information = compile_inner(expr, env, path_condition, state)
 
     if state.cfg.record_json
         record_result!(state.viz, result, used_information)
@@ -143,7 +143,7 @@ end
 Returns the single-variable BDD corresponding to the current callstack and probability, creating
 the variable if it doesn't exist yet.
 """
-function current_bdd_address(state::LazyKCState, p::Float64, available_information::BDD)
+function current_bdd_address(state::LazyKCState, p::Float64, path_condition::BDD)
     if haskey(state.var_of_callstack, (state.callstack, p))
         return state.var_of_callstack[(state.callstack, p)]
     end

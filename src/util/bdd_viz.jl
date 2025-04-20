@@ -16,14 +16,14 @@ end
 
 BDDJSONLogger(state::LazyKCState) = BDDJSONLogger(nothing, [], state)
 
-function record_forward!(viz::BDDJSONLogger, expr, env, available_information, strict_order_index)
+function record_forward!(viz::BDDJSONLogger, expr, env, path_condition, strict_order_index)
     frame = Dict(
         "type" => "forward",
 
         # args to the call
         "expr" => viz_lower(expr, viz),
         "env" => viz_lower(env, viz; expr = expr),
-        "available_information" => viz_lower(available_information, viz),
+        "path_condition" => viz_lower(path_condition, viz),
         "strict_order_index" => strict_order_index,
 
         # extra info

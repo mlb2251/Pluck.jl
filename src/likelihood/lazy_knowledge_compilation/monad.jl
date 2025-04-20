@@ -1,18 +1,18 @@
 
-function bind_monad(cont::F, worlds, available_information, used_information, state) where F <: Function
+function bind_monad(cont::F, worlds, path_condition, used_information, state) where F <: Function
     result_sets = Vector{Tuple{GuardedWorlds, BDD}}()
     for (val, result_guard) in worlds
         path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard
         cont_worlds, cont_used_info = cont(val, path_condition)
         push!(result_sets, ((cont_worlds, cont_used_info), result_guard))
     end
-    return join_monad(result_sets, used_information, available_information, state)
+    return join_monad(result_sets, used_information, path_condition, state)
 end
 
 # This is the 'join' of the monad.
 # M X = Tuple{Vector{Tuple{X, BDD}}, BDD} = ([(X, Guard)], Used)
 # M (M X) = ([(([(X, InnerGuard)], InnerUsed)), OuterGuard)], Used)
-function join_monad(result_sets, used_information::BDD, available_information::BDD, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
+function join_monad(result_sets, used_information::BDD, path_condition::BDD, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
     join_results = Vector{World}()
     index_of_result = Dict{AbstractValue, Int}()
     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()

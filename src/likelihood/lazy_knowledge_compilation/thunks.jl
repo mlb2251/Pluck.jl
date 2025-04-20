@@ -76,24 +76,24 @@ function Base.show(io::IO, x::LazyKCThunkUnion)
     print(io, ")")
 end
 
-function evaluate(thunk::LazyKCThunkUnion, available_information::BDD, state::LazyKCState)
+function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCState)
     intermediate_results = []
     for (result, guard) in thunk.thunks
-        new_guard = available_information & guard
+        new_guard = path_condition & guard
         push!(intermediate_results, (evaluate(result, new_guard, state), guard))
     end
 
-    return join_monad(intermediate_results, state.manager.BDD_TRUE, available_information, state)
+    return join_monad(intermediate_results, state.manager.BDD_TRUE, path_condition, state)
 end
 
-function evaluate(thunk::LazyKCThunk, available_information::BDD, state::LazyKCState)
-    if !state.cfg.disable_used_information && bdd_is_false(available_information)
+function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
+    if !state.cfg.disable_used_information && bdd_is_false(path_condition)
         return [], state.manager.BDD_FALSE
     end
 
     # Check the cache
     for (results, bdd) in thunk.cache
-        if bdd_is_true(bdd_implies(available_information, bdd))
+        if bdd_is_true(bdd_implies(path_condition, bdd))
             return (results, bdd)
         end
     end
@@ -101,19 +101,19 @@ function evaluate(thunk::LazyKCThunk, available_information::BDD, state::LazyKCS
     # Otherwise we have to evaluate the thunk. Set the callstack to the thunk's callstack.
     old_callstack = state.callstack
     state.callstack = thunk.callstack
-    # We have replaced available_information with BDD_TRUE.
+    # We have replaced path_condition with BDD_TRUE.
     if state.cfg.singleton_cache && length(thunk.cache) == 1
         (worlds, bdd) = thunk.cache[1]
-        result, used_information = traced_compile_inner(thunk.expr, thunk.env, available_information & !bdd, state, thunk.strict_order_index)
+        result, used_information = traced_compile_inner(thunk.expr, thunk.env, path_condition & !bdd, state, thunk.strict_order_index)
     else
-        result, used_information = traced_compile_inner(thunk.expr, thunk.env, available_information, state, thunk.strict_order_index)
+        result, used_information = traced_compile_inner(thunk.expr, thunk.env, path_condition, state, thunk.strict_order_index)
     end
     state.callstack = old_callstack
     # Cache the result
     if state.cfg.singleton_cache && length(thunk.cache) == 1
         (worlds, used) = thunk.cache[1]
         # The code we're imagining is (if thunk.cache[1][1] then e else e)
-        res, overall_used = join_monad([((worlds, used), used), ((result, used_information), !used)], state.manager.BDD_TRUE, available_information, state)
+        res, overall_used = join_monad([((worlds, used), used), ((result, used_information), !used)], state.manager.BDD_TRUE, path_condition, state)
         thunk.cache[1] = (res, overall_used)
         return (res, overall_used)
     else

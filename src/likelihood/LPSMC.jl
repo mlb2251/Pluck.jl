@@ -3,7 +3,7 @@ export bdd_forward_with_suspension, bdd_forward_with_suspension_top_k
 # A few approaches to sampling.
 # 1) We could sample actual traces from the posterior given "suspended".
 #    Then, in the next call to evaluate (on the thunk or thunk union inside "suspended"),
-#    we encode the sampled trace or traces as available_information.
+#    we encode the sampled trace or traces as path_condition.
 #    One question is whether this necessarily samples every variable present in the 
 #    guard BDD of the suspension. I think it would not need to: we essentially begin
 #    by doing a bottom up model count of the BDD, and then sample downward, replacing
@@ -31,7 +31,7 @@ function bdd_forward_with_suspension(expr; kwargs...)
 
     true_probability = 0.0
     false_probability = 0.0
-    available_information = s.BDD_TRUE
+    path_condition = s.BDD_TRUE
     multiplier = 1.0
     i = 0
     more_to_do = true
@@ -41,16 +41,16 @@ function bdd_forward_with_suspension(expr; kwargs...)
         # Now, the ret will contain a list of pairs (sb, bdd).
         for (sb, guard) in ret
             if sb.constructor == :FinallyTrue
-                true_probability += multiplier * RSDD.bdd_wmc(available_information & guard)
+                true_probability += multiplier * RSDD.bdd_wmc(path_condition & guard)
             elseif sb.constructor == :FinallyFalse
-                false_probability += multiplier * RSDD.bdd_wmc(available_information & guard)
+                false_probability += multiplier * RSDD.bdd_wmc(path_condition & guard)
             elseif sb.constructor == :Suspend
                 @assert !more_to_do # we should only have one :Suspend.
                 more_to_do = true
-                posterior_sample, posterior_probability = RSDD.weighted_sample(available_information & guard)
-                available_information = available_information & posterior_sample
-                multiplier *= (1 / posterior_probability) # (total_guard / RSDD.bdd_wmc(available_information))
-                ret, used_info = Pluck.evaluate(sb.args[1], available_information, s)
+                posterior_sample, posterior_probability = RSDD.weighted_sample(path_condition & guard)
+                path_condition = path_condition & posterior_sample
+                multiplier *= (1 / posterior_probability) # (total_guard / RSDD.bdd_wmc(path_condition))
+                ret, used_info = Pluck.evaluate(sb.args[1], path_condition, s)
             else
                 error("Expected a suspended boolean, got $(sb).")
             end
@@ -70,7 +70,7 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
 
     true_probability = 0.0
     false_probability = 0.0
-    available_information = s.BDD_TRUE
+    path_condition = s.BDD_TRUE
     multiplier = 1.0
     i = 0
     more_to_do = true
@@ -80,20 +80,20 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
         # Now, the ret will contain a list of pairs (sb, bdd).
         for (sb, guard) in ret
             if sb.constructor == :FinallyTrue
-                true_probability += multiplier * RSDD.bdd_wmc(available_information & guard)
+                true_probability += multiplier * RSDD.bdd_wmc(path_condition & guard)
             elseif sb.constructor == :FinallyFalse
-                false_probability += multiplier * RSDD.bdd_wmc(available_information & guard)
+                false_probability += multiplier * RSDD.bdd_wmc(path_condition & guard)
             elseif sb.constructor == :Suspend
                 @assert !more_to_do # we should only have one :Suspend.
                 more_to_do = true
 
                 # Create a "sum-and-sample" BDD.
-                available_information = available_information & guard
-                top_k_bdd = RSDD.bdd_top_k_paths(available_information, k)
-                posterior_guard = available_information & !top_k_bdd
+                path_condition = path_condition & guard
+                top_k_bdd = RSDD.bdd_top_k_paths(path_condition, k)
+                posterior_guard = path_condition & !top_k_bdd
                 if RSDD.bdd_is_false(posterior_guard)
                     # The top K paths contained all the available information. We can just recurse.
-                    ret, used_info = Pluck.evaluate(sb.args[1], available_information, s)
+                    ret, used_info = Pluck.evaluate(sb.args[1], path_condition, s)
                     continue
                 end
 
@@ -122,8 +122,8 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                 new_bdd = RSDD.bdd_ite(new_variable, sampled_bdd, top_k_bdd)
                 new_variable_weight = 1 / mult_increment
                 RSDD.set_weight(s.manager, RSDD.bdd_topvar(new_variable), new_variable_weight, 1.0 - new_variable_weight)
-                available_information = available_information & new_bdd
-                ret, used_info = Pluck.evaluate(sb.args[1], available_information, s)
+                path_condition = path_condition & new_bdd
+                ret, used_info = Pluck.evaluate(sb.args[1], path_condition, s)
             else
                 error("Expected a suspended boolean, got $(sb).")
             end
