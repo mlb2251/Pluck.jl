@@ -3,7 +3,7 @@ export posterior_sample, adaptive_rejection_sampling, sample_value, SampleValueS
 function posterior_sample(val, state)    
     # First evaluate the evidence thunk to get true/false BDDs
     evidence_results, _ = evaluate(val.args[2], state.BDD_TRUE, state)
-    n = from_value(sample_thunk(val.args[3], SampleValueState(nothing, [], nothing, false)))
+    n, concrete = from_value(sample_thunk(val.args[3], SampleValueState(nothing, [], nothing, false)))
     samples = []
     for i in 1:n
         # Find the BDD where evidence is true

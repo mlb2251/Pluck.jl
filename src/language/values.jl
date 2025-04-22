@@ -96,7 +96,7 @@ function show_value_inner(io::IO, x::Value)
 end
 
 function JSON.lower(x::Value)
-    v = from_value(x)
+    v, concrete = from_value(x)
     !(v isa Value) && return string(v)
     Dict("type" => "Value", "constructor" => x.constructor, "args" => x.args)
 end
