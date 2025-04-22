@@ -272,7 +272,7 @@ end
 function lazy_enumerate(expr::Construct, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     # Constructors deterministically evaluate to a WHNF value, with their arguments thunked.
     # Look up type of this constructor.
-    spt = Pluck.spt_of_constructor[expr.constructor]
+    # spt = Pluck.spt_of_constructor[expr.constructor]
 
     if state.strict
         options_of_arg = []
@@ -307,7 +307,7 @@ function lazy_enumerate(expr::CaseOf, env::Vector{Any}, trace::Trace, state::Laz
     lazy_enumerator_bind(scrutinee_values, state) do scrutinee, trace
         if scrutinee.constructor in keys(expr.cases)
             case_expr = expr.cases[scrutinee.constructor]
-            num_args = length(args_of_constructor(scrutinee.constructor))
+            num_args = length(args_of_constructor[scrutinee.constructor])
             if num_args == 0
                 return traced_lazy_enumerate(case_expr, env, trace, state, scrutinee.constructor)
             else

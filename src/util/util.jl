@@ -17,6 +17,7 @@ function compile(expr::String, cfg::T) where T
     expr = parse_expr(expr)
     compile(expr, cfg)
 end
+compile(expr::String) = compile(expr, LazyKCConfig())
 
 function normalize(results)
     probabilities = [res[2] for res in results]
