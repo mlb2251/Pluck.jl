@@ -21,17 +21,17 @@ export bdd_forward_with_suspension, bdd_forward_with_suspension_top_k
 
 
 function bdd_forward_with_suspension(expr; kwargs...)
-    s = Pluck.LazyKCState(; kwargs...)
+    s = Pluck.LazyKCState(; kwargs..., free_manager=false)
 
     if expr isa String
         expr = parse_expr(expr)
     end
 
-    ret, used_info = Pluck.bdd_forward(expr, Pluck.EMPTY_ENV, s.BDD_TRUE, s)
+    ret, used_info = compile_inner(expr, Pluck.EMPTY_ENV, s.manager.BDD_TRUE, s)
 
     true_probability = 0.0
     false_probability = 0.0
-    path_condition = s.BDD_TRUE
+    path_condition = s.manager.BDD_TRUE
     multiplier = 1.0
     i = 0
     more_to_do = true
@@ -47,7 +47,7 @@ function bdd_forward_with_suspension(expr; kwargs...)
             elseif sb.constructor == :Suspend
                 @assert !more_to_do # we should only have one :Suspend.
                 more_to_do = true
-                posterior_sample, posterior_probability = RSDD.weighted_sample(path_condition & guard)
+                posterior_sample, posterior_probability = RSDD.weighted_sample(path_condition & guard, s.manager.weights)
                 path_condition = path_condition & posterior_sample
                 multiplier *= (1 / posterior_probability) # (total_guard / RSDD.bdd_wmc(path_condition))
                 ret, used_info = Pluck.evaluate(sb.args[1], path_condition, s)
@@ -64,13 +64,13 @@ function bdd_forward_with_suspension(expr; kwargs...)
 end
 
 function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
-    s = Pluck.LazyKCState(; kwargs...)
+    s = Pluck.LazyKCState(; kwargs..., free_manager=false)
 
-    ret, used_info = Pluck.bdd_forward(parse_expr(expr), Pluck.EMPTY_ENV, s.BDD_TRUE, s)
+    ret, used_info = compile_inner(expr, Pluck.EMPTY_ENV, s.manager.BDD_TRUE, s)
 
     true_probability = 0.0
     false_probability = 0.0
-    path_condition = s.BDD_TRUE
+    path_condition = s.manager.BDD_TRUE
     multiplier = 1.0
     i = 0
     more_to_do = true
@@ -97,7 +97,7 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                     continue
                 end
 
-                (sampled_bdd, sampled_probability) = RSDD.weighted_sample(posterior_guard)
+                (sampled_bdd, sampled_probability) = RSDD.weighted_sample(posterior_guard, s.manager.weights)
 
                 # Likely unnecessary...
                 sampled_bdd = posterior_guard & sampled_bdd

@@ -19,6 +19,7 @@ Base.@kwdef struct LazyKCConfig
     show_bdd_size::Bool = false
     record_bdd_json::Bool = false
     record_json::Bool = false
+    free_manager::Bool = true
 end
 
 """
@@ -64,7 +65,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     # weighted model count to get the actual probabilities
     weighted_results = [(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret]
 
-    free_bdd_manager(state.manager)
+    state.cfg.free_manager && free_bdd_manager(state.manager)
 
     return weighted_results
 end
