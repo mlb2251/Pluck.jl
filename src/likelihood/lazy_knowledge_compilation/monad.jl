@@ -2,8 +2,8 @@
 function bind_monad(cont::F, worlds, path_condition, used_information, state) where F <: Function
     result_sets = Vector{Tuple{GuardedWorlds, BDD}}()
     for (val, result_guard) in worlds
-        path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard
-        cont_worlds, cont_used_info = cont(val, path_condition)
+        inner_path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard
+        cont_worlds, cont_used_info = cont(val, inner_path_condition)
         push!(result_sets, ((cont_worlds, cont_used_info), result_guard))
     end
     return join_monad(result_sets, used_information, path_condition, state)
