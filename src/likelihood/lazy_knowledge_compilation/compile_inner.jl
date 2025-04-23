@@ -6,11 +6,11 @@ function compile_inner(expr::App, env::Env, path_condition::BDD, state::LazyKCSt
     fs = traced_compile_inner(expr.f, env, path_condition, state, 0)
     thunked_argument = LazyKCThunk(expr.x, env, state.callstack, :app_x, 1, state)
 
-    return bind_monad(fs, path_condition, state) do f, f_guard
+    return bind_monad(fs, path_condition, state) do f, path_condition
         new_env = copy(f.env)
         x = thunked_argument
         pushfirst!(new_env, x)
-        return traced_compile_inner(f.expr, new_env, path_condition & f_guard, state, 2)
+        return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
     end
 end
 
@@ -34,7 +34,7 @@ function compile_inner(expr::CaseOf, env::Env, path_condition::BDD, state::LazyK
         constructor_indices[constructor] = i
     end
     caseof_type = type_of_constructor[first(keys(expr.cases))]
-    bind_monad(scrutinee_values, path_condition, state) do scrutinee, scrutinee_guard
+    bind_monad(scrutinee_values, path_condition, state) do scrutinee, path_condition
         value_type = type_of_constructor[scrutinee.constructor]
         if !isempty(expr.cases) && !(value_type == caseof_type)
             # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
@@ -47,22 +47,17 @@ function compile_inner(expr::CaseOf, env::Env, path_condition::BDD, state::LazyK
 
         case_expr = expr.cases[scrutinee.constructor]
         num_args = length(args_of_constructor[scrutinee.constructor])
-        inner_path_condition = scrutinee_guard & path_condition
-
-        if num_args == 0
-            return traced_compile_inner(case_expr, env, inner_path_condition, state, constructor_indices[scrutinee.constructor])
-        end
 
         for _ = 1:num_args
             @assert case_expr isa Abs "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
             case_expr = case_expr.body
         end
         # In each of the scrutinee arguments, filter out options that contradict the available information.
-        new_env = copy(env)
+        new_env = num_args == 0 ? env : copy(env)
         for arg in scrutinee.args
             pushfirst!(new_env, arg)
         end
-        return traced_compile_inner(case_expr, new_env, inner_path_condition, state, constructor_indices[scrutinee.constructor])
+        return traced_compile_inner(case_expr, new_env, path_condition, state, constructor_indices[scrutinee.constructor])
     end
 end
 
@@ -104,7 +99,7 @@ end
 function compile_prim(op::FlipOp, args, env::Env, path_condition::BDD, state::LazyKCState)
 
     ps = traced_compile_inner(args[1], env, path_condition, state, 0)
-    bind_monad(ps, path_condition, state) do p, p_guard
+    bind_monad(ps, path_condition, state) do p, path_condition
         p = p.value
         if isapprox(p, 0.0)
             return pure_monad(Pluck.FALSE_VALUE, state)
@@ -133,9 +128,9 @@ end
 function compile_prim(op::ConstructorEqOp, args, env::Env, path_condition::BDD, state::LazyKCState)
     # Evaluate both arguments.
     first_arg_results = traced_compile_inner(args[1], env, path_condition, state, 0)
-    bind_monad(first_arg_results, path_condition, state) do arg1, arg1_guard
-        second_arg_results = traced_compile_inner(args[2], env, arg1_guard & path_condition, state, 1)
-        bind_monad(second_arg_results, path_condition, state) do arg2, arg2_guard
+    bind_monad(first_arg_results, path_condition, state) do arg1, path_condition
+        second_arg_results = traced_compile_inner(args[2], env, path_condition, state, 1)
+        bind_monad(second_arg_results, path_condition, state) do arg2, path_condition
             val =  arg1.constructor == arg2.constructor ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
             return pure_monad(val, state)
         end
@@ -153,9 +148,9 @@ end
 
 function compile_prim(op::IntDistEqOp, args, env::Env, path_condition::BDD, state::LazyKCState)
     first_int_dist = traced_compile_inner(args[1], env, path_condition, state, 0)
-    bind_monad(first_int_dist, path_condition, state) do first_int_dist, first_int_dist_guard
-        second_int_dist = traced_compile_inner(args[2], env, first_int_dist_guard & path_condition, state, 1)
-        bind_monad(second_int_dist, path_condition, state) do second_int_dist, second_int_dist_guard
+    bind_monad(first_int_dist, path_condition, state) do first_int_dist, path_condition
+        second_int_dist = traced_compile_inner(args[2], env, path_condition, state, 1)
+        bind_monad(second_int_dist, path_condition, state) do second_int_dist, path_condition
             bdd = int_dist_eq(first_int_dist, second_int_dist, state)
             return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, bdd, state)
         end
