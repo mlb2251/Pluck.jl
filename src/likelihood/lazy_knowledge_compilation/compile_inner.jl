@@ -42,7 +42,7 @@ function compile_inner(expr::CaseOf, env::Env, path_condition::BDD, state::LazyK
         
         if !(scrutinee.constructor in keys(expr.cases))
             # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
-            return shave_probabilty(state)
+            return program_error_worlds(state)
         end
 
         case_expr = expr.cases[scrutinee.constructor]
