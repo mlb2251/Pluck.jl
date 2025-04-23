@@ -82,7 +82,16 @@ function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCSta
         return false_path_condition_worlds(state)
     end
     nested_worlds = (thunk.thunks, state.manager.BDD_TRUE)
+    # thunk union evaluate is really just a bind with the continuation being the single-union evaluate function
     return bind_monad(evaluate, nested_worlds, path_condition, state; cont_state=true)
+end
+
+function evaluate_no_cache(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
+    old_callstack = state.callstack
+    state.callstack = thunk.callstack
+    result = traced_compile_inner(thunk.expr, thunk.env, path_condition, state, thunk.strict_order_index)
+    state.callstack = old_callstack
+    return result
 end
 
 function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
@@ -91,37 +100,58 @@ function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     end
 
     # Check the cache
-    for (results, bdd) in thunk.cache
-        if bdd_is_true(bdd_implies(path_condition, bdd))
-            return (results, bdd)
+    for (worlds, used_info) in thunk.cache
+        if bdd_is_true(bdd_implies(path_condition, used_info))
+            return (worlds, used_info)
         end
     end
 
-    # Otherwise we have to evaluate the thunk. Set the callstack to the thunk's callstack.
-    old_callstack = state.callstack
-    state.callstack = thunk.callstack
-    # We have replaced path_condition with BDD_TRUE.
-    if state.cfg.singleton_cache && length(thunk.cache) == 1
-        (worlds, bdd) = thunk.cache[1]
-        result, used_information = traced_compile_inner(thunk.expr, thunk.env, path_condition & !bdd, state, thunk.strict_order_index)
-    else
-        result, used_information = traced_compile_inner(thunk.expr, thunk.env, path_condition, state, thunk.strict_order_index)
-    end
-    state.callstack = old_callstack
-    # Cache the result
-    if state.cfg.singleton_cache && length(thunk.cache) == 1
-        (worlds, used) = thunk.cache[1]
-        # The code we're imagining is (if thunk.cache[1][1] then e else e)
-        nested_worlds = [((worlds, used), used), ((result, used_information), !used)]
-        nested_worlds = (nested_worlds, state.manager.BDD_TRUE)
-        res, overall_used = join_monad(nested_worlds, state)
-        thunk.cache[1] = (res, overall_used)
-        return (res, overall_used)
-    else
-        push!(thunk.cache, (result, used_information))
+    # handle deprecated version of the cache system
+    if !state.cfg.singleton_cache
+        res = evaluate_no_cache(thunk, path_condition, state)
+        push!(thunk.cache, res)
+        return res
     end
 
-    return result, used_information
+    # nothing in cache
+    if isempty(thunk.cache)
+        worlds = evaluate_no_cache(thunk, path_condition, state)
+        push!(thunk.cache, worlds)
+        return worlds
+    end
+
+    @assert length(thunk.cache) == 1
+    cached_worlds, cache_guard = thunk.cache[1]
+
+    """
+    We want to run the code: (if cache_guard then cached_worlds else evaluated_worlds)
+    Using the path condition: path_condition | cache_guard
+    OR-ing in the cache guard ensures that we don't lose any of the information we had previously stored in the cache.
+
+    We can do this through a bind():
+    """
+
+    hit_cache_worlds = if_then_else_monad(true, false, cache_guard, state)
+    path_condition |= cache_guard
+    worlds = bind_monad(hit_cache_worlds, path_condition, state; cont_state=true) do hit_cache, path_condition, state
+        hit_cache ? (cached_worlds, state.manager.BDD_TRUE) : evaluate_no_cache(thunk, path_condition, state)
+    end
+    thunk.cache[1] = worlds
+
+    """
+    Note an equivalent (but same speed) way to do this without bind is:
+    ```
+    inner_path_condition = path_condition & !cache_guard
+    cache_miss_worlds, cache_miss_used = evaluate_no_cache(thunk, inner_path_condition, state)
+    cache_miss_worlds = ((cache_miss_worlds, cache_miss_used), !cache_guard)
+    cache_hit_worlds = ((cached_worlds, cache_guard), cache_guard)
+    nested_worlds = [cache_hit_worlds, cache_miss_worlds], state.manager.BDD_TRUE
+    worlds = join_monad(nested_worlds, state)
+    thunk.cache[1] = worlds
+    ```
+    """
+
+    return worlds
 end
 
 """
