@@ -12,6 +12,13 @@ Base.:(==)(x::FloatValue, y::FloatValue) = x.value == y.value
 Base.hash(x::FloatValue, h::UInt) = hash(x.value, h)
 Base.show(io::IO, x::FloatValue) = print(io, x.value)
 
+struct UIntValue <: AbstractValue
+    value::UInt64
+end
+Base.:(==)(x::UIntValue, y::UIntValue) = x.value == y.value
+Base.hash(x::UIntValue, h::UInt) = hash(x.value, h)
+Base.show(io::IO, x::UIntValue) = print(io, x.value)
+
 struct Value <: AbstractValue
     constructor::Symbol
     args::Vector{Any}

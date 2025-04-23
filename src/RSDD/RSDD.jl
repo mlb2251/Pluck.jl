@@ -14,7 +14,9 @@ export WmcParams,
     set_weight_dual,
     var_partial,
     bdd_wmc, 
-    bdd_wmc_dual
+    bdd_wmc_dual,
+    bdd_true,
+    bdd_false
 
 export BDD,
     bdd_and,
@@ -165,42 +167,50 @@ end
 const ManagerPtr = Ptr{Cvoid}
 const Label = Csize_t
 
+
+struct BDD
+    manager_ptr::ManagerPtr
+    ptr::Csize_t
+    function BDD(manager_ptr::ManagerPtr, ptr::Csize_t)
+        bdd = new(manager_ptr, ptr)
+        push!(bdds_of_manager_ptr[manager_ptr], bdd)
+        return bdd
+    end
+end
 mutable struct Manager
     ptr::ManagerPtr
-    bdds::Vector{Any}
+    bdds::Vector{BDD}
     freed::Bool
-    BDD_TRUE::Any
-    BDD_FALSE::Any
+    BDD_TRUE::BDD
+    BDD_FALSE::BDD
     weights::AbstractWmcParams
 end
 
 function Manager(; num_vars::Int=0)
-    manager_ptr = ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    manager_ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    bdds_of_manager_ptr[manager_ptr] = BDD[]
+    BDD_TRUE = BDD(manager_ptr, @rsdd_timed ccall(bdd_true_ptr, Csize_t, (ManagerPtr,), manager_ptr))
+    BDD_FALSE = BDD(manager_ptr, @rsdd_timed ccall(bdd_false_ptr, Csize_t, (ManagerPtr,), manager_ptr))
     weights = new_weights()
-    manager = Manager(manager_ptr, [], false, nothing, nothing, weights)
-    manager.BDD_TRUE = bdd_true(manager)
-    manager.BDD_FALSE = bdd_false(manager)
+    manager = Manager(manager_ptr, [], false, BDD_TRUE, BDD_FALSE, weights)
+    @assert !haskey(manager_of_ptr, manager_ptr)
+    manager_of_ptr[manager_ptr] = manager
     return manager
 end
 
 function ManagerDual(; num_vars::Int=0)
-    manager_ptr = ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    manager_ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    bdds_of_manager_ptr[manager_ptr] = BDD[]
+    BDD_TRUE = BDD(manager_ptr, @rsdd_timed ccall(bdd_true_ptr, Csize_t, (ManagerPtr,), manager_ptr))
+    BDD_FALSE = BDD(manager_ptr, @rsdd_timed ccall(bdd_false_ptr, Csize_t, (ManagerPtr,), manager_ptr))
     weights = new_weights_dual()
-    manager = Manager(manager_ptr, [], false, nothing, nothing, weights)
-    manager.BDD_TRUE = bdd_true(manager)
-    manager.BDD_FALSE = bdd_false(manager)
+    manager = Manager(manager_ptr, [], false, BDD_TRUE, BDD_FALSE, weights)
+    @assert !haskey(manager_of_ptr, manager_ptr)
+    manager_of_ptr[manager_ptr] = manager
     return manager
 end
-
-struct BDD
-    manager::Manager
-    ptr::Csize_t
-    function BDD(manager::Manager, ptr::Csize_t)
-        bdd = new(manager, ptr)
-        push!(manager.bdds, bdd)
-        return bdd
-    end
-end
+const bdds_of_manager_ptr = Dict{ManagerPtr, Vector{BDD}}()
+const manager_of_ptr = Dict{ManagerPtr, Manager}()
 
 
 
@@ -274,11 +284,11 @@ Returns: BDD
 """
 function bdd_and(a::BDD, b::BDD)
     # tstart = time()
-    @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_and_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    @assert a.manager_ptr == b.manager_ptr "BDDs must belong to the same manager"
+    ptr = @rsdd_timed ccall(bdd_and_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager_ptr, a.ptr, b.ptr)
     # tstop = time()
     # bdd_time.bdd_and += (tstop - tstart)
-    return BDD(a.manager, ptr)
+    return BDD(a.manager_ptr, ptr)
 end
 
 """
@@ -287,11 +297,11 @@ Returns: BDD
 """
 function bdd_or(a::BDD, b::BDD)
     # tstart = time()
-    @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_or_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    @assert a.manager_ptr == b.manager_ptr "BDDs must belong to the same manager"
+    ptr = @rsdd_timed ccall(bdd_or_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager_ptr, a.ptr, b.ptr)
     # tstop = time()
     # bdd_time.bdd_or += (tstop - tstart)
-    return BDD(a.manager, ptr)
+    return BDD(a.manager_ptr, ptr)
 end
 
 """
@@ -299,9 +309,9 @@ Performs logical IFF (if and only if) operation on two BDDs.
 Returns: BDD
 """
 function bdd_iff(a::BDD, b::BDD)
-    @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_iff_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
-    BDD(a.manager, ptr)
+    @assert a.manager_ptr == b.manager_ptr "BDDs must belong to the same manager"
+    ptr = @rsdd_timed ccall(bdd_iff_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager_ptr, a.ptr, b.ptr)
+    BDD(a.manager_ptr, ptr)
 end
 
 """
@@ -309,7 +319,7 @@ Performs logical XOR operation on two BDDs.
 Returns: BDD
 """
 function bdd_xor(a::BDD, b::BDD)
-    @assert a.manager == b.manager "BDDs must belong to the same manager"
+    @assert a.manager_ptr == b.manager_ptr "BDDs must belong to the same manager"
     bdd_ite(a, bdd_negate(b), b)
 end
 
@@ -318,8 +328,8 @@ Negates a BDD.
 Returns: BDD
 """
 function bdd_negate(bdd::BDD)
-    ptr = @rsdd_timed ccall(bdd_negate_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
-    BDD(bdd.manager, ptr)
+    ptr = @rsdd_timed ccall(bdd_negate_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager_ptr, bdd.ptr)
+    BDD(bdd.manager_ptr, ptr)
 end
 
 """
@@ -335,30 +345,12 @@ Returns: Bool
 bdd_is_false(bdd::BDD) = @rsdd_timed ccall(bdd_is_false_ptr, Bool, (Csize_t,), bdd.ptr)
 
 """
-Creates a BDD representing the constant true.
-Returns: BDD
-"""
-function bdd_true(manager::Manager)
-    ptr = @rsdd_timed ccall(bdd_true_ptr, Csize_t, (Manager,), manager)
-    BDD(manager, ptr)
-end
-
-"""
-Creates a BDD representing the constant false.
-Returns: BDD
-"""
-function bdd_false(manager::Manager)
-    ptr = @rsdd_timed ccall(bdd_false_ptr, Csize_t, (Manager,), manager)
-    BDD(manager, ptr)
-end
-
-"""
 Performs if-then-else operation on three BDDs.
 Returns: BDD
 """
 function bdd_ite(f::BDD, g::BDD, h::BDD)
     @assert f.manager == g.manager == h.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_ite_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Csize_t), f.manager.ptr, f.ptr, g.ptr, h.ptr)
+    ptr = @rsdd_timed ccall(bdd_ite_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Csize_t), f.manager_ptr, f.ptr, g.ptr, h.ptr)
     BDD(f.manager, ptr)
 end
 
@@ -367,8 +359,8 @@ Checks if two BDDs are equal.
 Returns: Bool
 """
 function bdd_eq(a::BDD, b::BDD)
-    @assert a.manager == b.manager "BDDs must belong to the same manager"
-    @rsdd_timed ccall(bdd_eq_ptr, Bool, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    @assert a.manager_ptr == b.manager_ptr "BDDs must belong to the same manager"
+    @rsdd_timed ccall(bdd_eq_ptr, Bool, (ManagerPtr, Csize_t, Csize_t), a.manager_ptr, a.ptr, b.ptr)
 end
 
 """
@@ -376,8 +368,8 @@ Gets the high child of a BDD node.
 Returns: BDD
 """
 function bdd_high(bdd::BDD)
-    ptr = @rsdd_timed ccall(bdd_high_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
-    BDD(bdd.manager, ptr)
+    ptr = @rsdd_timed ccall(bdd_high_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager_ptr, bdd.ptr)
+    BDD(bdd.manager_ptr, ptr)
 end
 
 """
@@ -385,8 +377,8 @@ Gets the low child of a BDD node.
 Returns: BDD
 """
 function bdd_low(bdd::BDD)
-    ptr = @rsdd_timed ccall(bdd_low_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
-    BDD(bdd.manager, ptr)
+    ptr = @rsdd_timed ccall(bdd_low_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager_ptr, bdd.ptr)
+    BDD(bdd.manager_ptr, ptr)
 end
 
 """
@@ -424,8 +416,8 @@ Existentially quantifies a variable in a BDD.
 Returns: BDD
 """
 function bdd_exists(bdd::BDD, var::Label)
-    ptr = @rsdd_timed ccall(bdd_exists_ptr, Csize_t, (ManagerPtr, Csize_t, Label), bdd.manager.ptr, bdd.ptr, var)
-    BDD(bdd.manager, ptr)
+    ptr = @rsdd_timed ccall(bdd_exists_ptr, Csize_t, (ManagerPtr, Csize_t, Label), bdd.manager_ptr, bdd.ptr, var)
+    BDD(bdd.manager_ptr, ptr)
 end
 
 """
@@ -433,8 +425,8 @@ Conditions a BDD on a variable.
 Returns: BDD
 """
 function bdd_condition(bdd::BDD, var::Label, value::Bool)
-    ptr = @rsdd_timed ccall(bdd_condition_ptr, Csize_t, (ManagerPtr, Csize_t, Label, Bool), bdd.manager.ptr, bdd.ptr, var, value)
-    BDD(bdd.manager, ptr)
+    ptr = @rsdd_timed ccall(bdd_condition_ptr, Csize_t, (ManagerPtr, Csize_t, Label, Bool), bdd.manager_ptr, bdd.ptr, var, value)
+    BDD(bdd.manager_ptr, ptr)
 end
 
 """
@@ -443,7 +435,7 @@ Returns: BDD
 """
 function bdd_compose(f::BDD, var::Label, g::BDD)
     @assert f.manager == g.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_compose_ptr, Csize_t, (ManagerPtr, Csize_t, Label, Csize_t), f.manager.ptr, f.ptr, var, g.ptr)
+    ptr = @rsdd_timed ccall(bdd_compose_ptr, Csize_t, (ManagerPtr, Csize_t, Label, Csize_t), f.manager_ptr, f.ptr, var, g.ptr)
     BDD(f.manager, ptr)
 end
 
@@ -463,7 +455,7 @@ bdd_size(bdd::BDD) = @rsdd_timed ccall(bdd_size_ptr, UInt64, (Csize_t,), bdd.ptr
 Checks if a BDD represents a variable.
 Returns: Bool
 """
-bdd_is_var(bdd::BDD) = @rsdd_timed ccall(bdd_is_var_ptr, Bool, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
+bdd_is_var(bdd::BDD) = @rsdd_timed ccall(bdd_is_var_ptr, Bool, (ManagerPtr, Csize_t), bdd.manager_ptr, bdd.ptr)
 
 """
 Prints statistics about the BDD manager.
@@ -498,7 +490,7 @@ end
 Checks if a BDD has a variable.
 Returns: Bool
 """
-bdd_has_variable(bdd::BDD, var::Label) = @rsdd_timed ccall(bdd_has_variable_ptr, Bool, (ManagerPtr, Csize_t, Label), bdd.manager.ptr, bdd.ptr, var)
+bdd_has_variable(bdd::BDD, var::Label) = @rsdd_timed ccall(bdd_has_variable_ptr, Bool, (ManagerPtr, Csize_t, Label), bdd.manager_ptr, bdd.ptr, var)
 
 # Convenience operators
 Base.:&(a::BDD, b::BDD) = bdd_and(a, b)
@@ -543,6 +535,16 @@ function set_weight(params::WmcParams, var::Label, low::Float64, high::Float64)
 end
 
 """
+Sets the weight for a variable in the WmcParamsDual object.
+"""
+function set_weight(params::WmcParamsDual, var::Label, low::Float64, high::Float64)
+    low_dual = zeros(Float64, NPARTIALS)
+    high_dual = zeros(Float64, NPARTIALS)
+    ccall(wmc_param_f64_set_weight_deriv_dual_ptr, Cvoid, (Ptr{Cvoid}, Label, Float64, Ptr{Float64}, Float64, Ptr{Float64}), params.ptr, var, low, low_dual, high, high_dual)
+end
+
+
+"""
 Sets the weight for a variable in the WmcParamsDual object. 
 """
 function set_weight_dual(mgr::Manager, var::Label, metaparam::UInt, low::Float64, high::Float64)
@@ -575,7 +577,7 @@ Performs weighted model counting on a BDD.
 Returns: Float64
 """
 function bdd_wmc(bdd::BDD)
-    bdd_wmc_manual(bdd, bdd.manager.weights)
+    bdd_wmc_manual(bdd, manager_of_ptr[bdd.manager_ptr].weights)
 end
 
 function bdd_wmc_manual(bdd::BDD, params::WmcParams)
@@ -605,10 +607,11 @@ Frees the memory associated with a BDD manager.
 function free_bdd_manager(manager::Manager)
     free_wmc_params(manager.weights)
     manager.freed && return
-    for bdd in manager.bdds
+    for bdd in bdds_of_manager_ptr[manager.ptr]
         free_bdd(bdd)
     end
-    manager.bdds = []
+    delete!(bdds_of_manager_ptr, manager.ptr)
+    delete!(manager_of_ptr, manager.ptr)
     manager.freed = true
     @rsdd_timed ccall(free_bdd_manager_ptr, Cvoid, (ManagerPtr,), manager.ptr)
 end
@@ -646,7 +649,7 @@ A new BDD representing the variable.
 """
 function bdd_new_var_at_position(manager::Manager, position::Integer, polarity::Bool)
     ptr = @rsdd_timed ccall(bdd_new_var_at_position_ptr, Csize_t, (ManagerPtr, Csize_t, Bool), manager.ptr, position, polarity)
-    BDD(manager, ptr)
+    BDD(manager.ptr, ptr)
 end
 
 struct WeightedSampleResult
@@ -660,17 +663,17 @@ Returns: Tuple of (BDD, Float64) representing the sampled BDD and its probabilit
 function weighted_sample(bdd::BDD, wmc_params::WmcParams)
     result = @rsdd_timed ccall(robdd_weighted_sample_ptr, WeightedSampleResult,
         (ManagerPtr, Csize_t, Ptr{Cvoid}),
-        bdd.manager.ptr, bdd.ptr, wmc_params.ptr)
+        bdd.manager_ptr, bdd.ptr, wmc_params.ptr)
 
-    sample_bdd = BDD(bdd.manager, result.sample)
+    sample_bdd = BDD(bdd.manager_ptr, result.sample)
     probability = result.probability
 
     return (sample_bdd, probability)
 end
 
 function bdd_top_k_paths(bdd::BDD, k::Integer, wmc_params::WmcParams)
-    ptr = @rsdd_timed ccall(robdd_top_k_paths_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Ptr{Cvoid}), bdd.manager.ptr, bdd.ptr, k, wmc_params.ptr)
-    BDD(bdd.manager, ptr)
+    ptr = @rsdd_timed ccall(robdd_top_k_paths_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Ptr{Cvoid}), bdd.manager_ptr, bdd.ptr, k, wmc_params.ptr)
+    BDD(bdd.manager_ptr, ptr)
 end
 
 # Add these to the exports at the end of the file

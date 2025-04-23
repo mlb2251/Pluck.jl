@@ -6,17 +6,19 @@ struct LazyKCThunk
     name::Symbol
     strict_order_index::Int
 
-    function LazyKCThunk(expr::PExpr, env::Env, callstack::Callstack, name::Symbol, strict_order_index::Int, state)
+    function LazyKCThunk(expr::PExpr, env::Env, callstack::Callstack, name::Symbol, strict_order_index::Int, state)        
         if expr isa Var && env[expr.idx] isa LazyKCThunk
             return env[expr.idx]
         end
 
         key = (expr, env, callstack)
-        if state !== nothing && state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
+        if state.cfg.use_thunk_cache && state !== nothing && haskey(state.thunk_cache, key)
             return state.thunk_cache[key]
         else
-            thunk = new(expr, env, [], copy(callstack), name, strict_order_index)
-            if state !== nothing && state.cfg.use_thunk_cache
+            # cache miss or not using cache
+            cache = [([], state.manager.BDD_FALSE)] # esp for singleton cache case
+            thunk = new(expr, env, cache, copy(callstack), name, strict_order_index)
+            if state.cfg.use_thunk_cache && state !== nothing
                 state.thunk_cache[(expr, copy(env), copy(callstack))] = thunk
             end
             return thunk
@@ -29,13 +31,13 @@ function Base.show(io::IO, x::LazyKCThunk)
 end
 
 struct LazyKCThunkUnion
-    thunks::Vector{Tuple{LazyKCThunk, BDD}}
-    function LazyKCThunkUnion(worlds::Vector{Tuple{T, BDD}}, state) where T
+    thunks::Vector{Tuple{LazyKCThunk,BDD}}
+    function LazyKCThunkUnion(worlds::Vector{Tuple{T,BDD}}, state) where T
 
         # collapse identical worlds
         uniq_worlds = Vector{LazyKCThunk}()
         uniq_guards = Vector{BDD}()
-        uniq_world_indices = Dict{LazyKCThunk, Int}()
+        uniq_world_indices = Dict{LazyKCThunk,Int}()
 
         for (world, outer_bdd) in worlds
 
@@ -60,7 +62,7 @@ struct LazyKCThunkUnion
             end
         end
 
-        worlds = Tuple{LazyKCThunk, BDD}[(world, bdd) for (world, bdd) in zip(uniq_worlds, uniq_guards)]
+        worlds = Tuple{LazyKCThunk,BDD}[(world, bdd) for (world, bdd) in zip(uniq_worlds, uniq_guards)]
         return new(worlds)
     end
 end
@@ -76,51 +78,62 @@ function Base.show(io::IO, x::LazyKCThunkUnion)
     print(io, ")")
 end
 
-function evaluate(thunk::LazyKCThunkUnion, available_information::BDD, state::LazyKCState)
-    intermediate_results = []
-    for (result, guard) in thunk.thunks
-        new_guard = available_information & guard
-        push!(intermediate_results, (evaluate(result, new_guard, state), guard))
-    end
-
-    return join_monad(intermediate_results, state.manager.BDD_TRUE, available_information, state)
+function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCState)
+    # evaluate() has the same type as the continuation bind takes, and needs to do all the same things.
+    bind_monad(evaluate, (thunk.thunks, state.manager.BDD_TRUE), path_condition, state)
 end
 
-function evaluate(thunk::LazyKCThunk, available_information::BDD, state::LazyKCState)
-    if !state.cfg.disable_used_information && bdd_is_false(available_information)
-        return [], state.manager.BDD_FALSE
-    end
-
-    # Check the cache
-    for (results, bdd) in thunk.cache
-        if bdd_is_true(bdd_implies(available_information, bdd))
-            return (results, bdd)
-        end
-    end
-
-    # Otherwise we have to evaluate the thunk. Set the callstack to the thunk's callstack.
+function evaluate_no_cache(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     old_callstack = state.callstack
     state.callstack = thunk.callstack
-    # We have replaced available_information with BDD_TRUE.
-    if state.cfg.singleton_cache && length(thunk.cache) == 1
-        (worlds, bdd) = thunk.cache[1]
-        result, used_information = traced_compile_inner(thunk.expr, thunk.env, available_information & !bdd, state, thunk.strict_order_index)
-    else
-        result, used_information = traced_compile_inner(thunk.expr, thunk.env, available_information, state, thunk.strict_order_index)
-    end
+    result = traced_compile_inner(thunk.expr, thunk.env, path_condition, state, thunk.strict_order_index)
     state.callstack = old_callstack
-    # Cache the result
-    if state.cfg.singleton_cache && length(thunk.cache) == 1
-        (worlds, used) = thunk.cache[1]
-        # The code we're imagining is (if thunk.cache[1][1] then e else e)
-        res, overall_used = join_monad([((worlds, used), used), ((result, used_information), !used)], state.manager.BDD_TRUE, available_information, state)
-        thunk.cache[1] = (res, overall_used)
-        return (res, overall_used)
-    else
-        push!(thunk.cache, (result, used_information))
+    return result
+end
+
+function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
+    # non-singleton cache case
+    for (results, guard) in thunk.cache
+        if bdd_is_true(bdd_implies(path_condition, guard))
+            return results, guard
+        end
+    end 
+
+    if !state.cfg.singleton_cache
+        res = evaluate_no_cache(thunk, path_condition, state)
+        push!(thunk.cache, res)
+        return res
     end
 
-    return result, used_information
+    cached_worlds, cache_guard = thunk.cache[1]
+
+    """
+    We want to run the code: (if cache_guard then cached_worlds else evaluated_worlds)
+    Using the path condition: path_condition | cache_guard
+    OR-ing in the cache guard ensures that we don't lose any of the information we had previously stored in the cache.
+
+    We could do this by writing:
+
+    ```
+    hit_cache_worlds = if_then_else_monad(true, false, cache_guard, state)
+    path_condition |= cache_guard
+    thunk.cache[1] = bind_monad(hit_cache_worlds, path_condition, state) do hit_cache, path_condition, state
+        hit_cache ? (cached_worlds, state.manager.BDD_TRUE) : evaluate_no_cache(thunk, path_condition, state)
+    end
+    ```
+    
+    However writing it out explicitly is a fair bit faster
+    """
+
+    inner_path_condition = path_condition & !cache_guard
+    result, used_information = evaluate_no_cache(thunk, inner_path_condition, state)
+    cached_worlds = condition_worlds(cached_worlds, cache_guard)
+    added_worlds = condition_worlds(result, !cache_guard)
+    new_worlds = join_worlds([cached_worlds, added_worlds], state)
+    new_cache_guard = bdd_implies(!cache_guard, used_information)
+    thunk.cache[1] = (new_worlds, new_cache_guard)
+
+    return thunk.cache[1]
 end
 
 """
@@ -130,13 +143,13 @@ function infer_full_distribution(initial_results, state)
     # Queue of (value, bdd) pairs to process
     queue = initial_results
     # Final set of fully resolved (value, bdd) pairs
-    resolved = Vector{Tuple{Value, BDD}}()
+    resolved = Vector{Tuple{Value,BDD}}()
 
     while !isempty(queue)
         (current_val, current_bdd) = pop!(queue)
         # Find first unresolved thunk in the value tree
         thunk_path = find_first_thunk(current_val)
-        
+
         if isnothing(thunk_path)
             # No more thunks - this value is fully resolved
             push!(resolved, (current_val, current_bdd))
@@ -145,10 +158,10 @@ function infer_full_distribution(initial_results, state)
 
         # Get the thunk at the path
         thunk = get_value_at_path(current_val, thunk_path)
-        
+
         # Evaluate the thunk
         sub_results, _ = evaluate(thunk, current_bdd, state)
-        
+
         # For each possible result of the thunk evaluation
         for (sub_val, sub_bdd) in sub_results
             # Create a copy of the value with this thunk replaced
@@ -162,7 +175,7 @@ function infer_full_distribution(initial_results, state)
 end
 
 # Helper function to find first thunk in a value tree using DFS
-function find_first_thunk(val::Value, path::Vector{Int} = Int[])
+function find_first_thunk(val::Value, path::Vector{Int}=Int[])
     # Check direct arguments first
     for (i, arg) in enumerate(val.args)
         if arg isa LazyKCThunk || arg isa LazyKCThunkUnion
@@ -194,10 +207,10 @@ function replace_at_path(val::Value, path::Vector{Int}, new_val)
     if isempty(path)
         return new_val
     end
-    
+
     # Create copy of value
     new_args = copy(val.args)
-    
+
     if length(path) == 1
         # Direct replacement
         new_args[path[1]] = new_val
@@ -205,6 +218,6 @@ function replace_at_path(val::Value, path::Vector{Int}, new_val)
         # Recursive replacement
         new_args[path[1]] = replace_at_path(val.args[path[1]], path[2:end], new_val)
     end
-    
+
     return Value(val.constructor, new_args)
 end

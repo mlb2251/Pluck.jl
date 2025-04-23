@@ -1,9 +1,10 @@
-export normalize, compile, LazyKCState, LazyKCConfig
+export normalize, compile, LazyKCState, LazyKCConfig, LazyKCStateDual
 
 const Callstack = Vector{Int}
 const Env = Vector{Any}
 const World = Tuple{Any, BDD}
 const GuardedWorlds = Tuple{Vector{World}, BDD}
+
 const EMPTY_ENV::Env = Any[]
 
 Base.@kwdef struct LazyKCConfig
@@ -27,27 +28,23 @@ Top-level compile function for lazy knowledge compilation.
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
 
-    inner_ret, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
+    ret, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
 
-    # expand IntDists into their 2^N possible values
-    ret = []
-    for (val, bdd) in inner_ret
-        if val isa IntDist
-            append!(ret, enumerate_int_dist(val, bdd))
-        else
-            push!(ret, (val, bdd))
-        end
+    # expand IntDist into its 2^N possible values
+    if length(ret) == 1 && ret[1][1] isa IntDist
+        (val, bdd) = ret[1]
+        ret = enumerate_int_dist(val, bdd)
     end
 
     if state.cfg.show_bdd_size
-        summed_size = sum(Int(RSDD.bdd_size(bdd)) for (ret, (bdd)) in ret)
+        summed_size = sum(Int(RSDD.bdd_size(bdd)) for (val, bdd) in ret)
         num_vars = length(state.sorted_callstacks)
         printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
-        println("BDD sizes: $([(ret, Int(RSDD.bdd_size(bdd))) for (ret, (bdd)) in ret])")
+        println("BDD sizes: $([(val, Int(RSDD.bdd_size(bdd))) for (val, bdd) in ret])")
     end
 
     if state.cfg.record_bdd_json
-        bdd = get_true_result(results, nothing)
+        bdd = get_true_result(ret, nothing)
         if isnothing(bdd)
             @warn "No true result found to record"
         else
@@ -137,33 +134,27 @@ function LazyKCStateDual(cfg::LazyKCConfig)
     return state
 end
 
-function traced_compile_inner(expr::PExpr, env::Env, available_information::BDD, state::LazyKCState, strict_order_index::Int)
+function traced_compile_inner(expr::PExpr, env::Env, path_condition::BDD, state::LazyKCState, strict_order_index::Int)
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
     # Check whether available_information is false.
-    if !state.cfg.disable_used_information && bdd_is_false(available_information)
-        return [], state.manager.BDD_FALSE
-    end
+    # !state.cfg.disable_used_information && bdd_is_false(path_condition) && return [], state.manager.BDD_FALSE
 
     if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth
-        return [], state.manager.BDD_TRUE
+        return shave_probabilty(state)
     end
 
     state.depth += 1
     push!(state.callstack, strict_order_index)
 
-    if state.cfg.record_json
-        record_forward!(state.viz, expr, env, available_information, strict_order_index)
-    end
+    state.cfg.record_json && record_forward!(state.viz, expr, env, path_condition, strict_order_index)
 
-    result, used_information = compile_inner(expr, env, available_information, state)
+    result, used_information = compile_inner(expr, env, path_condition, state)
 
-    if state.cfg.record_json
-        record_result!(state.viz, result, used_information)
-    end
+    state.cfg.record_json && record_result!(state.viz, result, used_information)
 
     pop!(state.callstack)
-    state.num_forward_calls += 1
     state.depth -= 1
+    state.num_forward_calls += 1
     return result, used_information
 end
 
@@ -172,7 +163,7 @@ end
 Returns the single-variable BDD corresponding to the current callstack and probability, creating
 the variable if it doesn't exist yet.
 """
-function current_bdd_address(state::LazyKCState, p::Float64, available_information::BDD)
+function current_bdd_address(state::LazyKCState, p::Float64)
     if haskey(state.var_of_callstack, (state.callstack, p))
         return state.var_of_callstack[(state.callstack, p)]
     end

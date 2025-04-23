@@ -94,13 +94,9 @@ function write_out(json_data, path; verbose = true)
 end
 
 function logDual(param)
-    primal, deriv = param
-    
-    max_bound = 10
+    primal, deriv = param  
     log_primal = log(primal)
-
-    log_deriv = x -> clamp(x / primal, -max_bound, max_bound)
-    
+    log_deriv = x -> x / primal
     return (log_primal, log_deriv.(deriv))
 end
 

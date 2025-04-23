@@ -30,12 +30,23 @@
     S m => (match m
              O => (False)
              S k => (iseven k))))
+
+(define (== x y)
+  (match x
+    O => (match y
+           O => (True)
+           S _ => (False))
+    S n => (match y
+             O => (False)
+             S m => (== n m))))
+
 (define (> x y)
   (match x
     O => (False)
     S n => (match y
              O => (True)
              S m => (> n m))))
+
 (define (< x y)
   (match x
     O => (match y
@@ -67,6 +78,12 @@
   (if (flip p)
     (O)
     (S (geom p))))
+
+;; geometric distribution
+(define (geomd p)
+  (if (flipd p)
+    (O)
+    (S (geomd p))))
 
 (define (randnat) (geom 0.5))
 (define (randnatlist) (if (flip 0.5) (Nil) (Cons (randnat) (randnatlist))))

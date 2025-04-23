@@ -1,44 +1,104 @@
-
-function bind_monad(cont::F, worlds, available_information, used_information, state) where F <: Function
-    result_sets = Vector{Tuple{GuardedWorlds, BDD}}()
-    for (val, result_guard) in worlds
-        path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard
-        cont_worlds, cont_used_info = cont(val, path_condition)
-        push!(result_sets, ((cont_worlds, cont_used_info), result_guard))
-    end
-    return join_monad(result_sets, used_information, available_information, state)
+"""
+Shaves off probability.
+Constructs an empty set of worlds (zero probability)
+"""
+function shave_probabilty(state)::GuardedWorlds
+    return World[], state.manager.BDD_TRUE
 end
 
-# This is the 'join' of the monad.
-# M X = Tuple{Vector{Tuple{X, BDD}}, BDD} = ([(X, Guard)], Used)
-# M (M X) = ([(([(X, InnerGuard)], InnerUsed)), OuterGuard)], Used)
-function join_monad(result_sets, used_information::BDD, available_information::BDD, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
+"""
+Construct a single world with the given value. Lifts a deterministic
+value into the monad.
+"""
+@inline function pure_monad(val, state)
+    return World[(val, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
+end
+
+"""
+Constructs a pair of worlds, one with the condition true and one with the condition false.
+"""
+@inline function if_then_else_monad(val_if_true, val_if_false, condition, state)
+    return World[(val_if_true, condition), (val_if_false, !condition)], state.manager.BDD_TRUE
+end
+
+"""
+Condition every world in a set of worlds on a condition
+"""
+@inline function condition_worlds(worlds, condition)
+    return World[(val, guard & condition) for (val, guard) in worlds]
+end
+
+"""
+GuardedWorlds{X} = is a monad (M X)
+M X = GuardedWorlds{X} = Tuple{Vector{World{X}}, BDD}
+
+pure :: a -> M a
+bind :: M a -> (a -> M b) -> M b
+"""
+function bind_monad(cont::F, guarded_worlds, path_condition::BDD, state::LazyKCState) where F <: Function
+    pre_worlds, used_information = guarded_worlds
+
+    post_worlds = Vector{Vector{World}}()
+    for (val, pre_guard) in pre_worlds
+        cont_path_condition = path_condition & pre_guard
+
+        if bdd_is_false(cont_path_condition)
+            # you can reuse this part of the result if you too can prove false
+            # when you add pre_guard to your path condition.
+            used_information &= bdd_implies(pre_guard, state.manager.BDD_FALSE)
+            continue
+        end
+
+        state.cfg.disable_path_conditions && (cont_path_condition = state.manager.BDD_TRUE)
+        
+        cont_worlds, cont_used_info = cont(val, cont_path_condition, state)
+
+        # Condition on the guard. We don't condition on cont_path_condition – if
+        # we were doing that we would have just included path condition in the basic
+        # pure_monad worlds directly. The reason we don't do either of those things
+        # is because we want to cache our results.
+        post_world = condition_worlds(cont_worlds, pre_guard)
+        push!(post_worlds, post_world)
+
+        # you can reuse this part of the result if you can prove 
+        # the info needed by the continuation, given the pre guard
+        # as well as your current path condition.
+        used_information &= bdd_implies(pre_guard, cont_used_info)
+    end
+
+    join_results = join_worlds(post_worlds, state)
+
+    return join_results, used_information
+end
+
+
+"""
+join :: M (M X) -> M X
+"""
+function join_monad(guarded_worlds::GuardedWorlds, path_condition, state)
+    bind_monad(identity, guarded_worlds, path_condition, state)
+end
+
+function join_worlds(result_sets, state::LazyKCState)
     join_results = Vector{World}()
     index_of_result = Dict{AbstractValue, Int}()
     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
     int_dist_results = Vector{Tuple{IntDist, BDD}}()
-
-    for ((results, used_info), outer_guard) in result_sets
-        if !state.cfg.disable_used_information
-            used_information = used_information & bdd_implies(outer_guard, used_info)
-        end
-        for (result, inner_guard) in results
-            inner_and_outer = inner_guard & outer_guard
+    for results in result_sets
+        for (result, inner_and_outer) in results
             if state.cfg.use_thunk_unions && result isa Value
                 constructor = result.constructor
-                if !haskey(results_for_constructor, constructor)
-                    results_for_constructor[constructor] = [(result, inner_and_outer)]
-                else
-                    push!(results_for_constructor[constructor], (result, inner_and_outer))
-                end
-            elseif result isa Closure || result isa FloatValue || result isa Value
+                res = get!(Vector{Tuple{Value, BDD}}, results_for_constructor, constructor)
+                push!(res, (result, inner_and_outer))
+            elseif result isa Closure || result isa FloatValue || result isa UIntValue|| result isa Value
                 result_index = Base.get!(index_of_result, result, length(join_results) + 1)
                 if result_index > length(join_results)
                     push!(join_results, (result, inner_and_outer))
-                else
-                    new_guard = join_results[result_index][2] | inner_and_outer
-                    join_results[result_index] = (join_results[result_index][1], new_guard)
+                    continue
                 end
+                old_guard = join_results[result_index][2]
+                new_guard = old_guard | inner_and_outer
+                join_results[result_index] = (result, new_guard)
             elseif result isa IntDist
                 push!(int_dist_results, (result, inner_and_outer))
             else
@@ -48,27 +108,36 @@ function join_monad(result_sets, used_information::BDD, available_information::B
     end
 
     if state.cfg.use_thunk_unions
-        for constructor in sort(collect(keys(results_for_constructor)))
-            uniq_worlds = Vector{Value}()
-            uniq_world_guards = Vector{BDD}()
-            uniq_world_indices = Dict{Value, Int}()
-            for (world, guard) in results_for_constructor[constructor]
-                if !haskey(uniq_world_indices, world)
-                    push!(uniq_worlds, world)
-                    push!(uniq_world_guards, guard)
-                    uniq_world_indices[world] = length(uniq_worlds)
-                else
-                    uniq_world_guards[uniq_world_indices[world]] = uniq_world_guards[uniq_world_indices[world]] | guard
+        for constructor in keys(results_for_constructor)
+            world_of_value = Dict{Value, World}()
+            for (value, guard) in results_for_constructor[constructor]
+                old_world = get(world_of_value, value, nothing)
+                old_guard = isnothing(old_world) ? state.manager.BDD_FALSE : old_world[2]
+                new_guard = old_guard | guard
+                world_of_value[value] = (value, new_guard)
+            end
+            if length(world_of_value) <= 1
+                append!(join_results, World[Tuple(world) for world in values(world_of_value)])
+                continue
+            end
+
+            # multiple worlds case
+            overall_guard = state.manager.BDD_FALSE
+            thunks_of_arg = [World[] for _ in 1:length(Pluck.args_of_constructor[constructor])]
+            for (val, guard) in values(world_of_value)
+                overall_guard |= guard
+                for (i, arg) in enumerate(val.args)
+                    push!(thunks_of_arg[i], (arg, guard))
                 end
             end
-            if length(uniq_worlds) > 1
-                overall_guard = reduce((x, y) -> x | y, uniq_world_guards)
-                overall_args = [(LazyKCThunkUnion([(world.args[i], bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)], state)) for i = 1:length(Pluck.args_of_constructor[constructor])]
-                overall_value = Value(constructor, overall_args)
-                push!(join_results, (overall_value, overall_guard))
-            else
-                push!(join_results, [(world, bdd) for (world, bdd) in zip(uniq_worlds, uniq_world_guards)]...)
-            end
+            overall_args = [LazyKCThunkUnion(thunks, state) for thunks in thunks_of_arg]
+
+            # overall_args = map(1:length(Pluck.args_of_constructor[constructor])) do i
+            #     thunks = [(world.args[i], bdd) for (world, bdd) in values(world_of_value)]
+            #     LazyKCThunkUnion(thunks, state)
+            # end
+            overall_value = Value(constructor, overall_args)
+            push!(join_results, (overall_value, overall_guard))
         end
     end
 
@@ -76,5 +145,5 @@ function join_monad(result_sets, used_information::BDD, available_information::B
         push!(join_results, combine_int_dists(int_dist_results, state))
     end
 
-    return join_results, used_information
+    return join_results
 end
