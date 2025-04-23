@@ -28,16 +28,12 @@ Top-level compile function for lazy knowledge compilation.
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
 
-    inner_ret, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
+    ret, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
 
     # expand IntDists into their 2^N possible values
-    ret = []
-    for (val, bdd) in inner_ret
-        if val isa IntDist
-            append!(ret, enumerate_int_dist(val, bdd))
-        else
-            push!(ret, (val, bdd))
-        end
+    if length(ret) == 1 && ret[1] isa IntDist
+        (val, bdd) = ret[1]
+        ret = enumerate_int_dist(val, bdd)
     end
 
     if state.cfg.show_bdd_size
