@@ -29,56 +29,67 @@ Condition every world in a set of worlds on a condition
 end
 
 """
-GuardedWorlds{X} = is a monad (M X)
-M X = GuardedWorlds{X} = Tuple{Vector{World{X}}, BDD}
+GuardedWorldsT{X} = is a monad (M X)
+M X = GuardedWorldsT{X} = Tuple{Vector{WorldT{X}}, BDD}
 
 pure :: a -> M a
 bind :: M a -> (a -> M b) -> M b
+join :: M (M a) -> M a
 """
 
 function bind_monad(cont::F, worlds, path_condition, state) where F <: Function
     worlds, used_information = worlds
-    result_sets = Vector{Tuple{GuardedWorlds, BDD}}()
+    nested_worlds = Vector{Tuple{GuardedWorlds, BDD}}()
     for (val, result_guard) in worlds
         inner_path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : path_condition & result_guard
         cont_worlds, cont_used_info = cont(val, inner_path_condition)
-        push!(result_sets, ((cont_worlds, cont_used_info), result_guard))
+        push!(nested_worlds, ((cont_worlds, cont_used_info), result_guard))
     end
-    return join_monad(result_sets, used_information, path_condition, state)
+    nested_worlds = (nested_worlds, used_information)
+    return join_monad(nested_worlds, state)
 end
 
-# This is the 'join' of the monad.
-# M X = Tuple{Vector{Tuple{X, BDD}}, BDD} = ([(X, Guard)], Used)
-# M (M X) = ([(([(X, InnerGuard)], InnerUsed)), OuterGuard)], Used)
-function join_monad(result_sets, used_information::BDD, path_condition::BDD, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
+"""
+join :: M (M a) -> M a
+"""
+function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
+    nested_worlds, used_information = nested_worlds
     join_results = Vector{World}()
     index_of_result = Dict{AbstractValue, Int}()
     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
     int_dist_results = Vector{Tuple{IntDist, BDD}}()
 
-    for ((results, used_info), outer_guard) in result_sets
-        if !state.cfg.disable_used_information
-            used_information = used_information & bdd_implies(outer_guard, used_info)
-        end
-        for (result, inner_guard) in results
-            inner_and_outer = inner_guard & outer_guard
+    # first what is the total used information?
+    for ((_, used_info), pre_guard) in nested_worlds
+        state.cfg.disable_used_information && break
+        """
+        you can reuse this part of the result if you can prove 
+        the info needed by the inner result (the continuation in the case of a join), given the pre_guard
+        as well as your current path condition.
+        """
+        used_information &= bdd_implies(pre_guard, used_info)
+    end
+
+    for ((results, _), pre_guard) in nested_worlds
+        for (result, post_guard) in results
+            pre_and_post = post_guard & pre_guard
             if state.cfg.use_thunk_unions && result isa Value
                 constructor = result.constructor
                 if !haskey(results_for_constructor, constructor)
-                    results_for_constructor[constructor] = [(result, inner_and_outer)]
+                    results_for_constructor[constructor] = [(result, pre_and_post)]
                 else
-                    push!(results_for_constructor[constructor], (result, inner_and_outer))
+                    push!(results_for_constructor[constructor], (result, pre_and_post))
                 end
             elseif result isa Closure || result isa FloatValue || result isa Value
                 result_index = Base.get!(index_of_result, result, length(join_results) + 1)
                 if result_index > length(join_results)
-                    push!(join_results, (result, inner_and_outer))
+                    push!(join_results, (result, pre_and_post))
                 else
-                    new_guard = join_results[result_index][2] | inner_and_outer
+                    new_guard = join_results[result_index][2] | pre_and_post
                     join_results[result_index] = (join_results[result_index][1], new_guard)
                 end
             elseif result isa IntDist
-                push!(int_dist_results, (result, inner_and_outer))
+                push!(int_dist_results, (result, pre_and_post))
             else
                 error("join_monad found a result that is not a Value, Closure, or Float64: $result")
             end

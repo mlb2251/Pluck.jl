@@ -2,8 +2,10 @@ export normalize, compile, LazyKCState, LazyKCConfig
 
 const Callstack = Vector{Int}
 const Env = Vector{Any}
-const World = Tuple{Any, BDD}
-const GuardedWorlds = Tuple{Vector{World}, BDD}
+const WorldT{T} = Tuple{T, BDD}
+const World = WorldT{Any}
+const GuardedWorldsT{T} = Tuple{Vector{WorldT{T}}, BDD}
+const GuardedWorlds = GuardedWorldsT{Any}
 const EMPTY_ENV::Env = Any[]
 
 Base.@kwdef struct LazyKCConfig

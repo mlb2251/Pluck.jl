@@ -83,7 +83,8 @@ function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCSta
         push!(intermediate_results, (evaluate(result, new_guard, state), guard))
     end
 
-    return join_monad(intermediate_results, state.manager.BDD_TRUE, path_condition, state)
+    worlds = (intermediate_results, state.manager.BDD_TRUE)
+    return join_monad(worlds, state)
 end
 
 function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
@@ -113,7 +114,9 @@ function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     if state.cfg.singleton_cache && length(thunk.cache) == 1
         (worlds, used) = thunk.cache[1]
         # The code we're imagining is (if thunk.cache[1][1] then e else e)
-        res, overall_used = join_monad([((worlds, used), used), ((result, used_information), !used)], state.manager.BDD_TRUE, path_condition, state)
+        nested_worlds = [((worlds, used), used), ((result, used_information), !used)]
+        nested_worlds = (nested_worlds, state.manager.BDD_TRUE)
+        res, overall_used = join_monad(nested_worlds, state)
         thunk.cache[1] = (res, overall_used)
         return (res, overall_used)
     else
