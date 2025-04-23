@@ -15,7 +15,7 @@ struct LazyKCThunk
         if state !== nothing && state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
             return state.thunk_cache[key]
         else
-            cache = [([], state.manager.BDD_FALSE)] # esp for singleton cache case
+            cache = []
             thunk = new(expr, env, cache, copy(callstack), name, strict_order_index)
             if state !== nothing && state.cfg.use_thunk_cache
                 state.thunk_cache[(expr, copy(env), copy(callstack))] = thunk
