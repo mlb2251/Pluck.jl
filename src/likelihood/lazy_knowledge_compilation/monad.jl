@@ -36,7 +36,8 @@ pure :: a -> M a
 bind :: M a -> (a -> M b) -> M b
 """
 
-function bind_monad(cont::F, worlds, path_condition, used_information, state) where F <: Function
+function bind_monad(cont::F, worlds, path_condition, state) where F <: Function
+    worlds, used_information = worlds
     result_sets = Vector{Tuple{GuardedWorlds, BDD}}()
     for (val, result_guard) in worlds
         inner_path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : result_guard
