@@ -78,6 +78,9 @@ function Base.show(io::IO, x::LazyKCThunkUnion)
 end
 
 function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCState)
+    if !state.cfg.disable_used_information && bdd_is_false(path_condition)
+        return false_path_condition_worlds(state)
+    end
     nested_worlds = (thunk.thunks, state.manager.BDD_TRUE)
     return bind_monad(evaluate, nested_worlds, path_condition, state; cont_state=true)
 end

@@ -50,6 +50,12 @@ function bind_monad(cont::F, pre_worlds, path_condition, state; cont_state=false
     nested_worlds = Vector{Tuple{GuardedWorlds, BDD}}()
     for (pre_val, pre_guard) in pre_worlds
         inner_path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : path_condition & pre_guard
+        if !state.cfg.disable_used_information && bdd_is_false(inner_path_condition)
+            # you can reuse this part of the result if you can prove false with your path condition + pre_guard
+            push!(nested_worlds, (false_path_condition_worlds(state), pre_guard))
+            continue
+        end
+
         if cont_state
             post_worlds, post_used_info = cont(pre_val, inner_path_condition, state)
         else
