@@ -78,14 +78,8 @@ function Base.show(io::IO, x::LazyKCThunkUnion)
 end
 
 function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCState)
-    intermediate_results = []
-    for (result, guard) in thunk.thunks
-        new_guard = path_condition & guard
-        push!(intermediate_results, (evaluate(result, new_guard, state), guard))
-    end
-
-    worlds = (intermediate_results, state.manager.BDD_TRUE)
-    return join_monad(worlds, state)
+    nested_worlds = (thunk.thunks, state.manager.BDD_TRUE)
+    return bind_monad(evaluate, nested_worlds, path_condition, state; cont_state=true)
 end
 
 function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)

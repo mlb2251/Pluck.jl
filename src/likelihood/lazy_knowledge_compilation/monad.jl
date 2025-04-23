@@ -37,12 +37,16 @@ bind :: M a -> (a -> M b) -> M b
 join :: M (M a) -> M a
 """
 
-function bind_monad(cont::F, pre_worlds, path_condition, state) where F <: Function
+function bind_monad(cont::F, pre_worlds, path_condition, state; cont_state=false) where F <: Function
     pre_worlds, pre_used_info = pre_worlds
     nested_worlds = Vector{Tuple{GuardedWorlds, BDD}}()
     for (pre_val, pre_guard) in pre_worlds
         inner_path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : path_condition & pre_guard
-        post_worlds, post_used_info = cont(pre_val, inner_path_condition)
+        if cont_state
+            post_worlds, post_used_info = cont(pre_val, inner_path_condition, state)
+        else
+            post_worlds, post_used_info = cont(pre_val, inner_path_condition)
+        end
         push!(nested_worlds, ((post_worlds, post_used_info), pre_guard))
     end
     nested_worlds = (nested_worlds, pre_used_info)
