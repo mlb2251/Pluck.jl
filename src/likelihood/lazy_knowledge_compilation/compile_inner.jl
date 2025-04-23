@@ -47,6 +47,7 @@ function compile_inner(expr::CaseOf, env::Env, path_condition::BDD, state::LazyK
 
         case_expr = expr.cases[scrutinee.constructor]
         num_args = length(args_of_constructor[scrutinee.constructor])
+        @assert length(scrutinee.args) == num_args
 
         for _ = 1:num_args
             @assert case_expr isa Abs "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"

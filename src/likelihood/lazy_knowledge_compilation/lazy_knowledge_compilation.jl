@@ -30,23 +30,23 @@ Top-level compile function for lazy knowledge compilation.
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
 
-    ret, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
+    worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
 
     # expand IntDists into their 2^N possible values
-    if length(ret) == 1 && ret[1] isa IntDist
-        (val, bdd) = ret[1]
-        ret = enumerate_int_dist(val, bdd)
+    if length(worlds) == 1 && worlds[1] isa IntDist
+        (val, bdd) = worlds[1]
+        worlds = enumerate_int_dist(val, bdd)
     end
 
     if state.cfg.show_bdd_size
-        summed_size = sum(Int(RSDD.bdd_size(bdd)) for (ret, (bdd)) in ret)
+        summed_size = sum(Int(RSDD.bdd_size(bdd)) for (val, bdd) in worlds)
         num_vars = length(state.sorted_callstacks)
         printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
-        println("BDD sizes: $([(ret, Int(RSDD.bdd_size(bdd))) for (ret, (bdd)) in ret])")
+        println("BDD sizes: $([(val, Int(RSDD.bdd_size(bdd))) for (val, bdd) in worlds])")
     end
 
     if state.cfg.record_bdd_json
-        bdd = get_true_result(results, nothing)
+        bdd = get_true_result(worlds, nothing)
         if isnothing(bdd)
             @warn "No true result found to record"
         else
@@ -61,7 +61,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     end
 
     # weighted model count to get the actual probabilities
-    weighted_results = [(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret]
+    weighted_results = [(val, RSDD.bdd_wmc(bdd)) for (val, bdd) in worlds]
 
     state.cfg.free_manager && free_bdd_manager(state.manager)
 
