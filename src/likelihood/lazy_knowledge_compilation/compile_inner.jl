@@ -132,7 +132,7 @@ function compile_prim(op::FlipOp, args, env::Env, path_condition::BDD, state::La
             # BDDs do not represent quantitative probabilities. Therefore, for each 
             # different probability `p`, we need to create a new variable in the BDD.
             push!(state.callstack, 1)
-            addr = current_bdd_address(state, p, path_condition)
+            addr = current_bdd_address(state, p)
             RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
             pop!(state.callstack)
             return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)], state.manager.BDD_TRUE
