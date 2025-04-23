@@ -111,7 +111,7 @@ function traced_compile_inner(expr::PExpr, env::Env, path_condition::BDD, state:
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
     # Check whether path_condition is false.
     if !state.cfg.disable_used_information && bdd_is_false(path_condition)
-        return [], state.manager.BDD_FALSE
+        return false_path_condition_worlds(state)
     end
 
     if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth

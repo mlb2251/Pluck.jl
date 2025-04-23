@@ -84,7 +84,7 @@ end
 
 function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     if !state.cfg.disable_used_information && bdd_is_false(path_condition)
-        return [], state.manager.BDD_FALSE
+        return false_path_condition_worlds(state)
     end
 
     # Check the cache
