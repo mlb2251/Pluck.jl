@@ -25,6 +25,16 @@ function normalize(results)
     return [(res[1], res[2] / total) for res in results]
 end
 
+function normalize_dual(results)
+    dual_numbers = [res[2] for res in results]
+    probabilities = [d[1] for d in dual_numbers]
+    derivs = [d[2] for d in dual_numbers]
+    total = sum(probabilities)
+    total_deriv = sum(derivs)
+
+    return [(res[1], (res[2][1] / total, (total*res[2][2] - res[2][1]*total_deriv)/(total^2))) for res in results]
+end
+
 function get_true_result(results, default)
     res = nothing
     for (val, x) in results
@@ -82,4 +92,23 @@ function write_out(json_data, path; verbose = true)
     end
     kb = round(Int, filesize(path) / 1000)
     verbose && println("wrote $path [$kb KB]")
+end
+
+function logDual(param)
+    primal, deriv = param  
+    log_primal = log(primal)
+    log_deriv = x -> x / primal
+    return (log_primal, log_deriv.(deriv))
+end
+
+function expDual(param)
+    primal, deriv = param
+    exp_deriv = x -> x * exp(primal)
+    return (exp(primal), exp_deriv.(deriv))
+end
+
+function sumDual(params::Vector)
+    primal_sum = sum(p for (p, _) in params)
+    dual_sum = sum(d for (_, d) in params)
+    return (primal_sum, dual_sum)
 end

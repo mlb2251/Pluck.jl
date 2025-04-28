@@ -328,6 +328,9 @@ function parse_expr_inner(tokens, defs, env)
         idx = parse(Int, parts[2])
         @assert parts[1] == env[idx] "debruijn index must match variable name"
         return Var(idx, name), view(tokens, 2:length(tokens))
+    elseif '@' ∈ token
+        idx = parse(Int, token[2:end])
+        return DiffVar(idx), view(tokens, 2:length(tokens))
     elseif all(isdigit, token)
         val = parse(Int, token)
         return const_to_expr(val), view(tokens, 2:length(tokens))

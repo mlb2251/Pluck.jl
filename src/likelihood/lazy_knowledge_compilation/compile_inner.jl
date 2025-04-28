@@ -78,6 +78,10 @@ function compile_inner(expr::Var, env::Env, path_condition::BDD, state::LazyKCSt
     return pure_monad(v, state)
 end
 
+function compile_inner(expr::DiffVar, env::Env, path_condition::BDD, state::LazyKCState)
+    return pure_monad(UIntValue(expr.idx), state)
+end
+
 function compile_inner(expr::Defined, env::Env, path_condition::BDD, state::LazyKCState)
     # Execute Defined with a blanked out environment.
     return traced_compile_inner(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
@@ -123,6 +127,30 @@ function compile_prim(op::FlipOp, args, env::Env, path_condition::BDD, state::La
             pop!(state.callstack)
             return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, state)
         end
+    end
+end
+
+function compile_prim(op::FlipOpDual, args, env::Env, path_condition::BDD, state::LazyKCState)
+    metaparams = traced_compile_inner(args[1], env, path_condition, state, 0)
+    p_init = 0.5
+    # All we want to do is update a dictionary in BDDEvalState saying that bdd_topvar(addr) is associated with args[1].metaparam
+    bind_monad(metaparams, path_condition, state) do metaparam, path_condition
+        metaparam = metaparam.value
+        if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
+            sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
+            return [(sampled_value, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
+        end
+        push!(state.callstack, 1)
+        addr = current_bdd_address(state, p_init)
+        topvar = bdd_topvar(addr)
+        state.param2metaparam[topvar] = metaparam
+        partials_hi = zeros(Float64, NPARTIALS)
+        partials_hi[metaparam+1] = 1.0
+        partials_lo = zeros(Float64, NPARTIALS)
+        partials_lo[metaparam+1] = -1.0
+        set_weight_deriv(state.manager.weights, topvar, p_init, partials_lo, p_init, partials_hi)
+        pop!(state.callstack)
+        return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)], state.manager.BDD_TRUE
     end
 end
 

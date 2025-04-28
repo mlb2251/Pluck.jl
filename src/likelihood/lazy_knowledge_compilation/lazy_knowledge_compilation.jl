@@ -1,4 +1,4 @@
-export normalize, compile, LazyKCState, LazyKCConfig
+export normalize, compile, LazyKCState, LazyKCConfig, LazyKCStateDual
 
 const Callstack = Vector{Int}
 const Env = Vector{Any}
@@ -79,32 +79,61 @@ mutable struct LazyKCState
     num_forward_calls::Int
     viz::Any # Union{Nothing, BDDJSONLogger}
     cfg::LazyKCConfig
+    param2metaparam::Dict{Int, Int}
+end
 
-    function LazyKCState(;kwargs...)
-        cfg = LazyKCConfig(;kwargs...)
-        LazyKCState(cfg)
+function LazyKCState(;kwargs...)
+    cfg = LazyKCConfig(;kwargs...)
+    LazyKCState(cfg)
+end
+
+function LazyKCState(cfg::LazyKCConfig)
+    manager = RSDD.Manager()
+    state = LazyKCState(
+        Callstack(),
+        Dict{Tuple{Callstack, Float64}, BDD}(),
+        Tuple{Callstack, Float64}[],
+        Int[],
+        manager,
+        0,
+        Dict{Tuple{PExpr, Env, Callstack}, Any}(),
+        0,
+        nothing,
+        cfg,
+        Dict{Int, Int}()
+    )
+
+    if cfg.record_json
+        state.viz = BDDJSONLogger(state)
     end
+    return state
+end
 
-    function LazyKCState(cfg::LazyKCConfig)
-        manager = RSDD.Manager()
-        state = new(
-            Callstack(),
-            Dict{Tuple{Callstack, Float64}, BDD}(),
-            Tuple{Callstack, Float64}[],
-            Int[],
-            manager,
-            0,
-            Dict{Tuple{PExpr, Env, Callstack}, Any}(),
-            0,
-            nothing,
-            cfg
-        )
+function LazyKCStateDual(;kwargs...)
+    cfg = LazyKCConfig(;kwargs...)
+    LazyKCStateDual(cfg)
+end
 
-        if cfg.record_json
-            state.viz = BDDJSONLogger(state)
-        end
-        return state
+function LazyKCStateDual(cfg::LazyKCConfig)
+    manager = RSDD.ManagerDual()
+    state = LazyKCState(
+        Callstack(),
+        Dict{Tuple{Callstack, Float64}, BDD}(),
+        Tuple{Callstack, Float64}[],
+        Int[],
+        manager,
+        0,
+        Dict{Tuple{PExpr, Env, Callstack}, Any}(),
+        0,
+        nothing,
+        cfg,
+        Dict{Int, Int}()
+    )
+
+    if cfg.record_json
+        state.viz = BDDJSONLogger(state)
     end
+    return state
 end
 
 function traced_compile_inner(expr::PExpr, env::Env, path_condition::BDD, state::LazyKCState, strict_order_index::Int)
