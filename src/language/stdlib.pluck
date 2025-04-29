@@ -179,6 +179,31 @@
                    O => (Nil)
                    S n => (Cons x (take n xs)))))
 
+(define (zip_with f xs ys)
+  (match xs
+    Nil => (Nil)
+    Cons x xs => (match ys
+                  Nil => (Nil)
+                  Cons y ys => (Cons (f x y) (zip_with f xs ys)))))
+
+
+;; make primitive usable as a function
+(define (constructor=? a b) (constructors_equal a b))
+
+;; generic adt equality
+(define (=? a b)
+  (and (constructors_equal a b)
+       (list=? =? (get_args a) (get_args b))))
+
+;; Pairs
+(define-type pair (Pair any any))
+(define (fst p)
+  (match p
+    Pair x _ => x))
+(define (snd p)
+  (match p
+    Pair _ y => y))
+
 ;; Conditioning
 (define (given p q)
   (match p
@@ -224,15 +249,3 @@
 (define (int4=? a b) (match a
                        (Int4 a1 a2 a3 a4) => (match b
                                                (Int4 b1 b2 b3 b4) => (and (iff a1 b1) (and (iff a2 b2) (and (iff a3 b3) (iff a4 b4)))))))
-
-;; make primitive usable as a function
-(define (constructor=? a b) (constructors_equal a b))
-
-;; Pairs
-(define-type pair (Pair any any))
-(define (fst p)
-  (match p
-    Pair x _ => x))
-(define (snd p)
-  (match p
-    Pair _ y => y))

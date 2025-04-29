@@ -1,4 +1,4 @@
-export load_pluck_file
+export load_pluck_file, parse_toplevel
 
 # Parse a single constructor definition of form (Constructor arg1 arg2 ...)
 function parse_constructor(tokens)
@@ -12,7 +12,7 @@ function parse_constructor(tokens)
     constructor => args
 end
 
-function print_query_results(results, query_str)
+function print_query_results(results, query_str; save = false)
     printstyled("$query_str:\n", color=:yellow, bold=true)
 
     if isempty(results)
@@ -33,10 +33,28 @@ function print_query_results(results, query_str)
         printstyled(padding)
         printstyled("$p\n", color=:cyan)
     end
+
+
+    if !isnothing(save)
+        results_json = (query_str=query_str,
+                        results=[(prob=p, val=v) for (v, p) in sorted_results])
+
+        # check if file exists
+        prev_results = []
+        if isfile(save)
+            prev_results = JSON.parse(read(save, String))
+        end
+        push!(prev_results, results_json)
+        open(save, "w") do f
+            JSON.print(f, prev_results)
+        end
+        println("http://localhost:8000/html/factored/factored.html?path=$save")
+        println("Wrote $save")
+    end
 end
 
 function marginal_query(val, state)
-    ret, _ = evaluate(val.args[1], state.BDD_TRUE, state)
+    ret, _ = evaluate(val.args[1], state.manager.BDD_TRUE, state)
     full_ret = infer_full_distribution(ret, state)
     results = [v => RSDD.bdd_wmc(b) for (v, b) in full_ret]
     return results
@@ -46,7 +64,7 @@ function posterior_query(val, state)
     env = Any[val.args[1], val.args[2]]
     given_expr = App(App(Defined(:given), Var(2, :b)), Var(1, :a))
     # TODO: reconsider strict order index to use?
-    ret, _ = traced_compile_inner(given_expr, env, state.BDD_TRUE, state, 0)
+    ret, _ = traced_compile_inner(given_expr, env, state.manager.BDD_TRUE, state, 0)
     full_ret = infer_full_distribution(ret, state)
     results = normalize([v => RSDD.bdd_wmc(b) for (v, b) in full_ret])
     return results
@@ -55,7 +73,7 @@ end
 # Add this helper function to process queries
 function process_query(expr::PExpr, query_str::AbstractString; kwargs...)
     state = LazyKCState(; kwargs...)
-    ret, used_information = traced_compile_inner(expr, Pluck.EMPTY_ENV, state.BDD_TRUE, state, 0)
+    ret, used_information = traced_compile_inner(expr, EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
 
     if length(ret) != 1
         error("A query must either be a Marginal, Posterior, or PosteriorSample query, got $(expr).")
@@ -67,11 +85,11 @@ function process_query(expr::PExpr, query_str::AbstractString; kwargs...)
 
     if val.constructor == :Marginal
         results = marginal_query(val, state)
-        print_query_results(results, query_str)
+        print_query_results(results, query_str; save = state.cfg.results_file)
 
     elseif val.constructor == :Posterior
         results = posterior_query(val, state)
-        print_query_results(results, query_str)
+        print_query_results(results, query_str; save = state.cfg.results_file)
     elseif val.constructor == :PosteriorSamples
         # Get a single sample from the posterior
         results = posterior_sample(val, state)
@@ -88,7 +106,9 @@ function process_query(expr::PExpr, query_str::AbstractString; kwargs...)
     else
         error("Expected Marginal, Posterior, or PosteriorSample query, got $(val.constructor)")
     end
+
     println()
+
     return results
 end
 

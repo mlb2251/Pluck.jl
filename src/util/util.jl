@@ -1,4 +1,6 @@
-export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result
+export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path
+
+using Dates
 
 function logaddexp(x::Float64, y::Float64)::Float64
     if x == -Inf
@@ -46,15 +48,22 @@ function get_true_result(results, default)
     return isnothing(res) ? default : res
 end
 
-function timestamp_dir(; base = "out/results")
+function timestamp_path(file; base = "out/results")
+    dir = timestamp_dir(;base)
+    joinpath(dir, file)
+end
+
+function timestamp_dir(;base = "out/results")
+    date = Dates.format(Dates.now(), "yyyy-mm-dd")
+    time = Dates.format(Dates.now(), "HH-MM-SS")
+    i = 0
     dir = nothing
     while isnothing(dir) || isdir(dir)
-        date = Dates.format(Dates.now(), "yyyy-mm-dd")
-        time = Dates.format(Dates.now(), "HH-MM-SS")
-        dir = joinpath(base, date, time)
+        dir = joinpath(base, date, time * "-$(lpad(i, 3, '0'))")
+        i += 1
     end
     mkpath(dir)
-    dir
+    return dir
 end
 
 ADDR::String = "http://localhost"

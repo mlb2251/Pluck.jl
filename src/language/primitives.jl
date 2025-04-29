@@ -1,4 +1,4 @@
-export FlipOp, ConstructorEqOp, MkIntOp, IntDistEqOp
+export FlipOp, ConstructorEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp
 
 const primop_of_name::Dict{String, Type} = Dict()
 const name_of_primop::Dict{Type, String} = Dict()
@@ -39,6 +39,15 @@ define_prim!("flipd", FlipOpDual, 1)
 
 struct ConstructorEqOp <: Primitive end
 define_prim!("constructors_equal", ConstructorEqOp, 2)
+
+struct GetArgsOp <: Primitive end
+define_prim!("get_args", GetArgsOp, 1)
+
+struct GetConstructorOp <: Primitive end
+define_prim!("get_constructor", GetConstructorOp, 1)
+
+struct PBoolOp <: Primitive end
+define_prim!("pbool", PBoolOp, 1)
 
 struct MkIntOp <: Primitive end
 define_prim!("mk_int", MkIntOp, 2)

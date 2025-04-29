@@ -33,12 +33,12 @@ function compile_inner(expr::CaseOf, env::Env, path_condition::BDD, state::LazyK
     for (i, constructor) in enumerate(keys(expr.cases)) # sort? reverse?
         constructor_indices[constructor] = i
     end
-    caseof_type = type_of_constructor[first(keys(expr.cases))]
+    # caseof_type = type_of_constructor[first(keys(expr.cases))]
     bind_monad(scrutinee_values, path_condition, state) do scrutinee, path_condition
-        value_type = type_of_constructor[scrutinee.constructor]
-        if !isempty(expr.cases) && !(value_type == caseof_type)
+        # value_type = type_of_constructor[scrutinee.constructor]
+        # if !isempty(expr.cases) && !(value_type == caseof_type)
             # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
-        end
+        # end
         
         if !(scrutinee.constructor in keys(expr.cases))
             # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
@@ -168,6 +168,27 @@ function compile_prim(op::ConstructorEqOp, args, env::Env, path_condition::BDD, 
     end
 end
 
+"""
+Given a Value, returns a Cons-list of its arguments.
+"""
+function compile_prim(op::GetArgsOp, args, env::Env, path_condition::BDD, state::LazyKCState)
+    vals = traced_compile_inner(args[1], env, path_condition, state, 0)
+    bind_monad(vals, path_condition, state) do val, path_condition
+        res = Value(:Nil)
+        for arg in reverse(val.args)
+            res = Value(:Cons, [arg, res])
+        end
+        return pure_monad(res, state)
+    end
+end
+
+function compile_prim(op::GetConstructorOp, args, env::Env, path_condition::BDD, state::LazyKCState)
+    val = traced_compile_inner(args[1], env, path_condition, state, 0)
+    bind_monad(val, path_condition, state) do val, path_condition
+        return pure_monad(HostValue(val.constructor), state)
+    end
+end
+
 function compile_prim(op::MkIntOp, args, env::Env, path_condition::BDD, state::LazyKCState)
     bitwidth = args[1]::RawInt
     val = args[2]::RawInt
@@ -184,6 +205,39 @@ function compile_prim(op::IntDistEqOp, args, env::Env, path_condition::BDD, stat
         bind_monad(second_int_dist, path_condition, state) do second_int_dist, path_condition
             bdd = int_dist_eq(first_int_dist, second_int_dist, state)
             return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, bdd, state)
+        end
+    end
+end
+
+function compile_prim(op::PBoolOp, args, env::Env, path_condition::BDD, state::LazyKCState)
+    cond = traced_compile_inner(args[1], env, path_condition, state, 0)
+
+    p_true = -Inf
+    p_false = -Inf
+
+    @assert length(cond[1]) <= 2 "should only be true or false, at most one of each"
+    for (world, guard) in cond[1]
+        if world.constructor == :True
+            p_true = logaddexp(p_true, log(RSDD.bdd_wmc(guard)))
+        elseif world.constructor == :False
+            p_false = logaddexp(p_false, log(RSDD.bdd_wmc(guard)))
+        else
+            error("PBoolOp: condition must be a boolean, got $(world)")
+        end
+    end
+
+    logtotal = logaddexp(p_true, p_false)
+
+    p_true_thunk = LazyKCThunk(ConstReal(exp(p_true - logtotal)), Pluck.EMPTY_ENV, state.callstack, :p_true, 1, state)
+    true_thunk = LazyKCThunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :true_thunk, 3, state)
+    false_thunk = LazyKCThunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :false_thunk, 4, state)
+    bind_monad(cond, path_condition, state) do cond, path_condition
+        if cond.constructor == :True
+            return pure_monad(Value(:PBool, p_true_thunk, true_thunk), state)
+        elseif cond.constructor == :False
+            return pure_monad(Value(:PBool, p_true_thunk, false_thunk), state)
+        else
+            error("PBoolOp: condition must be a boolean, got $(cond)")
         end
     end
 end
