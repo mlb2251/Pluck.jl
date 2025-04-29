@@ -1,4 +1,4 @@
-export Grammar, propose, SMCProposalResult, ExpandLeafProposal, ExpandLeafMultistepProposal, Geometric, show_size_dist, parsed_expr, pcfg_dist
+export Grammar, propose, ExpandLeafProposal, ExpandLeafMultistepProposal, Geometric, show_size_dist, parsed_expr, pcfg_dist
 
 """
 A path describing how to traverse a PExpr or GExpr to reach a particular subexpression.
@@ -537,91 +537,6 @@ function modify_expression_same_size(
 
     return e, logproposal_ratio, selected_subexpression.expr.path
 end
-
-struct SMCProposalResult
-    e::GExpr
-    logK::Float64
-    logL::Float64
-    highlight_paths::Vector{Path}
-end
-
-@kwdef struct ExpandLeafProposal
-    select_random_only::Bool = true # rational rules needs this
-    replacement_size::Int = 1
-end
-
-function propose(proposal::ExpandLeafProposal, e, pcfg, step)::Union{Nothing, SMCProposalResult}
-    # K: uniformly pick a stochastic leaf
-    leaves = descendants(e -> num_internal_nodes(e) == 0 && (!proposal.select_random_only || is_random(e.rhs)), e)
-    length(leaves) == 0 && return nothing # indicates it's deterministic
-    selected = leaves[rand(1:length(leaves))]
-
-    # K: sample a `replacement_size` replacement
-    replacement = random(fixed_size_dist, pcfg, proposal.replacement_size, from_lhs_detached(selected))
-    logprior_replacement = logprob(fixed_size_dist, pcfg, proposal.replacement_size, replacement)
-    logK = -log(length(leaves)) + logprior_replacement
-
-    # L: select a stochastic leaf replacement
-    logprior_selected = if proposal.select_random_only
-        idx = idx_constrained(selected.expr.child, pcfg.prod_of_sym[selected.lhs].rhs_all)
-        probs = pcfg.prod_of_sym[selected.lhs].probs_leaf_novar_random
-        log(probs[idx])
-    else
-        logprob(fixed_size_dist, pcfg, 0, selected) # for later
-    end
-
-    # mutate now, only after calculating that part of `L` above
-    e = replace_parsed_expr(e, selected, replacement)
-
-    # L: uniformly pick a size `replacement_size` node
-    candidates = descendants(e -> num_internal_nodes(e) == proposal.replacement_size, e)
-    logL = -log(length(candidates)) + logprior_selected
-
-    return SMCProposalResult(e, logK, logL, Path[selected.expr.path])
-end
-
-@kwdef struct ExpandLeafMultistepProposal
-    select_random_only::Bool = true # rational rules needs this false
-    # size_schedule::Vector{Int} # schedule for max size
-    init_size::Int = 0
-end
-
-function propose(proposal::ExpandLeafMultistepProposal, e, pcfg, step)::Union{Nothing, SMCProposalResult}
-    # K: uniformly pick a stochastic leaf
-    leaves = descendants(e -> num_internal_nodes(e) == 0 && (!proposal.select_random_only || is_random(e.rhs)), e)
-    length(leaves) == 0 && return nothing # indicates it's deterministic
-    selected = leaves[rand(1:length(leaves))]
-
-    # K: sample a size to use as `replacement_size` (uniform), with leaf (0) as smallest option
-    # max_replacement_size = proposal.size_schedule[step] - num_internal_nodes(e)
-    max_replacement_size = (proposal.init_size + step) - num_internal_nodes(e)
-    @assert max_replacement_size >= 0
-    replacement_size = rand(0:max_replacement_size)
-
-    # K: sample a `replacement_size` replacement
-    replacement = random(fixed_size_dist, pcfg, replacement_size, from_lhs_detached(selected))
-    logprior_replacement = logprob(fixed_size_dist, pcfg, replacement_size, replacement)
-    logK = -log(max_replacement_size+1) + -log(length(leaves)) + logprior_replacement
-
-    # L: select a stochastic leaf replacement
-    logprior_selected = if proposal.select_random_only
-        idx = idx_constrained(selected.expr.child, pcfg.prod_of_sym[selected.lhs].rhs_all)
-        probs = pcfg.prod_of_sym[selected.lhs].probs_leaf_novar_random
-        log(probs[idx])
-    else
-        logprob(fixed_size_dist, pcfg, 0, selected) # for later
-    end
-
-    # mutate now, only after calculating that part of `L` above
-    e = replace_parsed_expr(e, selected, replacement)
-
-    # L: uniformly pick any node.
-    candidates = descendants(e)
-    logL = -log(length(candidates)) + logprior_selected
-
-    return SMCProposalResult(e, logK, logL, Path[selected.expr.path])
-end
-
 
 
 is_var(e::PExpr) = e isa Var || e isa App && getchild(e, 1) isa Var
