@@ -1,0 +1,68 @@
+/* Base content styling */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+#content {
+  font-size: 18px;
+}
+
+.header {
+  white-space: nowrap;
+}
+
+/* Styles for collapsible content */
+.collapsed > .inner-content { 
+  display: none; 
+}
+
+.collapsed > .inner-content + .ellipsis { 
+  display: inline; 
+}
+
+.ellipsis { 
+  display: none; 
+  color: #666; 
+}
+
+.span-container { 
+  cursor: pointer; 
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* Highlighting */
+.highlight-outline {
+  outline: 1px solid #000;
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Tooltip styling */
+.tooltip {
+  position: absolute;
+  visibility: hidden;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 5px;
+  pointer-events: none;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  z-index: 10;
+  /* transform: translateY(10px); */
+}
+
+/* Query display */
+.query {
+  margin-bottom: 10px;
+}
+
+.query-text {
+  font-weight: bold;
+}
+
+.prob {
+  color: #333;
+}
