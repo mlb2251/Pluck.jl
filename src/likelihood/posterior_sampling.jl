@@ -258,10 +258,6 @@ function sample_value_prim_forward(op::GetArgsOp, args, env::Env, state::SampleV
     return res
 end
 
-function sample_value_prim_forward(op::PathConditionWeightOp, args, env::Env, state::SampleValueState)
-    return RSDD.bdd_wmc(state.constraint)
-end
-
 
 
 function sample_thunk(t::LazyKCThunk, state::SampleValueState)
