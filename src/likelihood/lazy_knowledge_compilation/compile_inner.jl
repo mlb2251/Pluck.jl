@@ -131,6 +131,8 @@ function compile_prim(op::FlipOp, args, env::Env, path_condition::BDD, state::La
 end
 
 function compile_prim(op::FlipOpDual, args, env::Env, path_condition::BDD, state::LazyKCState)
+    npartials = state.manager.vector_size
+
     metaparams = traced_compile_inner(args[1], env, path_condition, state, 0)
     p_init = 0.5
     # All we want to do is update a dictionary in BDDEvalState saying that bdd_topvar(addr) is associated with args[1].metaparam
@@ -144,9 +146,9 @@ function compile_prim(op::FlipOpDual, args, env::Env, path_condition::BDD, state
         addr = current_bdd_address(state, p_init)
         topvar = bdd_topvar(addr)
         state.param2metaparam[topvar] = metaparam
-        partials_hi = zeros(Float64, NPARTIALS)
+        partials_hi = zeros(Float64, npartials)
         partials_hi[metaparam+1] = 1.0
-        partials_lo = zeros(Float64, NPARTIALS)
+        partials_lo = zeros(Float64, npartials)
         partials_lo[metaparam+1] = -1.0
         set_weight_deriv(state.manager.weights, topvar, p_init, partials_lo, p_init, partials_hi)
         pop!(state.callstack)

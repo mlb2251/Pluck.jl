@@ -86,12 +86,18 @@ prob, metaparam_vals = optimize(["(== (geomd @0) 2)",
 
 prob, metaparam_vals = optimize(["(let (a (geomd @0)
                                     b (geomd @1))
-                                    (== a b))"], 0.01, [0.9 for _ ∈ 1:3], 1000, state=LazyKCStateDual(LazyKCConfig(max_depth=100)))
+                                    (== a b))"], 0.01, [0.9 for _ ∈ 1:3], 1000, max_depth=100)
 @assert isapprox(prob[1], 1.0)
 @assert isapprox(metaparam_vals[1], 1.0)
 
 prob, metaparam_vals = optimize(["(let (a (geom 0.5)
                                     b (geomd @0))
-                                    (== a b))"], 0.01, [0.5 for _ ∈ 1:3], 1000, state=LazyKCStateDual(LazyKCConfig(max_depth=100)))
+                                    (== a b))"], 0.01, [0.5 for _ ∈ 1:3], 1000, max_depth=100)
+@assert isapprox(prob[1], 0.5)
+@assert isapprox(metaparam_vals[1], 1.0)
+
+prob, metaparam_vals = optimize(["(let (a (geom 0.5)
+                                    b (geomd @0))
+                                    (== a b))"], 0.01, [0.5 for _ ∈ 1:4], 1000, max_depth=100)
 @assert isapprox(prob[1], 0.5)
 @assert isapprox(metaparam_vals[1], 1.0)

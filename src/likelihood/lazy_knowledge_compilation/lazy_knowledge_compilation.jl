@@ -109,13 +109,13 @@ function LazyKCState(cfg::LazyKCConfig)
     return state
 end
 
-function LazyKCStateDual(;kwargs...)
+function LazyKCStateDual(vector_size::Integer; kwargs...)
     cfg = LazyKCConfig(;kwargs...)
-    LazyKCStateDual(cfg)
+    LazyKCStateDual(vector_size, cfg)
 end
 
-function LazyKCStateDual(cfg::LazyKCConfig)
-    manager = RSDD.ManagerDual()
+function LazyKCStateDual(vector_size::Integer, cfg::LazyKCConfig)
+    manager = RSDD.ManagerDual(vector_size)
     state = LazyKCState(
         Callstack(),
         Dict{Tuple{Callstack, Float64}, BDD}(),

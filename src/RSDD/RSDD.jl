@@ -92,16 +92,20 @@ let
     global free_bdd_manager_ptr = C_NULL
     global free_wmc_params_ptr = C_NULL
     global free_wmc_params_dual_ptr = C_NULL
+    global free_wmc_dual_derivatives_ptr = C_NULL
     global bdd_new_var_at_position_ptr = C_NULL
     global robdd_weighted_sample_ptr = C_NULL
     global robdd_top_k_paths_ptr = C_NULL
     global bdd_last_var_ptr = C_NULL
     global bdd_var_position_ptr = C_NULL
+    global dual_number_get_size_ptr = C_NULL
+    global dual_number_create_ptr = C_NULL
 end
 
 export get_rsdd_time, clear_rsdd_time!, rsdd_time!, rsdd_timed, @rsdd_time
 
-const NPARTIALS = 3
+# Default vector size for DualNumber
+const DEFAULT_VECTOR_SIZE = 3
 
 mutable struct BDDStats
     rsdd_time::Float64
@@ -152,15 +156,23 @@ end
 mutable struct WmcParamsDual <: AbstractWmcParams
     ptr::Ptr{Cvoid}
     freed::Bool
+    vector_size::UInt
+    
+    function WmcParamsDual(ptr::Ptr{Cvoid}, freed::Bool, vector_size::Integer)
+        new(ptr, freed, UInt(vector_size))
+    end
 end
 
+# Updated to include size field
 struct WmcDual
     _0::Float64
     _1::Ptr{Float64}
+    _size::UInt
 end
 
-function getWmcDual(wmc::Tuple{Float64, Ptr{Float64}})
-    partials = [var_partial(wmc[2], unsigned(i)) for i=0:NPARTIALS-1]
+function getWmcDual(wmc::Tuple{Float64, Ptr{Float64}, UInt})
+    size = wmc[3]
+    partials = [var_partial(wmc[2], unsigned(i), size) for i=0:size-1]
     return wmc[1], partials
 end
 
@@ -175,21 +187,22 @@ mutable struct Manager
     BDD_TRUE::Any
     BDD_FALSE::Any
     weights::AbstractWmcParams
+    vector_size::UInt
 end
 
 function Manager(; num_vars::Int=0)
     manager_ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
     weights = new_weights()
-    manager = Manager(manager_ptr, [], false, nothing, nothing, weights)
+    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, 0)
     manager.BDD_TRUE = bdd_true(manager)
     manager.BDD_FALSE = bdd_false(manager)
     return manager
 end
 
-function ManagerDual(; num_vars::Int=0)
+function ManagerDual(vector_size::Integer; num_vars::Int=0) # = DEFAULT_VECTOR_SIZE)
     manager_ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
-    weights = new_weights_dual()
-    manager = Manager(manager_ptr, [], false, nothing, nothing, weights)
+    weights = new_weights_dual(vector_size)
+    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, vector_size)
     manager.BDD_TRUE = bdd_true(manager)
     manager.BDD_FALSE = bdd_false(manager)
     return manager
@@ -251,9 +264,12 @@ function __init__()
     global free_bdd_manager_ptr = get_symbol("free_bdd_manager")
     global free_wmc_params_ptr = get_symbol("free_wmc_params")
     global free_wmc_params_dual_ptr = get_symbol("free_wmc_params_dual")
+    global free_wmc_dual_derivatives_ptr = get_symbol("free_wmc_dual_derivatives")
     global bdd_new_var_at_position_ptr = get_symbol("bdd_new_var_at_position")
     global robdd_weighted_sample_ptr = get_symbol("robdd_weighted_sample")
     global robdd_top_k_paths_ptr = get_symbol("robdd_top_k_paths")
+    global dual_number_get_size_ptr = get_symbol("dual_number_get_size")
+    global dual_number_create_ptr = get_symbol("dual_number_create")
 end
 
 # Show method for BDD
@@ -524,9 +540,9 @@ end
 Creates a new WmcParams object for dual floating-point weights.
 Returns: WmcParams
 """
-function new_weights_dual()
+function new_weights_dual(vector_size::Integer)
     ptr = @rsdd_timed ccall(new_wmc_params_f64_dual_ptr, Ptr{Cvoid}, ())
-    WmcParamsDual(ptr, false)
+    WmcParamsDual(ptr, false, vector_size)
 end
 
 """
@@ -547,38 +563,54 @@ end
 Sets the weight for a variable in the WmcParamsDual object.
 """
 function set_weight(params::WmcParamsDual, var::Label, low::Float64, high::Float64)
-    low_dual = zeros(Float64, NPARTIALS)
-    high_dual = zeros(Float64, NPARTIALS)
-    ccall(wmc_param_f64_set_weight_deriv_dual_ptr, Cvoid, (Ptr{Cvoid}, Label, Float64, Ptr{Float64}, Float64, Ptr{Float64}), params.ptr, var, low, low_dual, high, high_dual)
+    # Create empty vectors of the right size
+    low_dual = zeros(Float64, params.vector_size)
+    high_dual = zeros(Float64, params.vector_size)
+    
+    # Call the updated function with size parameters
+    @rsdd_timed ccall(wmc_param_f64_set_weight_deriv_dual_ptr, Cvoid, 
+        (Ptr{Cvoid}, Label, Float64, Ptr{Float64}, Csize_t, Float64, Ptr{Float64}, Csize_t), 
+        params.ptr, var, low, low_dual, params.vector_size, high, high_dual, params.vector_size)
 end
 
-
 """
-Sets the weight for a variable in the WmcParamsDual object. 
+Sets the weight for a variable in the WmcParamsDual object with metaparam.
 """
 function set_weight_dual(mgr::Manager, var::Label, metaparam::UInt, low::Float64, high::Float64)
     set_weight_dual(mgr.weights, var, metaparam, low, high)
 end
 
 """
-Sets the weight for a variable in the WmcParamsDual object. 
+Sets the weight for a variable in the WmcParamsDual object with metaparam.
 """
 function set_weight_dual(params::WmcParamsDual, var::Label, metaparam::UInt, low::Float64, high::Float64)
-    @rsdd_timed ccall(wmc_param_f64_set_weight_dual_ptr, Cvoid, (Ptr{Cvoid}, Label, Csize_t, Float64, Float64), params.ptr, var, metaparam, low, high)
+    # Added vector_size parameter
+    @rsdd_timed ccall(wmc_param_f64_set_weight_dual_ptr, Cvoid, 
+        (Ptr{Cvoid}, Label, Csize_t, Csize_t, Float64, Float64), 
+        params.ptr, var, metaparam, params.vector_size, low, high)
 end
 
 """
 Sets the weight and derivative for a variable in the WmcParamsDual object. 
 """
 function set_weight_deriv(params::WmcParamsDual, var::Label, low::Float64, low_dual::Vector{Float64}, high::Float64, high_dual::Vector{Float64})
-    @rsdd_timed ccall(wmc_param_f64_set_weight_deriv_dual_ptr, Cvoid, (Ptr{Cvoid}, Label, Float64, Ptr{Float64}, Float64, Ptr{Float64}), params.ptr, var, low, low_dual, high, high_dual)
+    # Get sizes of vectors
+    low_size = length(low_dual)
+    high_size = length(high_dual)
+    
+    @rsdd_timed ccall(wmc_param_f64_set_weight_deriv_dual_ptr, Cvoid, 
+        (Ptr{Cvoid}, Label, Float64, Ptr{Float64}, Csize_t, Float64, Ptr{Float64}, Csize_t), 
+        params.ptr, var, low, low_dual, low_size, high, high_dual, high_size)
 end
 
 """
 Get a partial derivative from a vector pointer.
 """
-function var_partial(partials::Ptr{Float64}, metaparam::UInt)
-    @rsdd_timed ccall(wmc_param_f64_var_partial_ptr, Float64, (Ptr{Float64}, Csize_t), partials, metaparam)
+function var_partial(partials::Ptr{Float64}, metaparam::UInt, size::UInt)
+    # Added size parameter
+    @rsdd_timed ccall(wmc_param_f64_var_partial_ptr, Float64, 
+        (Ptr{Float64}, Csize_t, Csize_t), 
+        partials, metaparam, size)
 end
 
 """
@@ -594,13 +626,15 @@ function bdd_wmc_manual(bdd::BDD, params::WmcParams)
 end
 
 function bdd_wmc_manual(bdd::BDD, params::WmcParamsDual)
+    # Updated to handle size
     @rsdd_timed result = ccall(bdd_wmc_dual_ptr, WmcDual, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
-    (result._0, result._1)
+    (result._0, result._1, result._size)
 end
 
 function bdd_wmc_dual(bdd::BDD, params::WmcParamsDual)
+    # Updated to handle size
     result = ccall(bdd_wmc_dual_ptr, WmcDual, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
-    (result._0, result._1)
+    (result._0, result._1, result._size)
 end
 
 # """
@@ -645,6 +679,13 @@ function free_wmc_params(params::WmcParamsDual)
 end
 
 """
+Frees the memory associated with derivative vectors.
+"""
+function free_wmc_dual_derivatives(ptr::Ptr{Float64}, size::Integer)
+    @rsdd_timed ccall(free_wmc_dual_derivatives_ptr, Cvoid, (Ptr{Float64}, Csize_t), ptr, size)
+end
+
+"""
 Creates a new variable at a specified position in the BDD manager's variable order.
 
 # Arguments
@@ -660,10 +701,25 @@ function bdd_new_var_at_position(manager::Manager, position::Integer, polarity::
     BDD(manager, ptr)
 end
 
+"""
+Gets the size of a DualNumber vector.
+"""
+function dual_number_get_size(dual_ptr::Ptr{Cvoid})
+    @rsdd_timed ccall(dual_number_get_size_ptr, Csize_t, (Ptr{Cvoid},), dual_ptr)
+end
+
+"""
+Creates a DualNumber with a specified size.
+"""
+function dual_number_create(value::Float64, size::Integer)
+    @rsdd_timed ccall(dual_number_create_ptr, Ptr{Cvoid}, (Float64, Csize_t), value, size)
+end
+
 struct WeightedSampleResult
     sample::Csize_t
     probability::Cdouble
 end
+
 """
 Performs weighted sampling on a BDD.
 Returns: Tuple of (BDD, Float64) representing the sampled BDD and its probability
@@ -691,9 +747,11 @@ free_wmc_params,
 bdd_new_var_at_position, 
 weighted_sample, 
 bdd_top_k_paths, 
-free_wmc_params_dual, 
+free_wmc_params_dual,
+free_wmc_dual_derivatives,
+dual_number_get_size,
+dual_number_create,
 bdd_var_position, 
 bdd_last_var
-
 
 end # module
