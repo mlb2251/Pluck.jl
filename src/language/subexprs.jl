@@ -23,8 +23,6 @@ mutable struct SubExpr
     path::Vector{Int} # to child
 end
 
-# JSON.lower(subexpr::SubExpr) = JSON.lower(subexpr.child)
-
 Base.copy(se::SubExpr) =
     SubExpr(se.child, se.type, copy(se.env), copy(se.env_names), copy(se.path))
 SubExpr(e::PExpr, t::PType, env) = SubExpr(e, t, env, fill(:noname, length(env)), Int[])
@@ -173,10 +171,6 @@ function Base.iterate(
     push!(state.stack, backtrack)
     return (state.se, state)
 end
-
-
-
-
 mutable struct UntypedIterDescendants{F}
     e::PExpr
     path::Vector{Int}
@@ -229,78 +223,6 @@ function randomness_terminals(se::SubExpr, dsl)
     end
     res
 end
-
-function free_vars(se::SubExpr)
-    res = Dict{Int, PType}()
-    for se in descendants_inplace(se)
-        if se.child isa Var
-            res[se.child.idx] = se.type
-        end
-    end
-    res
-end
-
-# function same_expr(se1::SubExpr, se2::SubExpr)
-#     for (se1, se2) in zip(descendants_inplace(se1), descendants_inplace(se2))
-#         if !shallow_eq(se1.child, se2.child)
-#             return false
-#         end
-#     end
-#     return true
-# end
-
-# function unify_modulo_randomness(src::SubExpr, dst::SubExpr, dsl)
-#     allow_descend = (se -> !is_randomness_terminal(se.child, dsl))
-#     for s in descendants_inplace(src, allow_descend)
-#         if !haschild(dst, s.path)
-#             return false
-#         end
-#         d = subexpr!(dst, s.path)
-#         s_rand = is_randomness_terminal(s.child, dsl)
-#         d_rand = is_randomness_terminal(d.child, dsl)
-#         if s_rand && d_rand
-#             if !shallow_eq(s.child, d.child)
-#                 return false
-#             end
-#             continue
-#         end
-#         if s_rand
-#             continue
-#         end
-#         if d_rand
-#             return false
-#         end
-#         @assert !s_rand && !d_rand
-#         if !shallow_eq(s.child, d.child)
-#             return false
-#         end
-#     end
-# end
-
-
-# function unify_modulo_randomness(src::SubExpr, dst::SubExpr, dsl)
-#     allow_descend = (se -> !is_randomness_terminal(se.child, dsl))
-#     for (s,d) in zip(descendants_inplace(src, allow_descend), descendants_inplace(dst, allow_descend))
-#         s_rand = is_randomness_terminal(s.child, dsl)
-#         d_rand = is_randomness_terminal(d.child, dsl)
-#         if s_rand && d_rand
-#             if !shallow_eq(s.child, d.child)
-#                 return false
-#             end
-#             continue
-#         end
-#         if s_rand
-#             continue
-#         end
-#         if d_rand
-#             return false
-#         end
-#         @assert !s_rand && !d_rand
-#         if !shallow_eq(s.child, d.child)
-#             return false
-#         end
-#     end
-# end
 
 Base.show(io::IO, se::SubExpr) =
     print(io, "SubExpr(", se.child, "::", se.type, " @ ", se.path, " w ", se.env, ")")
