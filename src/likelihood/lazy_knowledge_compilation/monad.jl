@@ -100,7 +100,7 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
                 constructor = post_val.constructor
                 res = get!(Vector{Tuple{Value, BDD}}, results_for_constructor, constructor)
                 push!(res, (post_val, pre_and_post))
-            elseif post_val isa Closure || post_val isa FloatValue || post_val isa Value
+            elseif post_val isa Closure || post_val isa FloatValue || post_val isa Value || post_val isa HostValue
                 result_index = Base.get!(index_of_result, post_val, length(join_results) + 1)
                 if result_index > length(join_results)
                     push!(join_results, (post_val, pre_and_post))
@@ -112,7 +112,7 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
             elseif post_val isa IntDist
                 push!(int_dist_results, (post_val, pre_and_post))
             else
-                error("join_monad found a result that is not a Value, Closure, or IntDist: $post_val")
+                error("join_monad found a result with an unsupported type: $(typeof(post_val)): $post_val")
             end
         end
     end

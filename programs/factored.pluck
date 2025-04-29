@@ -1,0 +1,216 @@
+
+(define-type prob
+  (Prob float constructor args))
+
+(define-type pbool
+  (PBool float bool))
+
+(define (factored=? x y)
+  (match (pbool (constructors_equal x y))
+    PBool p_true con_equal => (match con_equal
+                                True => (Prob p_true (get_constructor x) (zip_with factored=? (get_args x) (get_args y))))))
+
+(define (factored-run ios f)
+  (map (fn io -> (match io
+                  Pair i o => (factored=? i (f o))
+                  )) ios))
+
+;; length ~ (geom p_length) and values ~iid (geom p_values)
+(define (randList p_length p_values)
+  (if (flip p_length)
+    (Cons (geom p_values) (randList p_length p_values))
+    (Nil)))
+
+
+
+;; (query
+;;  (Marginal
+;;   (factored=? (Cons 0 (Nil)) (if (flip 0.2) (Cons 0 (Nil)) (Nil)))))
+
+;; (query
+;;  (Marginal
+;;   (factored=? (Cons 0 (Nil)) (if (flip 0.2) (Cons (geom 0.3) (Nil)) (Cons 0 (geom 0.3))))))
+
+;; (query
+;;  (Marginal
+;;   (factored=? (Cons 1 (Nil)) (randnatlist))))
+
+;; (query
+;;  (Marginal
+;;   (factored=? (Cons 0 (Cons 0 (Nil))) (Cons (geom 0.5) (Cons (geom 0.5) (Nil))))))
+
+;; (query
+;;  (Marginal
+;;   (factored=? (Cons 0 (Cons 0 (Nil)))
+;;               (let ((x (geom 0.5)))
+;;                 (Cons x (Cons x (Nil)))))))
+
+
+;; (query
+;;  (Marginal
+;;   (lafi-examples)))
+
+
+;; LAFI examples
+;; [3,7,2,6] → [4,8,1,5]
+;; [1,8,6,5,7] → [2,7,5,6,8]
+
+(define (lafi-examples) ;; input-output list
+  (Cons (Pair ;; input-output pair
+      (Cons 3 (Cons 7 (Cons 2 (Cons 6 (Nil))))) ;; input
+      (Cons 4 (Cons 8 (Cons 1 (Cons 5 (Nil)))))) ;; output
+  (Cons (Pair
+      (Cons 1 (Cons 8 (Cons 6 (Cons 5 (Cons 7 (Nil))))))
+      (Cons 2 (Cons 7 (Cons 5 (Cons 6 (Cons 8 (Nil)))))))
+  (Nil))))
+
+;; λxs. randList(0.5, 0.3)
+;; length ~ (geom 0.5) and values ~iid (geom 0.3)
+(query
+ (Marginal
+  (factored-run (lafi-examples) (fn xs -> (randList 0.5 0.3)) )))
+
+;; λxs. map (λx. geom(0.3)) xs
+(query
+  (Marginal
+    (factored-run (lafi-examples) (fn xs -> (map (fn _ -> (geom 0.3)) xs)))))
+
+;; λxs. map (λx. if flip(0.7) then inc(x) else geom(0.3)) xs
+(query
+  (Marginal
+    (factored-run (lafi-examples) (fn xs -> (map (fn x -> (if (flip 0.7) (inc x) (geom 0.3))) xs)))))
+
+;; λxs. map (λx. if flip(0.7) then dec(x) else inc(x)) xs
+(query
+  (Marginal
+    (factored-run (lafi-examples) (fn xs -> (map (fn x -> (if (flip 0.7) (dec x) (inc x))) xs)))))
+
+;; λxs. map (λx. if iseven(x) then dec(x) else inc(x)) xs
+(query
+  (Marginal
+    (factored-run (lafi-examples) (fn xs -> (map (fn x -> (if (iseven x) (dec x) (inc x))) xs)))))
+
+
+
+
+
+
+;; deterministic equality
+;; (query
+;;  (Marginal
+;;   (factored=? 5 5)))
+
+;; (query
+;;  (Marginal
+;;   (factored=? 5 6)))
+
+;; (define-type foo
+;;   (F any)
+;;   (T any))
+
+;; (query
+;;  (Marginal
+;;   (
+;;     if (flip 0.5) (F (path_condition_weight (Unit))) (T (path_condition_weight (Unit)))
+;;   )
+;;   ))
+
+;; (factored=? (Cons 0 (Nil)) (Cons 0 (Nil)))
+;; yields
+;; (Prob 1.0 (Cons (Prob 1.0 0) (Prob 1.0 (Nil))))
+
+;; tbh i think we should do this as a top level function first
+
+;; (define (factored=? x y)
+;;   (let ((same_constructor (constructors_equal x y))
+;;         (p_same (pbool same_constructor)))
+;;     ;; (if p_same (True) (False))
+;;     ;; (Prob p_same (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
+;;     ;; (if same_constructor p_same p_same)
+;;     (match same_constructor
+;;           True => p_same
+;;       ;; (PBool p_true p_false true) => (Prob p_true (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
+;;       ;; (PBool p_true p_false false) => (Prob p_false (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
+;;       )
+
+;;     ))
+
+;; (define (factored=? x y)
+;;   (pbool (constructors_equal x y))
+;; )
+
+;; (define (factored=? x y)
+;;   (let ((p_same (pbool (constructors_equal x y))))
+;;     (match p_same
+;;       PBool p_true p_false con_equal => (True)
+;;     )
+;;   )
+;; )
+
+;; (define-type factor-query
+;;   (FProb any)
+;;   (FAny)
+;; )
+;; some constructor, which may itself 
+
+;; (query
+;;  (Marginal
+;;   (factor-all (Cons 1 (Cons 2 (Nil))))))
+
+;; (query
+;;  (Marginal
+;;   (factor-list (Cons 1 (Cons 2 (Nil))))))
+
+;; (define (factor-all x)
+;;   (FProb (map (fn arg -> (factor-all arg)) (get_args x))))
+
+;; (define (factor-list xs)
+;;   (match xs
+;;     Nil => (FProb (Nil))
+;;     Cons x xs => (FProb (Cons x (factor-list xs)))))
+
+;; (define (factored=? qry prog)
+;;   (match qry
+;;     FProb q => (match (pbool (constructors_equal q prog))
+;;       PBool p_true p_false con_equal => (match con_equal
+;;         True => (Prob p_true p_false (get_constructor q) (zip_with factored=? (get_args q) (get_args prog)))))
+;;     FAny => (Prob 1.0 0.0 (FAny) (Unit))
+;;     _ => 
+;;     )
+;; )
+
+;; (match p_same
+;;         True => (Prob p_same (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
+;;   )
+
+;; (factored=? (Cons Any Any) (if (flip 0.2) (Cons 0 (Nil)) (Nil)))
+;; -> (Prob 0.2 (Cons Any Any))
+
+;; other factored query examples are:
+;; (FProb (Cons (FAny) (Cons (FAny) (FAny))))
+;; -->
+;; (FProbDone 1234.234 (Cons (FAny) (Cons (FAny) (FAny))))
+
+;; (FProb (FAny)) ;; this is how youd do "query total probability"
+
+;; wait but then you dont get do pick the comparison order which you might want...
+;; so consider better ways for that. But also this would be okay.
+
+;; which is the query saying "is this a list of at least two elements?"
+
+;; (factored=? (factored-list ...) (make-sorted-list))
+;; 
+
+;; (factored=? (FAny) (make-sorted-list))
+
+;; (factored=? (factor-list (Cons 1 (Cons 2 (Nil)))) (make-sorted-list))
+
+;; mandually written
+;; (factored=? (FProb (Cons (FProb (S (O))) (Cons (FProb (S (S (O)))) (FProb (Nil))))) (make-sorted-list))
+;; (FCon )
+
+;; oooh you could either put the logic in factored=? or in a thing that
+;; BUILDS a query – so it takes a normal cons list and interleaves FCon or whatever
+
+
+

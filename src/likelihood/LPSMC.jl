@@ -21,13 +21,13 @@ export bdd_forward_with_suspension, bdd_forward_with_suspension_top_k
 
 
 function bdd_forward_with_suspension(expr; kwargs...)
-    s = Pluck.LazyKCState(; kwargs..., free_manager=false)
+    s = LazyKCState(; kwargs..., free_manager=false)
 
     if expr isa String
         expr = parse_expr(expr)
     end
 
-    ret, used_info = compile_inner(expr, Pluck.EMPTY_ENV, s.manager.BDD_TRUE, s)
+    ret, used_info = compile_inner(expr, EMPTY_ENV, s.manager.BDD_TRUE, s)
 
     true_probability = 0.0
     false_probability = 0.0
@@ -64,7 +64,7 @@ function bdd_forward_with_suspension(expr; kwargs...)
 end
 
 function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
-    s = Pluck.LazyKCState(; kwargs..., free_manager=false)
+    s = LazyKCState(; kwargs..., free_manager=false)
 
     ret, used_info = compile_inner(expr, Pluck.EMPTY_ENV, s.manager.BDD_TRUE, s)
 

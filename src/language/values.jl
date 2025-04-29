@@ -1,4 +1,6 @@
 export pluck_list
+using Printf
+
 
 abstract type AbstractValue end
 
@@ -11,6 +13,13 @@ end
 Base.:(==)(x::FloatValue, y::FloatValue) = x.value == y.value
 Base.hash(x::FloatValue, h::UInt) = hash(x.value, h)
 Base.show(io::IO, x::FloatValue) = print(io, x.value)
+
+struct HostValue <: AbstractValue
+    value::Any
+end
+Base.:(==)(x::HostValue, y::HostValue) = x.value == y.value
+Base.hash(x::HostValue, h::UInt) = hash(x.value, h)
+Base.show(io::IO, x::HostValue) = print(io, x.value)
 
 struct Value <: AbstractValue
     constructor::Symbol
@@ -65,11 +74,11 @@ function from_value(x::Value)
     elseif x.constructor == :O
         0
     elseif x.constructor == :S
-        1 + converted_args[1]
-    elseif x.constructor == :Nil || x.constructor == :SNil
-        []
+        concrete ? 1 + converted_args[1] : x
+    elseif x.constructor == :Nil
+        Any[]
     elseif x.constructor == :Cons
-        [converted_args[1]; converted_args[2]]
+        Any[converted_args[1]; converted_args[2]]
     else
         x
     end
@@ -77,16 +86,38 @@ function from_value(x::Value)
 end
 
 function Base.show(io::IO, x::Value)
-    x.constructor === :Nil && return print(io, "[]") # prettier than "Any[]"
     v, concrete = from_value(x)
     show_value_inner(io, v)
 end
 
-function show_value_inner(io::IO, x::Any)
-    print(io, x)
+show_value_inner(io::IO, x::Any) = print(io, x)
+function show_value_inner(io::IO, x::Vector{Any})
+    print(io, "[")
+    for i in 1:length(x)
+        print(io, x[i])
+        i != length(x) && print(io, ", ")
+    end
+    print(io, "]")
 end
 
 function show_value_inner(io::IO, x::Value)
+    if x.constructor === :Prob
+        prob, constructor, args = x.args
+        prob = prob.value # FloatValue -> Float
+        args, _ = from_value(args) # Value -> Vector{Any}
+        if prob ≈ 1.0
+            print(io, "(", constructor)
+        else
+            print(io, "(", constructor, "{", @sprintf("%.2f", prob), "}")
+        end
+        for arg in args
+            print(io, " ")
+            print(io, arg)
+        end
+        print(io, ")")
+        return
+    end
+
     print(io, "(", x.constructor)
     for arg in x.args
         print(io, " ")
@@ -96,7 +127,18 @@ function show_value_inner(io::IO, x::Value)
 end
 
 function JSON.lower(x::Value)
-    v, concrete = from_value(x)
-    !(v isa Value) && return string(v)
-    Dict("type" => "Value", "constructor" => x.constructor, "args" => x.args)
+    # v, concrete = from_value(x)
+    # !(v isa Value) && return string(v)
+    # return [x.constructor, x.args...]
+    OrderedDict("type" => "Value", "constructor" => x.constructor, "args" => x.args)
 end
+
+function JSON.lower(x::HostValue)
+    OrderedDict("type" => "HostValue", "value" => x.value)
+end
+
+function JSON.lower(x::FloatValue)
+    OrderedDict("type" => "FloatValue", "value" => x.value)
+end
+
+

@@ -2,7 +2,7 @@ export posterior_sample, adaptive_rejection_sampling, sample_value, SampleValueS
 
 function posterior_sample(val, state)    
     # First evaluate the evidence thunk to get true/false BDDs
-    evidence_results, _ = evaluate(val.args[2], state.BDD_TRUE, state)
+    evidence_results, _ = evaluate(val.args[2], state.manager.BDD_TRUE, state)
     n, concrete = from_value(sample_thunk(val.args[3], SampleValueState(nothing, [], nothing, false)))
     samples = []
     for i in 1:n
@@ -40,7 +40,7 @@ end
 # How to handle that some choices are irrelevant?
 function adaptive_rejection_sampling(val, state)
 
-    constraint = state.BDD_TRUE
+    constraint = state.manager.BDD_TRUE
     sorted_callstacks = state.sorted_callstacks
     sorted_var_labels = state.sorted_var_labels
 
@@ -247,6 +247,22 @@ function sample_value_prim_forward(op::ConstructorEqOp, args, env::Env, state::S
         return Pluck.FALSE_VALUE
     end
 end
+
+function sample_value_prim_forward(op::GetArgsOp, args, env::Env, state::SampleValueState)
+    val = traced_sample_value(args[1], env, state, 0)
+    @assert val isa Value
+    res = Value(:Nil)
+    for arg in reverse(val.args)
+        res = Value(:Cons, [arg, res])
+    end
+    return res
+end
+
+function sample_value_prim_forward(op::PathConditionWeightOp, args, env::Env, state::SampleValueState)
+    return RSDD.bdd_wmc(state.constraint)
+end
+
+
 
 function sample_thunk(t::LazyKCThunk, state::SampleValueState)
     # Remember old callstack

@@ -216,7 +216,7 @@ function parse_expr_inner(tokens, defs, env)
                 push!(args, arg)
             end
             if length(args) != length(args_of_constructor[constructor])
-                error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(join(tokens, " "))")
+                error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(detokenize(tokens))")
             end
             return Construct(constructor, args), view(tokens, 2:length(tokens))
         elseif has_prim(token) && !haskey(defs, Symbol(token))
@@ -343,6 +343,8 @@ function parse_expr_inner(tokens, defs, env)
         # TODO: do gensyms need to be regenerated?
         return Defined(Symbol(token)), view(tokens, 2:length(tokens))
     else
-        error("unknown token: $token")
+        context = detokenize(tokens)
+        context = context[1:min(length(context), 30)]
+        error("unknown token: $token at \"$context\"")
     end
 end

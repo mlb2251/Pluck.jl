@@ -22,6 +22,7 @@ Base.@kwdef struct LazyKCConfig
     record_bdd_json::Bool = false
     record_json::Bool = false
     free_manager::Bool = true
+    results_file::Union{Nothing, String} = nothing
 end
 
 """
@@ -68,6 +69,19 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     return weighted_results
 end
 
+const global_lazykc_kwargs = Dict{Symbol, Any}()
+function set_config!(;kwargs...)
+    empty!(global_lazykc_kwargs)
+    for (k, v) in kwargs
+        global_lazykc_kwargs[k] = v
+    end
+end
+get_config() = global_lazykc_kwargs
+
+function set_outpath!()
+    set_config!(results_file = timestamp_path("results.json"))
+end
+
 mutable struct LazyKCState
     callstack::Callstack
     var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
@@ -81,7 +95,7 @@ mutable struct LazyKCState
     cfg::LazyKCConfig
 
     function LazyKCState(;kwargs...)
-        cfg = LazyKCConfig(;kwargs...)
+        cfg = LazyKCConfig(;kwargs..., get_config()...)
         LazyKCState(cfg)
     end
 
