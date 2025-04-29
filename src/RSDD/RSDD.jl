@@ -172,6 +172,9 @@ end
 
 function getWmcDual(wmc::Tuple{Float64, Ptr{Float64}, UInt})
     size = wmc[3]
+    if size == 0
+        return wmc[1], []
+    end
     partials = [var_partial(wmc[2], unsigned(i), size) for i=0:size-1]
     return wmc[1], partials
 end

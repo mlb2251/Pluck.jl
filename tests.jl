@@ -8,6 +8,9 @@ using .RSDD
 compile("(flip 0.5)", LazyKCConfig())
 
 # Small number of steps
+prob, metaparam_vals = optimize(["(flip 0.5)"], 0.01, [], 1, max_depth=100)
+@assert isapprox(prob[1], 0.5)
+
 prob, metaparam_vals = optimize(["(let (a (flipd @0)
                             b (not (flipd @0)))
                             (and a b))"], 0.05, [0.5 for _ ∈ 1:3], 1)
