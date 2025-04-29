@@ -1,4 +1,4 @@
 [submodule "src/RSDD/rsdd"]
 	path = src/RSDD/rsdd
 	url = https://github.com/alex-lew/rsdd.git
-	branch = pldi_revisions
+	branch = differentiating
