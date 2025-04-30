@@ -50,7 +50,7 @@ function compile_inner(expr::PExpr{CaseOf}, env::Env, path_condition::BDD, state
         @assert length(scrutinee.args) == num_args
 
         for _ = 1:num_args
-            @assert case_expr isa PrimOp{Abs} "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
+            @assert case_expr isa PExpr{Abs} "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
             case_expr = case_expr.args[1]
         end
         # In each of the scrutinee arguments, filter out options that contradict the available information.
