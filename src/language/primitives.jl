@@ -78,6 +78,7 @@ function Base.show(io::IO, e::PExpr{App})
 end
 
 # (app f x y) -> (app (app f x) y)
+num_apps(e::PExpr) = 0
 num_apps(e::PExpr{App}) = 1 + num_apps(e.args[1])
 get_func(e::PExpr{App}) = get_func(e.args[1])
 function getarg(e::PExpr{App}, i)

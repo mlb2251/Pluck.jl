@@ -36,7 +36,9 @@ Top-level compile function for lazy knowledge compilation.
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
 
+    # @show expr
     worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
+    # @show state.num_forward_calls
 
     # expand IntDists into their 2^N possible values
     if length(worlds) == 1 && worlds[1] isa IntDist
