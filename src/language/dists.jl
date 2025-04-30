@@ -1,3 +1,25 @@
+struct Geometric
+    p::Float64
+end
+function random(dist::Geometric)
+    n = 0
+    while rand() < dist.p
+        n += 1
+    end
+    return n
+end
+logprob(dist::Geometric, n::Int) = n * log(dist.p) + log1p(-dist.p)
+
+const geom_05 = Geometric(.5)
+
+struct Uniform
+    lo::Int
+    hi::Int
+end
+random(dist::Uniform) = rand(dist.lo:dist.hi)
+logprob(dist::Uniform, n::Int) = n < dist.lo || n > dist.hi ? -Inf : -log(dist.hi - dist.lo + 1)
+
+
 struct FixedSize end
 const fixed_size_dist = FixedSize()
 
