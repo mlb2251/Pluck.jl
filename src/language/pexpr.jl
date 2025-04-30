@@ -1,175 +1,119 @@
-export PExpr, Primitive, Var, DiffVar, App, Abs, Y, Defined, PrimOp, ConstReal, CaseOf, Construct, RawInt
+export PExpr, Primitive, Var, DiffVar, App, Abs, Y, Defined, PExpr, ConstReal, CaseOf, Construct, RawInt
 
 import DataStructures: OrderedDict
 
-abstract type PExpr end
 abstract type Primitive end
 
-# General PExpr methods
-shortname(e::PExpr) = string(e)
-Base.copy(e::PExpr) = error("not implemented")
-num_apps(e::PExpr) = 0
-get_func(e::PExpr) = e
-getarg(e::PExpr, i) = error("arg doesnt exist")
-JSON.lower(e::PExpr) = string(e)
-maybe_const(e) = nothing
-
-# deBruijn indexing
-struct Var <: PExpr
-    idx::Int
-    name::Symbol
-end
-Var(idx::Int) = Var(idx, :noname)
-
-var_is_free(e::Var, var) = e.idx == var
-shortname(e::Var) = string(e)
-Base.show(io::IO, e::Var) =
-    e.name === :noname ? print(io, "#", e.idx) : print(io, e.name, "#", e.idx)
-Base.copy(e::Var) = Var(e.idx, e.name)
-Base.:(==)(a::Var, b::Var) = a.idx == b.idx
-Base.hash(e::Var, h::UInt) = hash(e.idx, hash(:Var, h))
-
-struct DiffVar <: PExpr
-    idx::UInt
-    name::Symbol
-end
-DiffVar(idx::Int) = DiffVar(idx, :noname)
-
-var_is_free(e::DiffVar, var) = e.idx == var
-shortname(e::DiffVar) = string(e)
-Base.show(io::IO, e::DiffVar) =
-    e.name === :noname ? print(io, "#", e.idx) : print(io, e.name, "#", e.idx)
-Base.copy(e::DiffVar) = DiffVar(e.idx, e.name)
-Base.:(==)(a::DiffVar, b::DiffVar) = a.idx == b.idx
-Base.hash(e::DiffVar, h::UInt) = hash(e.idx, hash(:Var, h))
-
-
-struct Y <: PExpr
-    f::PExpr
-end
-
-var_is_free(e::Y, var) = var_is_free(e.f, var)
-shortname(e::Y) = "Y"
-function Base.show(io::IO, e::Y)
-    print(io, "(Y ", e.f, ")")
-end
-Base.copy(e::Y) = Y(copy(e.f))
-Base.:(==)(a::Y, b::Y) = a.f == b.f
-Base.hash(e::Y, h::UInt) = hash(e.f, hash(:Y, h))
-
-struct Defined <: PExpr
-    name::Symbol
-end
-
-var_is_free(e::Defined, var) = false
-shortname(e::Defined) = string(e)
-Base.show(io::IO, e::Defined) = print(io, e.name)
-Base.copy(e::Defined) = Defined(e.name)
-Base.:(==)(a::Defined, b::Defined) = a.name == b.name
-Base.hash(e::Defined, h::UInt) = hash(e.name, hash(:Defined, h))
-
-mutable struct PrimOp{P} <: PExpr
+mutable struct PExpr{P <: Primitive}
     op::P
     args::Vector{Any}
 end
 
-var_is_free(e::PrimOp, var) = any(var_is_free(arg, var) for arg in e.args)
-shortname(e::PrimOp) = string(e.op)
-function Base.show(io::IO, e::PrimOp)
+
+# General PExpr methods
+get_func(e::PExpr) = e
+JSON.lower(e::PExpr) = string(e)
+maybe_const(e) = nothing
+
+var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args if var isa PExpr)
+shortname(e::PExpr) = string(e.op)
+function Base.show(io::IO, e::PExpr)
     print(io, "(", e.op)
     for arg in e.args
         print(io, " ", arg)
     end
     print(io, ")")
 end
-Base.copy(e::PrimOp) = PrimOp(e.op, [copy(arg) for arg in e.args])
-Base.:(==)(a::PrimOp, b::PrimOp) = a.op == b.op && a.args == b.args
-Base.hash(e::PrimOp, h::UInt) = hash(e.op, hash(e.args, hash(:PrimOp, h)))
-getarg(e::PrimOp, i) = e.args[i]
+Base.copy(e::PExpr) = PExpr(e.op, [copy(arg) for arg in e.args])
+Base.:(==)(a::PExpr, b::PExpr) = a.op == b.op && a.args == b.args
+Base.hash(e::PExpr, h::UInt) = hash(e.op, hash(e.args, hash(:PExpr, h)))
+getarg(e::PExpr, i) = e.args[i]
 
-struct RawInt <: PExpr
-    val::Int
-end
 
-var_is_free(e::RawInt, var) = false
-shortname(e::RawInt) = "&"
-Base.show(io::IO, e::RawInt) = print(io, "&", e.val)
-Base.copy(e::RawInt) = RawInt(e.val)
-Base.:(==)(a::RawInt, b::RawInt) = a.val == b.val
-Base.hash(e::RawInt, h::UInt) = hash(e.val, hash(:RawInt, h))
+struct Var <: Primitive end
+Var(idx::Int) = Var(idx, :noname)
+Var(idx, name) = PExpr(Var(), Any[idx, name])
+var_is_free(e::PExpr{Var}, var) = e.args[1] == var
+Base.show(io::IO, e::PExpr{Var}) =
+    e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
 
-struct ConstReal <: PExpr
-    val::Float64
-end
 
-var_is_free(e::ConstReal, var) = false
-shortname(e::ConstReal) = string(e.val)
-Base.show(io::IO, e::ConstReal) = print(io, e.val)
-Base.copy(e::ConstReal) = ConstReal(e.val)
-Base.:(==)(a::ConstReal, b::ConstReal) = a.val == b.val
-Base.hash(e::ConstReal, h::UInt) = hash(e.val, hash(:ConstReal, h))
+struct DiffVar <: Primitive end
+DiffVar(idx::Int) = DiffVar(idx, :noname)
+DiffVar(idx, name) = PExpr(DiffVar(), Any[idx, name])
+var_is_free(e::PExpr{DiffVar}, var) = e.args[1] == var
+Base.show(io::IO, e::PExpr{DiffVar}) =
+    e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
 
-mutable struct CaseOf <: PExpr
-    scrutinee::PExpr
-    cases::OrderedDict{Symbol,PExpr}
-end
+struct Y <: Primitive end
+Y(f) = PExpr(Y(), Any[f])
 
-var_is_free(e::CaseOf, var) =
-    var_is_free(e.scrutinee, var) || any(case -> var_is_free(case, var), values(e.cases))
-shortname(e::CaseOf) = "CaseOf"
-function Base.show(io::IO, e::CaseOf)
-    print(io, "(case ", e.scrutinee, " of ")
-    for (i, (constructor, case)) in enumerate(e.cases)
+struct Defined <: Primitive end
+Defined(name) = PExpr(Defined(), Any[name])
+
+shortname(e::PExpr{Defined}) = string(e.args[1])
+Base.show(io::IO, e::PExpr{Defined}) = print(io, e.args[1])
+
+struct RawInt <: Primitive end
+RawInt(val) = PExpr(RawInt(), Any[val])
+
+shortname(e::PExpr{RawInt}) = "&"
+Base.show(io::IO, e::PExpr{RawInt}) = print(io, "&", e.args[1])
+
+struct ConstReal <: Primitive end
+ConstReal(val) = PExpr(ConstReal(), Any[val])
+
+shortname(e::PExpr{ConstReal}) = string(e.args[1])
+Base.show(io::IO, e::PExpr{ConstReal}) = print(io, e.args[1])
+
+
+struct CaseOf <: Primitive end
+CaseOf(scrutinee, cases) = PExpr(CaseOf(), Any[scrutinee, cases])
+
+var_is_free(e::PExpr{CaseOf}, var) =
+    var_is_free(e.args[1], var) || any(case -> var_is_free(case, var), values(e.args[2]))
+shortname(e::PExpr{CaseOf}) = "caseof"
+function Base.show(io::IO, e::PExpr{CaseOf})
+    print(io, "(case ", e.args[1], " of ")
+    for (i, (constructor, case)) in enumerate(e.args[2])
         print(io, constructor, " => ", case)
-        if i < length(e.cases)
+        if i < length(e.args[2])
             print(io, " | ")
         end
     end
     print(io, ")")
 end
-Base.copy(e::CaseOf) = CaseOf(
-    copy(e.scrutinee),
-    OrderedDict(constructor => copy(e.cases[constructor]) for constructor in keys(e.cases)),
-)
-Base.:(==)(a::CaseOf, b::CaseOf) =
-    a.scrutinee == b.scrutinee &&
-    a.cases == b.cases
-Base.hash(e::CaseOf, h::UInt) =
-    hash(e.scrutinee, hash(e.cases, hash(:CaseOf, h)))
+Base.copy(e::PExpr{CaseOf}) = PExpr(CaseOf(), Any[copy(e.args[1]), OrderedDict(constructor => copy(e.args[2][constructor]) for constructor in keys(e.args[2]))])
 
-mutable struct Construct <: PExpr
-    constructor::Symbol
-    args::Vector{PExpr}
-end
-Construct(constructor) = Construct(constructor, PExpr[])
-Construct(constructor, args...) = Construct(constructor, collect(args))
 
-var_is_free(e::Construct, var) = any(arg -> var_is_free(arg, var), e.args)
-shortname(e::Construct) = string(e.constructor)
-function Base.show(io::IO, e::Construct)
+
+struct Construct <: Primitive end
+Construct(constructor, args) = PExpr(Construct(), Any[constructor, collect(args)])
+Construct(constructor) = Construct(constructor, [])
+
+shortname(e::PExpr{Construct}) = string(e.args[1])
+
+function Base.show(io::IO, e::PExpr{Construct})
     as_const = maybe_const(e)
     if !isnothing(as_const)
         print(io, as_const)
         return
     end
-    print(io, "(", e.constructor)
-    for arg in e.args
+    print(io, "(", e.args[1])
+    for arg in e.args[2]
         print(io, " ", arg)
     end
     print(io, ")")
 end
-function maybe_const(e::Construct)
-    if e.constructor == :O
+function maybe_const(e::PExpr{Construct})
+    if e.args[1] == :O
         return 0
-    elseif e.constructor == :S
+    elseif e.args[1] == :S
         inner = maybe_const(e.args[1])
         isnothing(inner) && return nothing
         return inner + 1
     end
     return nothing
 end
-Base.copy(e::Construct) = Construct(e.constructor, [copy(arg) for arg in e.args])
-Base.:(==)(a::Construct, b::Construct) =
-    a.constructor === b.constructor && a.args == b.args
-Base.hash(e::Construct, h::UInt) =
-    hash(e.constructor, hash(e.args, hash(:Construct, h)))
+Base.copy(e::PExpr{Construct}) = PExpr(Construct(), Any[copy(e.args[1]), [copy(arg) for arg in e.args[2]]])
+

@@ -333,7 +333,7 @@ function lazy_enumerate(expr::Y, env::Vector{Any}, trace::Trace, state::LazyEnum
     return [(closure, trace)]
 end
 
-function lazy_enumerate(expr::PrimOp, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+function lazy_enumerate(expr::PExpr, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     lazy_prim_enumerate(expr.op, expr.args, env, trace, state)
 end
 

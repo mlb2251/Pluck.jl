@@ -186,7 +186,7 @@ function sample_value_forward(expr::Y, env::Env, state::SampleValueState)
     return closure
 end
 
-function sample_value_forward(expr::PrimOp, env::Env, state::SampleValueState)
+function sample_value_forward(expr::PExpr, env::Env, state::SampleValueState)
     sample_value_prim_forward(expr.op, expr.args, env, state)
 end
 

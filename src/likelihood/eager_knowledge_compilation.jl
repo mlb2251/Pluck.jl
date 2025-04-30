@@ -203,7 +203,7 @@ function bdd_forward(expr::Y, env::Env, state::BDDStrictEvalState)
     return [(closure, state.manager.BDD_TRUE)]
 end
 
-function bdd_forward(expr::PrimOp, env::Env, state::BDDStrictEvalState)
+function bdd_forward(expr::PExpr, env::Env, state::BDDStrictEvalState)
     bdd_prim_forward(expr.op, expr.args, env, state)
 end
 

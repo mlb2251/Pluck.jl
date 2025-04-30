@@ -67,9 +67,9 @@ define_prim!("eval", EvalOp, 1)
 # function application
 struct App <: Primitive end
 define_prim!("app", App, 2)
-App(f, x) = PrimOp(App(), Any[f, x])
+App(f, x) = PExpr(App(), Any[f, x])
 
-function Base.show(io::IO, e::PrimOp{App})
+function Base.show(io::IO, e::PExpr{App})
     print(io, "(", get_func(e))
     for i ∈ 1:num_apps(e)
         print(io, " ", getarg(e, i))
@@ -78,9 +78,9 @@ function Base.show(io::IO, e::PrimOp{App})
 end
 
 # (app f x y) -> (app (app f x) y)
-num_apps(e::PrimOp{App}) = 1 + num_apps(e.args[1])
-get_func(e::PrimOp{App}) = get_func(e.args[1])
-function getarg(e::PrimOp{App}, i)
+num_apps(e::PExpr{App}) = 1 + num_apps(e.args[1])
+get_func(e::PExpr{App}) = get_func(e.args[1])
+function getarg(e::PExpr{App}, i)
     # for an app chain (app (app f x) y) we want x to be the 1st arg and y to be
     # the second arg.
     which_app = num_apps(e) - i + 1
@@ -92,11 +92,11 @@ end
 
 # functional abstraction
 struct Abs <: Primitive end
-Abs(body, name) = PrimOp(Abs(), Any[body, name])
+Abs(body, name) = PExpr(Abs(), Any[body, name])
 
-var_is_free(e::PrimOp{Abs}, var) = var_is_free(e.args[1], var + 1)
-shortname(e::PrimOp{Abs}) = "λ" * string(e.args[2])
-function Base.show(io::IO, e::PrimOp{Abs})
+var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
+shortname(e::PExpr{Abs}) = "λ" * string(e.args[2])
+function Base.show(io::IO, e::PExpr{Abs})
     print(io, "(λ", e.args[2])
     while e.args[1] isa Abs
         e = e.args[1]

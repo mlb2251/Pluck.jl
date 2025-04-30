@@ -230,7 +230,7 @@ function parse_expr_inner(tokens, defs, env)
                 push!(args, arg)
             end
             tokens[1] != ")" && error("expected closing paren")
-            return PrimOp(op, args), view(tokens, 2:length(tokens))
+            return PExpr(op, args), view(tokens, 2:length(tokens))
         elseif token == "discrete"
             # Parse (discrete (e1 p1) (e2 p2) ...)
             tokens = view(tokens, 2:length(tokens))
