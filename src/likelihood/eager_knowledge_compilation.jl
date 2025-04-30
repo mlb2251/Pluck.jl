@@ -143,9 +143,9 @@ function bdd_bind(cont, first_stage_results, state::BDDStrictEvalState)
                             for (result, result_guard) in first_stage_results], state)
 end
 
-function bdd_forward(expr::App, env::Env, state::BDDStrictEvalState)
-    fs = traced_bdd_forward(expr.f, env, state)
-    arg = traced_bdd_forward(expr.x, env, state)
+function bdd_forward(expr::PExpr{App}, env::Env, state::BDDStrictEvalState)
+    fs = traced_bdd_forward(expr.args[1], env, state)
+    arg = traced_bdd_forward(expr.args[2], env, state)
 
     return bdd_bind(fs, state) do f, f_guard
         new_env = copy(f.env)
@@ -154,25 +154,25 @@ function bdd_forward(expr::App, env::Env, state::BDDStrictEvalState)
     end
 end
 
-function bdd_forward(expr::Abs, env::Env, state::BDDStrictEvalState)
+function bdd_forward(expr::PExpr{Abs}, env::Env, state::BDDStrictEvalState)
     # A lambda term deterministically evaluates to a closure.
-    return [(Closure(expr.body, env), state.manager.BDD_TRUE)]
+    return [(Closure(expr.args[1], env), state.manager.BDD_TRUE)]
 end
 
-function bdd_forward(expr::Construct, env::Env, state::BDDStrictEvalState)
+function bdd_forward(expr::PExpr{Construct}, env::Env, state::BDDStrictEvalState)
     # Evaluate each argument.
-    evaluated_arguments = [traced_bdd_forward(arg, env, state) for arg in expr.args]
+    evaluated_arguments = [traced_bdd_forward(arg, env, state) for arg in expr.args[1]]
     # Return the constructor and its arguments.
     return [(Value(expr.constructor, evaluated_arguments), state.manager.BDD_TRUE)]
 end
 
-function bdd_forward(expr::CaseOf, env::Env, state::BDDStrictEvalState)
+function bdd_forward(expr::PExpr{CaseOf}, env::Env, state::BDDStrictEvalState)
 
-    scrutinee_values = traced_bdd_forward(expr.scrutinee, env, state)
+    scrutinee_values = traced_bdd_forward(expr.args[1], env, state)
 
     bdd_bind(scrutinee_values, state) do scrutinee, scrutinee_guard
-        if scrutinee.constructor in keys(expr.cases)
-            case_expr = expr.cases[scrutinee.constructor]
+        if scrutinee.constructor in keys(expr.args[2])
+            case_expr = expr.args[2][scrutinee.constructor]
             num_args = length(args_of_constructor[scrutinee.constructor])
             if num_args == 0
                 return traced_bdd_forward(case_expr, env, state)
@@ -194,8 +194,8 @@ function bdd_forward(expr::CaseOf, env::Env, state::BDDStrictEvalState)
     end
 end
 
-function bdd_forward(expr::Y, env::Env, state::BDDStrictEvalState)
-    @assert expr.f isa PExpr{Abs} && expr.f.body isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
+function bdd_forward(expr::PExpr{Y}, env::Env, state::BDDStrictEvalState)
+    @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
 
     closure = Pluck.make_self_loop(expr.f.body.body, env)
 
@@ -203,14 +203,10 @@ function bdd_forward(expr::Y, env::Env, state::BDDStrictEvalState)
     return [(closure, state.manager.BDD_TRUE)]
 end
 
-function bdd_forward(expr::PExpr, env::Env, state::BDDStrictEvalState)
-    bdd_prim_forward(expr.op, expr.args, env, state)
-end
 
-
-function bdd_prim_forward(op::MkIntOp, args, env::Env, state::BDDStrictEvalState)
-    bitwidth = args[1]::RawInt
-    val = args[2]::RawInt
+function bdd_prim_forward(expr::PExpr{MkIntOp}, env::Env, state::BDDStrictEvalState)
+    bitwidth = expr.args[1]::RawInt
+    val = expr.args[2]::RawInt
     bools = digits(Bool, val.val, base = 2, pad = bitwidth.val)
     bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
 
@@ -218,10 +214,10 @@ function bdd_prim_forward(op::MkIntOp, args, env::Env, state::BDDStrictEvalState
 end
 
 
-function bdd_prim_forward(op::IntDistEqOp, args, env::Env, state::BDDStrictEvalState)
-    first_int_dist = traced_bdd_forward(args[1], env, state)
+function bdd_prim_forward(expr::PExpr{IntDistEqOp}, env::Env, state::BDDStrictEvalState)
+    first_int_dist = traced_bdd_forward(expr.args[1], env, state)
     bdd_bind(first_int_dist, state) do first_int_dist, first_int_dist_guard
-        second_int_dist = traced_bdd_forward(args[2], env, state)
+        second_int_dist = traced_bdd_forward(expr.args[2], env, state)
         bdd_bind(second_int_dist, state) do second_int_dist, second_int_dist_guard
             bdd = int_dist_eq(first_int_dist, second_int_dist, state.manager)
             # do we put second_int_dist_guard anywhere?
@@ -230,8 +226,8 @@ function bdd_prim_forward(op::IntDistEqOp, args, env::Env, state::BDDStrictEvalS
     end
 end
 
-function bdd_prim_forward(op::FlipOp, args, env::Env, state::BDDStrictEvalState)
-    ps = traced_bdd_forward(args[1], env, state)
+function bdd_prim_forward(expr::PExpr{FlipOp}, env::Env, state::BDDStrictEvalState)
+    ps = traced_bdd_forward(expr.args[1], env, state)
     bdd_bind(ps, state) do p, p_guard
         if isapprox(p, 0.0)
             return [(Pluck.FALSE_VALUE, p_guard)]
@@ -255,11 +251,11 @@ function bdd_prim_forward(op::FlipOp, args, env::Env, state::BDDStrictEvalState)
     end
 end
 
-function bdd_prim_forward(op::ConstructorEqOp, args, env::Env, state::BDDStrictEvalState)
+function bdd_prim_forward(expr::PExpr{ConstructorEqOp}, env::Env, state::BDDStrictEvalState)
     # Evaluate both arguments.
-    first_arg_results = traced_bdd_forward(args[1], env, state)
+    first_arg_results = traced_bdd_forward(expr.args[1], env, state)
     bdd_bind(first_arg_results, state) do arg1, arg1_guard
-        second_arg_results = traced_bdd_forward(args[2], env, state)
+        second_arg_results = traced_bdd_forward(expr.args[2], env, state)
         bdd_bind(second_arg_results, state) do arg2, arg2_guard
             if arg1.constructor == arg2.constructor
                 return [(Pluck.TRUE_VALUE, state.manager.BDD_TRUE)]
@@ -270,26 +266,26 @@ function bdd_prim_forward(op::ConstructorEqOp, args, env::Env, state::BDDStrictE
     end
 end
 
-function bdd_forward(expr::Var, env::Env, state::BDDStrictEvalState)
+function bdd_forward(expr::PExpr{Var}, env::Env, state::BDDStrictEvalState)
     # Look up the variable in the environment.
-    if expr.idx > length(env)
+    if expr.args[1] > length(env)
         @warn "Variable $expr not found in environment; shaving off probability."
         return []
     end
 
-    if env[expr.idx] isa Closure
-        return [(env[expr.idx], state.manager.BDD_TRUE)]
+    if env[expr.args[1]] isa Closure
+        return [(env[expr.args[1]], state.manager.BDD_TRUE)]
     end
-    return env[expr.idx]
+    return env[expr.args[1]]
 end
 
-function bdd_forward(expr::Defined, env::Env, state::BDDStrictEvalState)
+function bdd_forward(expr::PExpr{Defined}, env::Env, state::BDDStrictEvalState)
     # Execute Defined with a blanked out environment.
-    return traced_bdd_forward(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, state)
+    return traced_bdd_forward(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, state)
 end
 
-function bdd_forward(expr::ConstReal, env::Env, state::BDDStrictEvalState)
-    return [(expr.val, state.manager.BDD_TRUE)]
+function bdd_forward(expr::PExpr{ConstReal}, env::Env, state::BDDStrictEvalState)
+    return [(expr.args[1], state.manager.BDD_TRUE)]
 end
 
 function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, record_bdd_json = false, state = BDDStrictEvalState())

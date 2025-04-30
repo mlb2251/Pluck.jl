@@ -219,13 +219,13 @@ function lazy_enumerator_bind(cont, first_stage_results, state)
 end
 
 
-function lazy_enumerate(expr::App, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    fs = traced_lazy_enumerate(expr.f, env, trace, state, :app_f)
+function lazy_enumerate(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+    fs = traced_lazy_enumerate(expr.args[1], env, trace, state, :app_f)
 
     if state.strict
         # in strict semantics its safe to evaluate xs independently of f instead of nesting
         # it within the bind call.
-        xs = traced_lazy_enumerate(expr.x, env, Trace(), state, :app_x)
+        xs = traced_lazy_enumerate(expr.args[2], env, Trace(), state, :app_x)
         results = []
         for (f, ftrace) in fs
             for (x, xtrace) in xs
@@ -258,7 +258,7 @@ function lazy_enumerate(expr::App, env::Vector{Any}, trace::Trace, state::LazyEn
     end
 end
 
-function lazy_enumerate(expr::Abs, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+function lazy_enumerate(expr::PExpr{Abs}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     # A lambda term deterministically evaluates to a closure.
     return [(Closure(expr.body, env), trace)]
 end
@@ -269,14 +269,14 @@ end
 #         bind_recursive(args[2:end], state)
 #     end
 # end
-function lazy_enumerate(expr::Construct, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+function lazy_enumerate(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     # Constructors deterministically evaluate to a WHNF value, with their arguments thunked.
     # Look up type of this constructor.
     # spt = Pluck.spt_of_constructor[expr.constructor]
 
     if state.strict
         options_of_arg = []
-        for (i, arg) in enumerate(expr.args)
+        for (i, arg) in enumerate(expr.args[1])
             push!(options_of_arg, traced_lazy_enumerate(arg, env, Trace(), state, Symbol("$(expr.constructor).arg$i")))
         end
         results = []
@@ -297,16 +297,16 @@ function lazy_enumerate(expr::Construct, env::Vector{Any}, trace::Trace, state::
     end
 
     # Create a thunk for each argument.
-    thunked_arguments = [LazyEnumeratorThunk(arg, env, state, Symbol("$(expr.constructor).arg$i")) for (i, arg) in enumerate(expr.args)] # TODO: use global args_syms to avoid runtime cost of Symbol?
+    thunked_arguments = [LazyEnumeratorThunk(arg, env, state, Symbol("$(expr.constructor).arg$i")) for (i, arg) in enumerate(expr.args[1])] # TODO: use global args_syms to avoid runtime cost of Symbol?
     # Return the constructor and its arguments.
     return [(Value(expr.constructor, thunked_arguments), trace)]
 end
 
-function lazy_enumerate(expr::CaseOf, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    scrutinee_values = traced_lazy_enumerate(expr.scrutinee, env, trace, state, :case_scrutinee)
+function lazy_enumerate(expr::PExpr{CaseOf}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+    scrutinee_values = traced_lazy_enumerate(expr.args[1], env, trace, state, :case_scrutinee)
     lazy_enumerator_bind(scrutinee_values, state) do scrutinee, trace
-        if scrutinee.constructor in keys(expr.cases)
-            case_expr = expr.cases[scrutinee.constructor]
+        if scrutinee.constructor in keys(expr.args[2])
+            case_expr = expr.args[2][scrutinee.constructor]
             num_args = length(args_of_constructor[scrutinee.constructor])
             if num_args == 0
                 return traced_lazy_enumerate(case_expr, env, trace, state, scrutinee.constructor)
@@ -324,8 +324,8 @@ function lazy_enumerate(expr::CaseOf, env::Vector{Any}, trace::Trace, state::Laz
     end
 end
 
-function lazy_enumerate(expr::Y, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    @assert expr.f isa PExpr{Abs} && expr.f.body isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
+function lazy_enumerate(expr::PExpr{Y}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+    @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
 
     closure = Pluck.make_self_loop(expr.f.body.body, env)
 
@@ -333,9 +333,6 @@ function lazy_enumerate(expr::Y, env::Vector{Any}, trace::Trace, state::LazyEnum
     return [(closure, trace)]
 end
 
-function lazy_enumerate(expr::PExpr, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    lazy_prim_enumerate(expr.op, expr.args, env, trace, state)
-end
 
 function lazy_enumerator_make_address(state::LazyEnumeratorEvalState)
     state.disable_traces && return 0
@@ -350,8 +347,8 @@ function lazy_enumerator_make_address(state::LazyEnumeratorEvalState)
     end
 end
 
-function lazy_prim_enumerate(op::FlipOp, args, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    ps = traced_lazy_enumerate(args[1], env, trace, state, :flip_arg)
+function lazy_enumerate(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+    ps = traced_lazy_enumerate(expr.args[1], env, trace, state, :flip_arg)
     lazy_enumerator_bind(ps, state) do p, trace
         if isapprox(p, 0.0)
             return [(Pluck.FALSE_VALUE, trace)]
@@ -374,15 +371,15 @@ function lazy_prim_enumerate(op::FlipOp, args, env::Vector{Any}, trace::Trace, s
     end
 end
 
-function lazy_prim_enumerate(op::ConstructorEqOp, args, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+function lazy_enumerate(expr::PExpr{ConstructorEqOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
 
     # Evaluate both arguments.  
-    first_arg_results = traced_lazy_enumerate(args[1], env, trace, state, :constructor_eq_arg1)
+    first_arg_results = traced_lazy_enumerate(expr.args[1], env, trace, state, :constructor_eq_arg1)
 
     if state.strict
         # in strict semantics its safe to evaluate second argument independently of first
         # instead of nesting it within the bind call.   
-        second_arg_results = traced_lazy_enumerate(args[2], env, trace, state, :constructor_eq_arg2)
+        second_arg_results = traced_lazy_enumerate(expr.args[2], env, trace, state, :constructor_eq_arg2)
         return lazy_enumerator_bind(first_arg_results, state) do arg1, trace
             return lazy_enumerator_bind(second_arg_results, state) do arg2, trace
                 if arg1.constructor == arg2.constructor
@@ -395,7 +392,7 @@ function lazy_prim_enumerate(op::ConstructorEqOp, args, env::Vector{Any}, trace:
     end
 
     lazy_enumerator_bind(first_arg_results, state) do arg1, trace
-        second_arg_results = traced_lazy_enumerate(args[2], env, trace, state, :constructor_eq_arg2)
+        second_arg_results = traced_lazy_enumerate(expr.args[2], env, trace, state, :constructor_eq_arg2)
         lazy_enumerator_bind(second_arg_results, state) do arg2, trace
             if arg1.constructor == arg2.constructor
                 return [(Pluck.TRUE_VALUE, trace)]
@@ -406,7 +403,7 @@ function lazy_prim_enumerate(op::ConstructorEqOp, args, env::Vector{Any}, trace:
     end
 end
 
-function lazy_enumerate(expr::Var, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+function lazy_enumerate(expr::PExpr{Var}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     # Look up the variable in the environment.
     if expr.idx > length(env)
         @warn "Variable $expr not found in environment; shaving off probability."
@@ -421,13 +418,13 @@ function lazy_enumerate(expr::Var, env::Vector{Any}, trace::Trace, state::LazyEn
     end
 end
 
-function lazy_enumerate(expr::Defined, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+function lazy_enumerate(expr::PExpr{Defined}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     # Execute Defined with a blanked out environment.
-    return traced_lazy_enumerate(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, trace, state, expr.name)
+    return traced_lazy_enumerate(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, trace, state, expr.args[1])
 end
 
-function lazy_enumerate(expr::ConstReal, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    return [(expr.val, trace)]
+function lazy_enumerate(expr::PExpr{ConstReal}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+    return [(expr.args[1], trace)]
 end
 
 function lazy_enumerate(expr; show_length = false, kwargs...)
@@ -466,10 +463,8 @@ function lazy_enumerate(expr; show_length = false, kwargs...)
     # @show results
     values = Dict{Any, Float64}()
     for (ret, weight) in results
-        # @show ret
         values[ret] = logaddexp(get(values, ret, -Inf), weight)
     end
     values = [(v, exp(weight)) for (v, weight) in values]
-    # sort!(values)
     return values
 end
