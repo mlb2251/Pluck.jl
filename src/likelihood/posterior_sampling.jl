@@ -178,7 +178,7 @@ function sample_value_forward(expr::CaseOf, env::Env, state::SampleValueState)
 end
 
 function sample_value_forward(expr::Y, env::Env, state::SampleValueState)
-    @assert expr.f isa Abs && expr.f.body isa Abs "y-combinator must be applied to a double-lambda"
+    @assert expr.f isa PrimOp{Abs} && expr.f.body isa PrimOp{Abs} "y-combinator must be applied to a double-lambda"
 
     closure = Pluck.make_self_loop(expr.f.body.body, env)
 

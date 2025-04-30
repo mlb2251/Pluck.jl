@@ -312,7 +312,7 @@ function lazy_enumerate(expr::CaseOf, env::Vector{Any}, trace::Trace, state::Laz
                 return traced_lazy_enumerate(case_expr, env, trace, state, scrutinee.constructor)
             else
                 for _ = 1:num_args
-                    @assert case_expr isa Abs "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
+                    @assert case_expr isa PrimOp{Abs} "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
                     case_expr = case_expr.body
                 end
                 new_env = vcat(reverse(scrutinee.args), env)
@@ -325,7 +325,7 @@ function lazy_enumerate(expr::CaseOf, env::Vector{Any}, trace::Trace, state::Laz
 end
 
 function lazy_enumerate(expr::Y, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    @assert expr.f isa Abs && expr.f.body isa Abs "y-combinator must be applied to a double-lambda"
+    @assert expr.f isa PrimOp{Abs} && expr.f.body isa PrimOp{Abs} "y-combinator must be applied to a double-lambda"
 
     closure = Pluck.make_self_loop(expr.f.body.body, env)
 

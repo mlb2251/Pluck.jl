@@ -98,7 +98,7 @@ var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
 shortname(e::PExpr{Abs}) = "λ" * string(e.args[2])
 function Base.show(io::IO, e::PExpr{Abs})
     print(io, "(λ", e.args[2])
-    while e.args[1] isa Abs
+    while e.args[1] isa PrimOp{Abs}
         e = e.args[1]
         print(io, " ", e.args[2])
     end
