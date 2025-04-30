@@ -90,8 +90,20 @@ function getarg(e::PrimOp{App}, i)
     e.args[2]
 end
 
+# functional abstraction
+struct Abs <: Primitive end
+Abs(body, name) = PrimOp(Abs(), Any[body, name])
 
-
+var_is_free(e::PrimOp{Abs}, var) = var_is_free(e.args[1], var + 1)
+shortname(e::PrimOp{Abs}) = "λ" * string(e.args[2])
+function Base.show(io::IO, e::PrimOp{Abs})
+    print(io, "(λ", e.args[2])
+    while e.args[1] isa Abs
+        e = e.args[1]
+        print(io, " ", e.args[2])
+    end
+    print(io, " -> ", e.args[1], ")")
+end
 
 
 

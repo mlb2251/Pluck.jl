@@ -14,9 +14,9 @@ function compile_prim(op::App, args, env::Env, path_condition::BDD, state::LazyK
     end
 end
 
-function compile_inner(expr::Abs, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_prim(op::Abs, args, env::Env, path_condition::BDD, state::LazyKCState)
     # A lambda term deterministically evaluates to a closure.
-    return pure_monad(Closure(expr.body, env), state)
+    return pure_monad(Closure(args[1], env), state)
 end
 
 function compile_inner(expr::Construct, env::Env, path_condition::BDD, state::LazyKCState)

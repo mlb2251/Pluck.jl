@@ -44,26 +44,6 @@ Base.:(==)(a::DiffVar, b::DiffVar) = a.idx == b.idx
 Base.hash(e::DiffVar, h::UInt) = hash(e.idx, hash(:Var, h))
 
 
-# functional abstraction
-mutable struct Abs <: PExpr
-    body::PExpr
-    name::Symbol
-end
-
-var_is_free(e::Abs, var) = var_is_free(e.body, var + 1)
-shortname(e::Abs) = "λ" * string(e.name)
-function Base.show(io::IO, e::Abs)
-    print(io, "(λ", e.name)
-    while e.body isa Abs
-        e = e.body
-        print(io, " ", e.name)
-    end
-    print(io, " -> ", e.body, ")")
-end
-Base.copy(e::Abs) = Abs(copy(e.body), e.name)
-Base.:(==)(a::Abs, b::Abs) = a.body == b.body
-Base.hash(e::Abs, h::UInt) = hash(e.body, hash(:Abs, h))
-
 struct Y <: PExpr
     f::PExpr
 end
