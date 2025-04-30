@@ -126,21 +126,21 @@ function sample_value_forward(expr::PExpr, env::Env, state::SampleValueState)
     error("sample_value_forward not implemented for $(typeof(expr))")
 end
 
-function sample_value_forward(expr::App, env::Env, state::SampleValueState)
-    f = traced_sample_value(expr.f, env, state, 0)
-    arg = state.lazy ? LazyKCThunk(expr.x, env, state.callstack, :lazy_arg, 1, nothing) : traced_sample_value(expr.x, env, state, 1)
+function sample_value_forward(expr::PExpr{App}, env::Env, state::SampleValueState)
+    f = traced_sample_value(expr.args[1], env, state, 0)
+    arg = state.lazy ? LazyKCThunk(expr.args[2], env, state.callstack, :lazy_arg, 1, nothing) : traced_sample_value(expr.args[2], env, state, 1)
 
     new_env = copy(f.env)
     pushfirst!(new_env, arg)
     return traced_sample_value(f.expr, new_env, state, 2)
 end
 
-function sample_value_forward(expr::Abs, env::Env, state::SampleValueState)
+function sample_value_forward(expr::PExpr{Abs}, env::Env, state::SampleValueState)
     # A lambda term deterministically evaluates to a closure.
-    return Closure(expr.body, env)
+    return Closure(expr.args[1], env)
 end
 
-function sample_value_forward(expr::Construct, env::Env, state::SampleValueState)
+function sample_value_forward(expr::PExpr{Construct}, env::Env, state::SampleValueState)
     # Look up type of this constructor.
     spt = Pluck.spt_of_constructor[expr.constructor]
     # Evaluate each argument.
@@ -149,10 +149,10 @@ function sample_value_forward(expr::Construct, env::Env, state::SampleValueState
     return Value(expr.constructor, evaluated_arguments)
 end
 
-function sample_value_forward(expr::CaseOf, env::Env, state::SampleValueState)
-    scrutinee_value = traced_sample_value(expr.scrutinee, env, state, 0)
+function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueState)
+    scrutinee_value = traced_sample_value(expr.args[1], env, state, 0)
     constructor_indices = Dict{Symbol, Int}()
-    for (i, constructor) in enumerate(keys(expr.cases)) # sort? reverse?
+    for (i, constructor) in enumerate(keys(expr.args[2])) # sort? reverse?
         constructor_indices[constructor] = i
     end
 
@@ -161,7 +161,7 @@ function sample_value_forward(expr::CaseOf, env::Env, state::SampleValueState)
         return nothing
     end
 
-    case_expr = expr.cases[scrutinee_value.constructor]
+    case_expr = expr.args[2][scrutinee_value.constructor]
     num_args = length(args_of_constructor(scrutinee_value.constructor))
     if num_args == 0
         return traced_sample_value(case_expr, env, state, constructor_indices[scrutinee_value.constructor])
@@ -177,33 +177,29 @@ function sample_value_forward(expr::CaseOf, env::Env, state::SampleValueState)
     end
 end
 
-function sample_value_forward(expr::Y, env::Env, state::SampleValueState)
-    @assert expr.f isa PExpr{Abs} && expr.f.body isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
+function sample_value_forward(expr::PExpr{Y}, env::Env, state::SampleValueState)
+    @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
 
-    closure = Pluck.make_self_loop(expr.f.body.body, env)
+    closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
 
     # set up a closure with a circular reference
     return closure
 end
 
-function sample_value_forward(expr::PExpr, env::Env, state::SampleValueState)
-    sample_value_prim_forward(expr.op, expr.args, env, state)
+
+function sample_value_forward(expr::PExpr{MkIntOp}, env::Env, state::SampleValueState)
+    return expr.args[2]
 end
 
 
-function sample_value_prim_forward(op::MkIntOp, args, env::Env, state::SampleValueState)
-    return args[2]
-end
-
-
-function sample_value_prim_forward(op::IntDistEqOp, args, env::Env, state::SampleValueState)
-    arg1 = traced_sample_value(args[1], env, state, 0)
-    arg2 = traced_sample_value(args[2], env, state, 1)
+function sample_value_forward(expr::PExpr{IntDistEqOp}, env::Env, state::SampleValueState)
+    arg1 = traced_sample_value(expr.args[1], env, state, 0)
+    arg2 = traced_sample_value(expr.args[2], env, state, 1)
     return arg1 == arg2 ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
 end
 
-function sample_value_prim_forward(op::FlipOp, args, env::Env, state::SampleValueState)
-    p = traced_sample_value(args[1], env, state, 0)
+function sample_value_forward(expr::PExpr{FlipOp}, env::Env, state::SampleValueState)
+    p = traced_sample_value(expr.args[1], env, state, 0)
     if isapprox(p, 0.0)
         return Pluck.FALSE_VALUE
     elseif isapprox(p, 1.0)
@@ -237,10 +233,10 @@ function sample_value_prim_forward(op::FlipOp, args, env::Env, state::SampleValu
     end
 end
 
-function sample_value_prim_forward(op::ConstructorEqOp, args, env::Env, state::SampleValueState)
+function sample_value_forward(expr::PExpr{ConstructorEqOp}, env::Env, state::SampleValueState)
     # Evaluate both arguments.
-    first_arg_result = traced_sample_value(args[1], env, state, 0)
-    second_arg_result = traced_sample_value(args[2], env, state, 1)
+    first_arg_result = traced_sample_value(expr.args[1], env, state, 0)
+    second_arg_result = traced_sample_value(expr.args[2], env, state, 1)
     if first_arg_result.constructor == second_arg_result.constructor
         return Pluck.TRUE_VALUE
     else
@@ -248,8 +244,8 @@ function sample_value_prim_forward(op::ConstructorEqOp, args, env::Env, state::S
     end
 end
 
-function sample_value_prim_forward(op::GetArgsOp, args, env::Env, state::SampleValueState)
-    val = traced_sample_value(args[1], env, state, 0)
+function sample_value_forward(expr::PExpr{GetArgsOp}, env::Env, state::SampleValueState)
+    val = traced_sample_value(expr.args[1], env, state, 0)
     @assert val isa Value
     res = Value(:Nil)
     for arg in reverse(val.args)
@@ -273,28 +269,28 @@ function sample_thunk(t::LazyKCThunkUnion, state::SampleValueState)
     error("LazyKCThunkUnion found while posterior sampling; this should not happen unless a PosteriorSample query was *randomly* generated.")
 end
 
-function sample_value_forward(expr::Var, env::Env, state::SampleValueState)
+function sample_value_forward(expr::PExpr{Var}, env::Env, state::SampleValueState)
     # Look up the variable in the environment.
-    if expr.idx > length(env)
+    if expr.args[1] > length(env)
         @warn "Variable $expr not found in environment."
         return nothing
     end
 
-    if env[expr.idx] isa LazyKCThunk || env[expr.idx] isa LazyKCThunkUnion
-        return sample_thunk(env[expr.idx], state)
+    if env[expr.args[1]] isa LazyKCThunk || env[expr.args[1]] isa LazyKCThunkUnion
+        return sample_thunk(env[expr.args[1]], state)
     else
-        return env[expr.idx]
+        return env[expr.args[1]]
     end
 end
 
-function sample_value_forward(expr::Defined, env::Env, state::SampleValueState)
+function sample_value_forward(expr::PExpr{Defined}, env::Env, state::SampleValueState)
     # Execute Defined with a blanked out environment.
-    return traced_sample_value(Pluck.lookup(expr.name).expr, Pluck.EMPTY_ENV, state, 0)
+    return traced_sample_value(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, state, 0)
 end
 
 
-function sample_value_forward(expr::ConstReal, env::Env, state::SampleValueState)
-    return expr.val
+function sample_value_forward(expr::PExpr{ConstReal}, env::Env, state::SampleValueState)
+    return expr.args[1]
 end
 
 function sample_value(expr::PExpr, env::Env, state::SampleValueState)
