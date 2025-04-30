@@ -29,10 +29,13 @@ end
 Base.copy(e::PExpr) = PExpr(e.op, [copy(arg) for arg in e.args])
 Base.:(==)(a::PExpr, b::PExpr) = a.op == b.op && a.args == b.args
 Base.hash(e::PExpr, h::UInt) = hash(e.op, hash(e.args, hash(:PExpr, h)))
-getarg(e::PExpr, i) = e.args[i]
 
 # by default we just look in subexpressions for free variables
 var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args if var isa PExpr)
+var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
+var_is_free(e::PExpr{Var}, var) = e.args[1] == var
+var_is_free(e::PExpr{CaseOf}, var) =
+    var_is_free(e.args[1], var) || any(case -> var_is_free(case, var), values(e.args[2]))
 
 
 ##############
@@ -41,7 +44,6 @@ var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args if var 
 
 # function application
 struct App <: Head end
-# App(f, x) = PExpr(App(), Any[f, x])
 
 function Base.show(io::IO, e::PExpr{App})
     print(io, "(", get_func(e))
@@ -70,7 +72,6 @@ end
 struct Abs <: Head end
 # Abs(body, name) = PExpr(Abs(), Any[body, name])
 
-var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
 shortname(e::PExpr{Abs}) = "λ" * string(e.args[2])
 function Base.show(io::IO, e::PExpr{Abs})
     print(io, "(λ", e.args[2])
@@ -85,7 +86,6 @@ end
 struct Var <: Head end
 Var(idx::Int) = Var(idx, :noname)
 Var(idx, name) = PExpr(Var(), Any[idx, name])
-var_is_free(e::PExpr{Var}, var) = e.args[1] == var
 Base.show(io::IO, e::PExpr{Var}) =
     e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
 
@@ -93,7 +93,6 @@ Base.show(io::IO, e::PExpr{Var}) =
 struct DiffVar <: Head end
 DiffVar(idx::Int) = DiffVar(idx, :noname)
 DiffVar(idx, name) = PExpr(DiffVar(), Any[idx, name])
-var_is_free(e::PExpr{DiffVar}, var) = e.args[1] == var
 Base.show(io::IO, e::PExpr{DiffVar}) =
     e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
 
@@ -114,8 +113,6 @@ Base.show(io::IO, e::PExpr{ConstReal}) = print(io, e.args[1])
 
 struct CaseOf <: Head end
 CaseOf(scrutinee, cases) = PExpr(CaseOf(), Any[scrutinee, cases])
-var_is_free(e::PExpr{CaseOf}, var) =
-    var_is_free(e.args[1], var) || any(case -> var_is_free(case, var), values(e.args[2]))
 shortname(e::PExpr{CaseOf}) = "caseof"
 function Base.show(io::IO, e::PExpr{CaseOf})
     print(io, "(case ", e.args[1], " of ")
