@@ -4,10 +4,6 @@ export SubExpr,
     undo_subexpr!,
     subexpr_inner!,
     IterDescendants,
-    descendants_inplace,
-    descendants_copied,
-    same_expr,
-    search_step,
     descendants_untyped
 
 """
@@ -106,69 +102,6 @@ function undo_subexpr!(se::SubExpr, backtrack)
 end
 
 
-
-mutable struct ChildrenIter
-    e::PExpr
-end
-Base.length(iter::ChildrenIter) = num_children(iter.e)
-iter_children(e::PExpr) = ChildrenIter(e)
-
-function Base.iterate(iter::ChildrenIter, state = 1)
-    if state > num_children(iter.e)
-        return nothing
-    end
-    (getchild(iter.e, state), state + 1)
-end
-
-
-
-mutable struct IterDescendants{F}
-    se::SubExpr
-    allow_descend::F
-end
-
-Base.IteratorSize(::Type{IterDescendants}) = Base.SizeUnknown()
-
-"""
-takes an expr `e` 
-"""
-descendants_inplace(se::SubExpr, allow_descend = x -> true) =
-    Iterators.flatten(((se,), IterDescendants(copy(se), allow_descend)))
-descendants_inplace(e::PExpr, t, env, allow_descend = x -> true) =
-    descendants_inplace(SubExpr(e, t, env), allow_descend)
-
-descendants_copied(se) = (copy(se) for se in descendants_inplace(se))
-descendants_copied(e::PExpr, t, env) = descendants_copied(SubExpr(e, t, env))
-
-
-const BacktrackData = Tuple{PExpr, PType, Int}
-
-struct IterState
-    se::SubExpr
-    stack::Vector{BacktrackData}
-end
-
-function Base.iterate(
-    iter::IterDescendants{F},
-    state = IterState(iter.se, Vector{Tuple{PExpr, PType}}[]),
-) where {F}
-    # invariant: each time iterate it called, the last thing we yielded
-    # was state.se. That means the next thing to do is yield any children it has
-
-    i = 1
-    while !haschild(state.se.child, i) || !iter.allow_descend(state.se)
-        if isempty(state.stack)
-            return nothing
-        end
-        # backtrack
-        i = state.se.path[end] + 1
-        undo_subexpr!(state.se, pop!(state.stack))
-    end
-
-    backtrack = subexpr!(state.se, i) # this will push to the path for us
-    push!(state.stack, backtrack)
-    return (state.se, state)
-end
 mutable struct UntypedIterDescendants{F}
     e::PExpr
     path::Vector{Int}

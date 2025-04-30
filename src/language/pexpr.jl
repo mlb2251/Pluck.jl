@@ -1067,19 +1067,6 @@ end
 
 JSON.lower(e::PExpr) = string(e)
 
-
-function is_closed(e::PExpr, type::PType, env::Vector{PType})
-    se = SubExpr(e, type, env)
-    for d in descendants_inplace(se)
-        if d.child isa Var
-            if d.child.idx > length(d.env)
-                return false
-            end
-        end
-    end
-    return true
-end
-
 struct RenderedHole <: PExpr
     expr::PExpr
     prefix::String
