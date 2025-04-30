@@ -6,8 +6,6 @@ export SubExpr,
     IterDescendants,
     descendants_inplace,
     descendants_copied,
-    randomness_terminals,
-    free_vars,
     same_expr,
     search_step,
     descendants_untyped
@@ -213,16 +211,6 @@ function Base.iterate(
     return ((state.e, copy(state.path)), state)
 end
 
-
-function randomness_terminals(se::SubExpr, dsl)
-    res = SubExpr[]
-    for se in descendants_inplace(se)
-        if is_randomness_terminal(se.child, dsl)
-            push!(res, copy(se))
-        end
-    end
-    res
-end
 
 Base.show(io::IO, se::SubExpr) =
     print(io, "SubExpr(", se.child, "::", se.type, " @ ", se.path, " w ", se.env, ")")

@@ -42,8 +42,7 @@ export Var,
     VarCFGSymbol,
     shortname,
     unifies,
-    setchild_or_root,
-    is_random
+    setchild_or_root
 export CaseOf, Construct, RenderedHole, highlight_subexpression
 
 abstract type PExpr end
@@ -355,9 +354,6 @@ unifies(e1::Defined, e2::Defined) = e1.name == e2.name
 abstract type Primitive end
 abstract type RandomPrimitive <: Primitive end
 
-is_random(e::RandomPrimitive) = true
-is_random(e::Primitive) = false
-
 mutable struct PrimOp <: PExpr
     op::Primitive
     args::Vector{PExpr}
@@ -664,110 +660,7 @@ function null_paths(e::PExpr; path = [])
     paths
 end
 
-@inline function is_randomness_terminal(e::PExpr, dsl)
-    any(term -> term[1] == e, dsl.randomness_terminals)
-end
 
-@inline function typeof_randomness_terminal(e::PExpr, dsl)
-    for (term, ty) in dsl.randomness_terminals
-        if term == e
-            return ty
-        end
-    end
-end
-
-randomness_terminals_of_type(dsl, ty) =
-    (term for (term, ty2) in dsl.randomness_terminals if ty2 == ty)
-randomness_terminals_of_type(dsl, ty::String) =
-    randomness_terminals_of_type(dsl, parse_type(ty))
-
-function randomness_terminals_of_types(dsl, tys)
-    arg_options = Vector{Vector{PExpr}}(undef, length(tys))
-    # could be condensed into one iterator
-    for (i, argtype) in enumerate(tys)
-        arg_options[i] = PExpr[]
-        for term in randomness_terminals_of_type(dsl, argtype)
-            push!(arg_options[i], term)
-        end
-    end
-    Iterators.product(arg_options...)
-end
-
-
-# function randomness_terminals_of_types(dsl, tys)
-#     arg_options = Vector{Vector{PExpr}}(undef, num_args(t))
-#     for argtype in tys
-#         arg_options[argtype.idx] = PExpr[]
-#         for term in randomness_terminals_of_type(dsl, argtype)
-#             push!(arg_options[argtype.idx], term[1])
-#         end
-#     end
-#     Iterators.product(arg_options...)
-# end
-
-
-
-
-
-
-has_randomness_terminal(e::PExpr, dsl) =
-    is_randomness_terminal(e, dsl) ||
-    any(has_randomness_terminal(getchild(e, i), dsl) for i ∈ 1:num_children(e))
-
-function randomness_terminal_paths(e::PExpr, dsl; path = [])
-    if is_randomness_terminal(e, dsl)
-        return [(path, typeof_randomness_terminal(e, dsl))]
-    end
-    paths = []
-    for i ∈ 1:num_children(e)
-        if has_randomness_terminal(getchild(e, i), dsl)
-            push!(
-                paths,
-                randomness_terminal_paths(getchild(e, i), dsl; path = [path..., i])...,
-            )
-        end
-    end
-    paths
-end
-
-# function check_var_types(e::PExpr; path=[])
-#     if e isa Var
-#         return [path]
-#     end
-#     paths = []
-#     for i in 1:num_children(e)
-#         push!(paths, var_paths(getchild(e, i); path=[path..., i])...)
-#     end
-#     paths
-# end
-
-# check_type(e::Var, t, env) = e.idx <= length(env) && env[e.idx] == t
-
-
-# # function check_type(e, t, env)
-
-# # end
-
-max_free_var(e::Var) = e.idx
-max_free_var(e::Abs) = max(0, max_free_var(e.body) - 1)
-max_free_var(e::App) = max(max_free_var(e.f), max_free_var(e.x))
-max_free_var(e::Const) = 0
-max_free_var(e::ConstReal) = 0
-max_free_var(e::ConstBool) = 0
-max_free_var(e::ConstSymbol) = 0
-max_free_var(e::If) =
-    max(max_free_var(e.cond), max(max_free_var(e.then_expr), max_free_var(e.else_expr)))
-max_free_var(e::Ylamlam) = max(0, max_free_var(e.body) - 2)
-max_free_var(e::Y) = max_free_var(e.f)
-max_free_var(e::Defined) = 0
-max_free_var(e::Root) = max_free_var(e.body)
-max_free_var(e::PrimOp) = reduce(max, max_free_var(arg) for arg in e.args; init = 0)
-max_free_var(e::NullExpr) = 0
-max_free_var(e::CaseOf) = max(
-    max_free_var(e.scrutinee),
-    reduce(max, max_free_var(case) for case in values(e.cases); init = 0),
-)
-max_free_var(e::Construct) = reduce(max, max_free_var(arg) for arg in e.args; init = 0)
 
 # true if #1 is a free var in the expr. Depth should start at 1.
 var_is_free(e::Var, var) = e.idx == var
@@ -791,24 +684,6 @@ var_is_free(e::CaseOf, var) =
     var_is_free(e.scrutinee, var) || any(case -> var_is_free(case, var), values(e.cases))
 var_is_free(e::Construct, var) = any(arg -> var_is_free(arg, var), e.args)
 
-is_random(e::Var) = false
-is_random(e::Abs) = is_random(e.body)
-is_random(e::App) = is_random(e.f) || is_random(e.x)
-is_random(e::Const) = false
-is_random(e::ConstReal) = false
-is_random(e::ConstBool) = false
-is_random(e::ConstSymbol) = false
-is_random(e::If) = is_random(e.cond) || is_random(e.then_expr) || is_random(e.else_expr)
-is_random(e::Ylamlam) = is_random(e.body)
-is_random(e::Y) = is_random(e.f)
-is_random(e::Defined) = get_def(e.name).is_random
-is_random(e::Root) = is_random(e.body)
-is_random(e::PrimOp) = is_random(e.op) || any(is_random(arg) for arg in e.args)
-is_random(e::NullExpr) = false
-is_random(e::CaseOf) = is_random(e.scrutinee) || any(is_random(case) for case in values(e.cases))
-is_random(e::Construct) = any(is_random(arg) for arg in e.args)
-is_random(e::AuxCFGSymbol) = false
-is_random(e::VarCFGSymbol) = false
 
 
 

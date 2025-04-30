@@ -871,7 +871,7 @@ function synthesis_defs()
     # Note random_digit is a primop so it can't be replaced.
     # DIGITS = [parse_expr("$(a)") for a = '0':'9']
     # DEFINITIONS[:make_random_digit] = Pluck.Definition(:make_random_digit, make_uniform(DIGITS), nothing, true)
-    DEFINITIONS[:make_random_digit] = Pluck.Definition(:make_random_digit, make_uniform_nat(9), nothing, true)
+    DEFINITIONS[:make_random_digit] = Pluck.Definition(:make_random_digit, make_uniform_nat(9), nothing)
     @define "randlistdigit" "((Y (λ rec unit -> (if (flip 0.5) (Nil) (Cons make_random_digit (rec unit))))) (Unit))"
 
 

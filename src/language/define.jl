@@ -6,7 +6,6 @@ struct Definition
     name::Symbol
     expr::PExpr
     type::Union{PType,Nothing}
-    is_random::Bool
 end
 
 const DEFINITIONS::Dict{Symbol, Definition} = Dict{Symbol, PExpr}()
@@ -26,12 +25,11 @@ macro define(name, typestr, str)
 end
 
 
-function define(name, str; typestr=nothing, random=nothing)
+function define(name, str; typestr=nothing)
     name = Symbol(name)
     expr = parse_expr(str)
     type = isnothing(typestr) ? nothing : parse_type(typestr)
-    rand = isnothing(random) ? is_random(expr) : random
-    DEFINITIONS[name] = Definition(name, expr, type, rand)
+    DEFINITIONS[name] = Definition(name, expr, type)
     return name
 end
 

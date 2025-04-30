@@ -163,8 +163,6 @@ function solve_task(
 
     current = parsed_expr(pcfg, copy(start), return_type(task.type), arg_types(task.type))
     
-    # logprior_curr = logprob(config.size_dist, num_internal_nodes(current)) + logprob(fixed_size_dist, pcfg, num_internal_nodes(current), current)
-    # logprior_curr = log(num_all_nodes(current))
     logprior_curr = logprob(pcfg_dist, pcfg, current)
     task_constrain_fn = config.eval_builder(task)
     old_time_limit = get_time_limit(task_constrain_fn.config)
@@ -175,10 +173,6 @@ function solve_task(
     set_time_limit!(task_constrain_fn.config, old_time_limit)
     task_res_curr = task_constrain_fn(current.expr.child)
     loglikelihood_curr = task_res_curr.logweight
-
-
-    # @show current.expr.child
-    # @assert loglikelihood_curr > -Inf
 
     samples = Dict{String, Int}()
     history = Vector{MCMCStep}()
@@ -200,17 +194,11 @@ function solve_task(
 
         proposal, logproposal_ratio, path = modify_expression(
             reparse(current, pcfg),
-            pcfg,
-            config.size_dist
+            pcfg
         )
-
-        # push!(proposals, string(proposal.expr.child))
 
         task_res_after = task_constrain_fn(proposal.expr.child)
         loglikelihood_after = task_res_after.logweight
-        # println("done")
-        # logprior_after = logprob(config.size_dist, num_internal_nodes(proposal)) + logprob(fixed_size_dist, pcfg, num_internal_nodes(proposal), proposal)
-        # logprior_after = log(num_all_nodes(proposal))
         logprior_after = logprob(pcfg_dist, pcfg, proposal)
 
         loglikelihood_ratio = loglikelihood_after - loglikelihood_curr
@@ -224,7 +212,6 @@ function solve_task(
             num_accepted += 1
             # Only print if there's a real change in the expression and likelihood
             if string(current.expr.child) != string(proposal.expr.child) # && !isapprox(loglikelihood_after, loglikelihood_curr)
-                # println("$i accepted ll2=$(round(loglikelihood_after-log(2), digits=2)) $(current.expr.child)")
                 push!(
                     history,
                     MCMCStep(
@@ -251,15 +238,6 @@ function solve_task(
                 break
             end
 
-            # if false # for now we dont have "solving" in MCMC
-            #     solved_task_res = task_constrain_fn(config.check_solved(current.expr.child))
-            #     solved_ll = solved_task_res.logweight
-
-            #     if isapprox(solved_ll, 0.0)
-            #         solved = true
-            #         break
-            #     end
-            # end
         end
 
         # Update the samples dictionary

@@ -9,21 +9,18 @@ const Path = Vector{Int}
 """
 The right hand side (RHS) of a PCFG production, along with paths to the subexprs that are cfg symbols,
 like (index ?int ?list) has paths to ?int and ?list. 
-is_random is true if PExpr itself contains a RandomPrimitive
 """
 struct GrammarProdRHS
     expr::PExpr
     symbol_paths::Vector{Tuple{Symbol,Path}}
     is_var::Bool
-    is_random::Bool
 end
-GrammarProdRHS(e::PExpr) = GrammarProdRHS(e, e isa VarCFGSymbol ? [] : [(c.name, path) for (c, path) in cfg_symbol_paths(e)], e isa VarCFGSymbol, is_random(e))
+GrammarProdRHS(e::PExpr) = GrammarProdRHS(e, e isa VarCFGSymbol ? [] : [(c.name, path) for (c, path) in cfg_symbol_paths(e)], e isa VarCFGSymbol)
 function is_leaf(rhs::GrammarProdRHS)
     @assert !is_var(rhs) "can't call is_leaf on a var because whether it's a leaf depends on the context"
     isempty(rhs.symbol_paths)
 end
 @inline is_var(rhs::GrammarProdRHS) = rhs.is_var
-@inline is_random(rhs::GrammarProdRHS) = rhs.is_random
 
 
 """
@@ -169,17 +166,12 @@ function Grammar(prods, sym_of_type::Vector{Pair{String,String}}, start_expr_of_
         prod.probs_nonterm_novar = prod.probs_all_novar .* nonterms
         prod.probs_nonterm_novar ./= sum(prod.probs_nonterm_novar)
 
-        random_novar_leaves = [!is_var(rhs) && is_leaf(rhs) && is_random(rhs) for rhs in prod.rhs_all]
-        prod.probs_leaf_novar_random = prod.probs_all_novar .* random_novar_leaves
-        prod.probs_leaf_novar_random ./= sum(prod.probs_leaf_novar_random)
-
         @assert isempty(prod.probs_all_yesvar) || sum(prod.probs_all_yesvar) ≈ 1.0
         @assert isempty(prod.probs_all_novar) || sum(prod.probs_all_novar) ≈ 1.0
         @assert sum(leaves) == 0. || sum(prod.probs_leaf_yesvar) ≈ 1.0
         @assert sum(leaves) == 0. || sum(prod.probs_leaf_novar) ≈ 1.0
         @assert sum(nonterms) == 0. || sum(prod.probs_nonterm_yesvar) ≈ 1.0
         @assert sum(nonterms) == 0. || sum(prod.probs_nonterm_novar) ≈ 1.0
-        @assert sum(random_novar_leaves) == 0. || sum(prod.probs_leaf_novar_random) ≈ 1.0
     end
 
     return Grammar(unrolled_prods, unrolled_prod_of_sym, sym_of_type, start_sym_of_type, start_expr_of_type, size_dist)
@@ -393,8 +385,7 @@ end
 
 function modify_expression(
     e::GExpr,
-    pcfg::Grammar,
-    size_dist,
+    pcfg::Grammar
 )
     all_subexpressions = descendants(e)
 
@@ -402,25 +393,16 @@ function modify_expression(
     selected_subexpression = all_subexpressions[rand(1:length(all_subexpressions))]
 
     # sample a replacement for it
-    # replacement_size = random(size_dist)
-    # replacement = random(fixed_size_dist, pcfg, replacement_size, from_lhs_detached(selected_subexpression))
-    # logprior_replacement = logprob(size_dist, replacement_size) + logprob(fixed_size_dist, pcfg, replacement_size, replacement)
     replacement = random(pcfg_dist, pcfg, from_lhs_detached(selected_subexpression))
     logprior_replacement = logprob(pcfg_dist, pcfg, replacement)
 
     # forward proposal probability is P(chose_this_subtree) * P(sampled_this_replacement)
     log_forward_proposal = -log(length(all_subexpressions)) + logprior_replacement
 
-    # logprior_selected_subexpression = logprob(size_dist, num_internal_nodes(selected_subexpression)) + logprob(fixed_size_dist, pcfg, num_internal_nodes(selected_subexpression), selected_subexpression) # for reverse
-
     logprior_selected_subexpression = logprob(pcfg_dist, pcfg, selected_subexpression) # for reverse
 
-    # println("replacement ", replacement.expr.child)
-
     # Replace the subexpression with the replacement
-    # println("before ", e.expr.child)
     e = replace_parsed_expr(e, selected_subexpression, replacement)
-    # println("after ", e.expr.child)
 
     # now calculate backward direction – how many subtrees do we have to choose among now?
     all_subexpressions_after = descendants(e)
@@ -470,7 +452,6 @@ function build_var_rhs(e::GExpr, var_idx::Int, pcfg::Grammar)::GrammarProdRHS
         var_expr,
         sym_paths,
         true, # is_var
-        false, # is_random
     )
 end
 
