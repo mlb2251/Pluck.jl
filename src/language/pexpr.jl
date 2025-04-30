@@ -43,36 +43,6 @@ Base.copy(e::DiffVar) = DiffVar(e.idx, e.name)
 Base.:(==)(a::DiffVar, b::DiffVar) = a.idx == b.idx
 Base.hash(e::DiffVar, h::UInt) = hash(e.idx, hash(:Var, h))
 
-# function application
-mutable struct App <: PExpr
-    f::PExpr
-    x::PExpr
-end
-
-var_is_free(e::App, var) = var_is_free(e.f, var) || var_is_free(e.x, var)
-shortname(e::App) = "App"
-function Base.show(io::IO, e::App)
-    print(io, "(", get_func(e))
-    for i ∈ 1:num_apps(e)
-        print(io, " ", getarg(e, i))
-    end
-    print(io, ")")
-end
-Base.copy(e::App) = App(copy(e.f), copy(e.x))
-Base.:(==)(a::App, b::App) = a.f == b.f && a.x == b.x
-Base.hash(e::App, h::UInt) = hash(e.f, hash(e.x, hash(:App, h)))
-# (app f x y) -> (app (app f x) y)
-num_apps(e::App) = 1 + num_apps(e.f)
-get_func(e::App) = get_func(e.f)
-function getarg(e::App, i)
-    # for an app chain (app (app f x) y) we want x to be the 1st arg and y to be
-    # the second arg.
-    which_app = num_apps(e) - i + 1
-    for _ ∈ 1:which_app-1
-        e = e.f
-    end
-    e.x
-end
 
 # functional abstraction
 mutable struct Abs <: PExpr
@@ -118,9 +88,9 @@ Base.copy(e::Defined) = Defined(e.name)
 Base.:(==)(a::Defined, b::Defined) = a.name == b.name
 Base.hash(e::Defined, h::UInt) = hash(e.name, hash(:Defined, h))
 
-mutable struct PrimOp <: PExpr
-    op::Primitive
-    args::Vector{PExpr}
+mutable struct PrimOp{P} <: PExpr
+    op::P
+    args::Vector{Any}
 end
 
 var_is_free(e::PrimOp, var) = any(var_is_free(arg, var) for arg in e.args)

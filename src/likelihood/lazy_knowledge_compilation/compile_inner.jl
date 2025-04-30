@@ -2,9 +2,9 @@
 #### COMPILE IMPLEMENTATIONS ####
 #################################
 
-function compile_inner(expr::App, env::Env, path_condition::BDD, state::LazyKCState)
-    fs = traced_compile_inner(expr.f, env, path_condition, state, 0)
-    thunked_argument = LazyKCThunk(expr.x, env, state.callstack, :app_x, 1, state)
+function compile_prim(op::App, args, env::Env, path_condition::BDD, state::LazyKCState)
+    fs = traced_compile_inner(args[1], env, path_condition, state, 0)
+    thunked_argument = LazyKCThunk(args[2], env, state.callstack, :app_x, 1, state)
 
     return bind_monad(fs, path_condition, state) do f, path_condition
         new_env = copy(f.env)
@@ -155,6 +155,31 @@ function compile_prim(op::FlipOpDual, args, env::Env, path_condition::BDD, state
         return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)], state.manager.BDD_TRUE
     end
 end
+
+# function cons(xs::Vector{Any})
+#     res = Value(:Nil)
+#     for x in reverse(xs)
+#         res = Value(:Cons, x, res)
+#     end
+#     return res
+# end
+
+# function compile_prim(op::QuoteOp, args, env::Env, path_condition::BDD, state::LazyKCState)
+#     expr = args[1]
+
+#     if expr isa Construct
+#         return Value(:Construct, expr.constructor, expr.args)
+
+# end
+
+# function compile_prim(op::EvalOp, args, env::Env, path_condition::BDD, state::LazyKCState)
+#     expr_results = traced_compile_inner(args[1], env, path_condition, state, 0)
+#     bind_monad(expr_results, path_condition, state) do expr, path_condition
+
+#     end
+# end
+
+
 
 function compile_prim(op::ConstructorEqOp, args, env::Env, path_condition::BDD, state::LazyKCState)
     # Evaluate both arguments.

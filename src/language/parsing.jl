@@ -224,7 +224,7 @@ function parse_expr_inner(tokens, defs, env)
             arity = prim_arity(op_type)
             tokens = view(tokens, 2:length(tokens))
             op = op_type()
-            args = PExpr[]
+            args = Any[]
             for i ∈ 1:arity
                 arg, tokens = parse_expr_inner(tokens, defs, env)
                 push!(args, arg)

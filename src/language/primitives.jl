@@ -58,3 +58,40 @@ define_prim!("mk_int", MkIntOp, 2)
 struct IntDistEqOp <: Primitive end
 define_prim!("int_dist_eq", IntDistEqOp, 2)
 
+struct QuoteOp <: Primitive end
+define_prim!("quote", QuoteOp, 1)
+
+struct EvalOp <: Primitive end
+define_prim!("eval", EvalOp, 1)
+
+# function application
+struct App <: Primitive end
+define_prim!("app", App, 2)
+App(f, x) = PrimOp(App(), Any[f, x])
+
+function Base.show(io::IO, e::PrimOp{App})
+    print(io, "(", get_func(e))
+    for i ∈ 1:num_apps(e)
+        print(io, " ", getarg(e, i))
+    end
+    print(io, ")")
+end
+
+# (app f x y) -> (app (app f x) y)
+num_apps(e::PrimOp{App}) = 1 + num_apps(e.args[1])
+get_func(e::PrimOp{App}) = get_func(e.args[1])
+function getarg(e::PrimOp{App}, i)
+    # for an app chain (app (app f x) y) we want x to be the 1st arg and y to be
+    # the second arg.
+    which_app = num_apps(e) - i + 1
+    for _ ∈ 1:which_app-1
+        e = e.args[1]
+    end
+    e.args[2]
+end
+
+
+
+
+
+
