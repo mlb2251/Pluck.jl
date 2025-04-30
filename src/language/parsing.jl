@@ -110,17 +110,11 @@ function parse_expr_inner(tokens, defs, env)
             # Parse as a CaseOf expression.
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
             return CaseOf(cond, OrderedDict(:True => then_expr, :False => else_expr)), view(tokens, 2:length(tokens))
-        elseif token == "ylamlam"
-            # Parse a Y lam lam
-            tokens = view(tokens, 2:length(tokens))
-            body, tokens = parse_expr_inner(tokens, defs, env)
-            tokens[1] != ")" && error("expected closing paren")
-            return Ylamlam(body), view(tokens, 2:length(tokens))
         elseif token == "Y"
             # parse a Y
             tokens = view(tokens, 2:length(tokens))
             f, tokens = parse_expr_inner(tokens, defs, env)
-            e = Y(f)
+            e = PExpr(Y(), Any[f])
             if tokens[1] != ")"
                 # parse (Y f x) into App(Y(f), x)
                 x, tokens = parse_expr_inner(tokens, defs, env)
@@ -301,17 +295,9 @@ function parse_expr_inner(tokens, defs, env)
             end
             return expr, view(tokens, 2:length(tokens))
         end
-    elseif token == "??"
-        return NULL, view(tokens, 2:length(tokens))
-    elseif token[1] == '?'
-        name = Symbol(token[2:end])
-        return AuxCFGSymbol(name), view(tokens, 2:length(tokens))
     elseif token[1] == '&'
         val = parse(Int, token[2:end])
         return RawInt(val), view(tokens, 2:length(tokens))
-    elseif token[1] == '~'
-        type = parse_type(token[2:end])
-        return RandomnessCFGSymbol(type), view(tokens, 2:length(tokens))
     elseif token ∈ env
         # Parse a var by name like "foo"
         idx = findfirst(x -> x == token, env) # shadowing

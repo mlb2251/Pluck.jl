@@ -1,21 +1,23 @@
-export PExpr, Primitive, Var, DiffVar, App, Abs, Y, Defined, PExpr, ConstReal, CaseOf, Construct, RawInt
+export PExpr, Head, Var, DiffVar, App, Abs, Y, Defined, PExpr, ConstReal, CaseOf, Construct, RawInt, FlipOp, ConstructorEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig
 
 import DataStructures: OrderedDict
 
-abstract type Primitive end
+abstract type Head end
 
-mutable struct PExpr{P <: Primitive}
-    op::P
+
+Base.show(io::IO, e::T) where T <: Head = print(io, prim_str(e))
+Base.:(==)(::T, ::T) where T <: Head = true
+
+mutable struct PExpr{H <: Head}
+    op::H
     args::Vector{Any}
 end
 
+(::Type{H})(args...) where H <: Head = PExpr{H}(H(), collect(Any, args))
 
-# General PExpr methods
-get_func(e::PExpr) = e
+
+# default PExpr methods
 JSON.lower(e::PExpr) = string(e)
-maybe_const(e) = nothing
-
-var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args if var isa PExpr)
 shortname(e::PExpr) = string(e.op)
 function Base.show(io::IO, e::PExpr)
     print(io, "(", e.op)
@@ -29,8 +31,58 @@ Base.:(==)(a::PExpr, b::PExpr) = a.op == b.op && a.args == b.args
 Base.hash(e::PExpr, h::UInt) = hash(e.op, hash(e.args, hash(:PExpr, h)))
 getarg(e::PExpr, i) = e.args[i]
 
+# by default we just look in subexpressions for free variables
+var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args if var isa PExpr)
 
-struct Var <: Primitive end
+
+##############
+# Operations #
+##############
+
+# function application
+struct App <: Head end
+# App(f, x) = PExpr(App(), Any[f, x])
+
+function Base.show(io::IO, e::PExpr{App})
+    print(io, "(", get_func(e))
+    for i ∈ 1:num_apps(e)
+        print(io, " ", getarg(e, i))
+    end
+    print(io, ")")
+end
+
+# (app f x y) -> (app (app f x) y)
+num_apps(e::PExpr) = 0
+num_apps(e::PExpr{App}) = 1 + num_apps(e.args[1])
+get_func(e::PExpr{App}) = get_func(e.args[1])
+get_func(e::PExpr) = e
+function getarg(e::PExpr{App}, i)
+    # for an app chain (app (app f x) y) we want x to be the 1st arg and y to be
+    # the second arg.
+    which_app = num_apps(e) - i + 1
+    for _ ∈ 1:which_app-1
+        e = e.args[1]
+    end
+    e.args[2]
+end
+
+# functional abstraction
+struct Abs <: Head end
+# Abs(body, name) = PExpr(Abs(), Any[body, name])
+
+var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
+shortname(e::PExpr{Abs}) = "λ" * string(e.args[2])
+function Base.show(io::IO, e::PExpr{Abs})
+    print(io, "(λ", e.args[2])
+    while e.args[1] isa PExpr{Abs}
+        e = e.args[1]
+        print(io, " ", e.args[2])
+    end
+    print(io, " -> ", e.args[1], ")")
+end
+
+
+struct Var <: Head end
 Var(idx::Int) = Var(idx, :noname)
 Var(idx, name) = PExpr(Var(), Any[idx, name])
 var_is_free(e::PExpr{Var}, var) = e.args[1] == var
@@ -38,38 +90,30 @@ Base.show(io::IO, e::PExpr{Var}) =
     e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
 
 
-struct DiffVar <: Primitive end
+struct DiffVar <: Head end
 DiffVar(idx::Int) = DiffVar(idx, :noname)
 DiffVar(idx, name) = PExpr(DiffVar(), Any[idx, name])
 var_is_free(e::PExpr{DiffVar}, var) = e.args[1] == var
 Base.show(io::IO, e::PExpr{DiffVar}) =
     e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
 
-struct Y <: Primitive end
-Y(f) = PExpr(Y(), Any[f])
-
-struct Defined <: Primitive end
+struct Defined <: Head end
 Defined(name) = PExpr(Defined(), Any[name])
-
 shortname(e::PExpr{Defined}) = string(e.args[1])
 Base.show(io::IO, e::PExpr{Defined}) = print(io, e.args[1])
 
-struct RawInt <: Primitive end
+struct RawInt <: Head end
 RawInt(val) = PExpr(RawInt(), Any[val])
-
 shortname(e::PExpr{RawInt}) = "&"
 Base.show(io::IO, e::PExpr{RawInt}) = print(io, "&", e.args[1])
 
-struct ConstReal <: Primitive end
+struct ConstReal <: Head end
 ConstReal(val) = PExpr(ConstReal(), Any[val])
-
 shortname(e::PExpr{ConstReal}) = string(e.args[1])
 Base.show(io::IO, e::PExpr{ConstReal}) = print(io, e.args[1])
 
-
-struct CaseOf <: Primitive end
+struct CaseOf <: Head end
 CaseOf(scrutinee, cases) = PExpr(CaseOf(), Any[scrutinee, cases])
-
 var_is_free(e::PExpr{CaseOf}, var) =
     var_is_free(e.args[1], var) || any(case -> var_is_free(case, var), values(e.args[2]))
 shortname(e::PExpr{CaseOf}) = "caseof"
@@ -85,14 +129,10 @@ function Base.show(io::IO, e::PExpr{CaseOf})
 end
 Base.copy(e::PExpr{CaseOf}) = PExpr(CaseOf(), Any[copy(e.args[1]), OrderedDict(constructor => copy(e.args[2][constructor]) for constructor in keys(e.args[2]))])
 
-
-
-struct Construct <: Primitive end
+struct Construct <: Head end
 Construct(constructor, args) = PExpr(Construct(), Any[constructor, collect(args)])
 Construct(constructor) = Construct(constructor, [])
-
 shortname(e::PExpr{Construct}) = string(e.args[1])
-
 function Base.show(io::IO, e::PExpr{Construct})
     as_const = maybe_const(e)
     if !isnothing(as_const)
@@ -106,14 +146,84 @@ function Base.show(io::IO, e::PExpr{Construct})
     print(io, ")")
 end
 function maybe_const(e::PExpr{Construct})
-    if e.args[1] == :O
+    if e.args[1] === :O
         return 0
     elseif e.args[1] == :S
-        inner = maybe_const(e.args[1])
+        inner = maybe_const(e.args[2][1])
         isnothing(inner) && return nothing
         return inner + 1
     end
     return nothing
 end
+maybe_const(e) = nothing
 Base.copy(e::PExpr{Construct}) = PExpr(Construct(), Any[copy(e.args[1]), [copy(arg) for arg in e.args[2]]])
+
+
+##############
+# Simple Ops #
+##############
+
+const primop_of_name::Dict{String, Type} = Dict()
+const name_of_primop::Dict{Type, String} = Dict()
+const arity_of_primop::Dict{Type, Int} = Dict()
+
+function define_parser!(name::String, op::Type{T}, arity::Int) where T <: Head
+    primop_of_name[name] = op
+    name_of_primop[op] = name
+    arity_of_primop[op] = arity
+    nothing
+end
+
+function has_prim(name::AbstractString)
+    haskey(primop_of_name, name)
+end
+
+function lookup_prim(name::AbstractString)
+    primop_of_name[name]
+end
+
+function prim_str(::T) where T <: Head
+    name_of_primop[T]
+end
+
+function prim_arity(::Type{T}) where T <: Head
+    arity_of_primop[T]
+end
+
+struct Y <: Head end
+define_parser!("Y", Y, 1)
+
+
+struct FlipOp <: Head end
+define_parser!("flip", FlipOp, 1)
+
+struct FlipOpDual <: Head end
+define_parser!("flipd", FlipOpDual, 1)
+
+struct ConstructorEqOp <: Head end
+define_parser!("constructors_equal", ConstructorEqOp, 2)
+
+struct GetArgsOp <: Head end
+define_parser!("get_args", GetArgsOp, 1)
+
+struct GetConstructorOp <: Head end
+define_parser!("get_constructor", GetConstructorOp, 1)
+
+struct PBoolOp <: Head end
+define_parser!("pbool", PBoolOp, 1)
+
+struct GetConfig <: Head end
+define_parser!("get_config", GetConfig, 0)
+
+struct MkIntOp <: Head end
+define_parser!("mk_int", MkIntOp, 2)
+
+struct IntDistEqOp <: Head end
+define_parser!("int_dist_eq", IntDistEqOp, 2)
+
+struct QuoteOp <: Head end
+define_parser!("quote", QuoteOp, 1)
+
+struct EvalOp <: Head end
+define_parser!("eval", EvalOp, 1)
 
