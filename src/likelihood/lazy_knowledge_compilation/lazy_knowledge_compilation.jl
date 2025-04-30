@@ -1,4 +1,4 @@
-export normalize, compile, LazyKCState, LazyKCConfig, LazyKCStateDual
+export normalize, compile, LazyKCState, LazyKCConfig, LazyKCStateDual, get_time_limit, set_time_limit!
 
 const Callstack = Vector{Int}
 const Env = Vector{Any}
@@ -23,7 +23,12 @@ Base.@kwdef struct LazyKCConfig
     record_json::Bool = false
     free_manager::Bool = true
     results_file::Union{Nothing, String} = nothing
+    time_limit::Float64 = 0.0
+    state_vars::StateVars = StateVars()
 end
+
+set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
+get_time_limit(cfg::LazyKCConfig) = cfg.time_limit
 
 """
 Top-level compile function for lazy knowledge compilation.
@@ -149,6 +154,9 @@ function LazyKCStateDual(vector_size::Integer, cfg::LazyKCConfig)
     end
     return state
 end
+
+get_config(state::LazyKCState) = state.cfg
+
 
 function traced_compile_inner(expr::PExpr, env::Env, path_condition::BDD, state::LazyKCState, strict_order_index::Int)
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")

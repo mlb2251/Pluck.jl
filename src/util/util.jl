@@ -37,7 +37,7 @@ function normalize_dual(results)
     return [(res[1], (res[2][1] / total, (total*res[2][2] - res[2][1]*total_deriv)/(total^2))) for res in results]
 end
 
-function get_true_result(results, default)
+function get_true_result(results, default=nothing)
     res = nothing
     for (val, x) in results
         if val == Pluck.TRUE_VALUE || val == true

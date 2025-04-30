@@ -13,3 +13,9 @@ python/openai_api_key.txt
 PluckArtifact/data/large_bayes_nets/*.lisp
 PluckArtifact/data/large_bayes_nets/*.jl
 PluckArtifact/data/large_bayes_nets/*.jl.ignore
+data/large_bayes_nets/*.lisp
+data/large_bayes_nets/*.jl.ignore
+.vscode/
+/out
+build.log
+data_to_plot

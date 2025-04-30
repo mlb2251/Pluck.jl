@@ -1,4 +1,4 @@
-export pluck_list
+export pluck_list, StateVars, Value, get_true_result
 using Printf
 
 
@@ -148,3 +148,6 @@ function JSON.lower(x::FloatValue)
 end
 
 
+Base.@kwdef mutable struct StateVars
+    fuel::Int = 0 # 0 means infinite
+end
