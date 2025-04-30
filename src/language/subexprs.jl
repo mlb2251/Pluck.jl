@@ -3,7 +3,6 @@ export SubExpr,
     subexpr!,
     undo_subexpr!,
     subexpr_inner!,
-    IterDescendants,
     descendants_untyped
 
 """
@@ -27,7 +26,6 @@ modifies `se` in place to be the `i`th child of `se`.
 Note that if `se` is an Abs, it will descend through all
 the whole chain of Abs.
 """
-# subexpr_inner!(e::PExpr, se::SubExpr, i::Int) = error("not implemented")
 
 function subexpr_inner!(::Abs, se::SubExpr, i::Int)
     insert!(se.env, 1, arg_types(se.type)[1])
