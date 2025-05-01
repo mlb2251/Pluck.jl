@@ -7,25 +7,12 @@ abstract type AbstractValue end
 Base.:(==)(x::AbstractValue, y::Any) = error("Cannot compare Value with $(typeof(y))")
 Base.:(==)(x::Any, y::AbstractValue) = error("Cannot compare $(typeof(x)) with Value")
 
-struct FloatValue <: AbstractValue
-    value::Float64
+struct NativeValue{T} <: AbstractValue
+    value::T
 end
-Base.:(==)(x::FloatValue, y::FloatValue) = x.value == y.value
-Base.hash(x::FloatValue, h::UInt) = hash(x.value, h)
-Base.show(io::IO, x::FloatValue) = print(io, x.value)
-
-struct UIntValue <: AbstractValue
-    value::UInt64
-end
-Base.:(==)(x::UIntValue, y::UIntValue) = x.value == y.value
-Base.hash(x::UIntValue, h::UInt) = hash(x.value, h)
-Base.show(io::IO, x::UIntValue) = print(io, x.value)
-struct HostValue <: AbstractValue
-    value::Any
-end
-Base.:(==)(x::HostValue, y::HostValue) = x.value == y.value
-Base.hash(x::HostValue, h::UInt) = hash(x.value, h)
-Base.show(io::IO, x::HostValue) = print(io, x.value)
+Base.:(==)(x::NativeValue{T}, y::NativeValue{T}) where T = x.value == y.value
+Base.hash(x::NativeValue{T}, h::UInt) where T = hash(x.value, h)
+Base.show(io::IO, x::NativeValue{T}) where T = print(io, x.value)
 
 struct Value <: AbstractValue
     constructor::Symbol
@@ -109,7 +96,7 @@ end
 function show_value_inner(io::IO, x::Value)
     if x.constructor === :Prob
         prob, constructor, args = x.args
-        prob = prob.value # FloatValue -> Float
+        prob = prob.value # NativeValue{Float64} -> Float64
         args, _ = from_value(args) # Value -> Vector{Any}
         if prob ≈ 1.0
             print(io, "(", constructor)
@@ -139,12 +126,8 @@ function JSON.lower(x::Value)
     OrderedDict("type" => "Value", "constructor" => x.constructor, "args" => x.args)
 end
 
-function JSON.lower(x::HostValue)
-    OrderedDict("type" => "HostValue", "value" => x.value)
-end
-
-function JSON.lower(x::FloatValue)
-    OrderedDict("type" => "FloatValue", "value" => x.value)
+function JSON.lower(x::NativeValue)
+    OrderedDict("type" => "NativeValue", "value" => x.value)
 end
 
 

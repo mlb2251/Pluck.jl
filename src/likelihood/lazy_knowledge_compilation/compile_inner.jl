@@ -76,7 +76,7 @@ function compile_inner(expr::PExpr{Var}, env, path_condition, state::LazyKCState
 end
 
 function compile_inner(expr::PExpr{DiffVar}, env, path_condition, state::LazyKCState)
-    return pure_monad(UIntValue(expr.args[1]), state)
+    return pure_monad(NativeValue{UInt64}(expr.args[1]), state)
 end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state::LazyKCState)
@@ -85,7 +85,7 @@ function compile_inner(expr::PExpr{Defined}, env, path_condition, state::LazyKCS
 end
 
 function compile_inner(expr::PExpr{ConstReal}, env, path_condition, state::LazyKCState)
-    return pure_monad(FloatValue(expr.args[1]), state)
+    return pure_monad(NativeValue{Float64}(expr.args[1]), state)
 end
 
 
@@ -167,7 +167,7 @@ end
 
 function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state::LazyKCState)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
-        return pure_monad(HostValue(val.constructor), state)
+        return pure_monad(NativeValue(val.constructor), state)
     end
 end
 

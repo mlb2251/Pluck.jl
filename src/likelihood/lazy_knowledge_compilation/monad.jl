@@ -100,7 +100,7 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
                 constructor = post_val.constructor
                 res = get!(Vector{Tuple{Value, BDD}}, results_for_constructor, constructor)
                 push!(res, (post_val, pre_and_post))
-            elseif post_val isa Closure || post_val isa FloatValue || post_val isa Value || post_val isa HostValue
+            elseif post_val isa Closure || post_val isa Value || post_val isa NativeValue
                 result_index = Base.get!(index_of_result, post_val, length(join_results) + 1)
                 if result_index > length(join_results)
                     push!(join_results, (post_val, pre_and_post))
