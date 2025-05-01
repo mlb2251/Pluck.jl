@@ -2,8 +2,8 @@
 #### COMPILE IMPLEMENTATIONS ####
 #################################
 
-function compile_inner(expr::PExpr{App}, env, path_condition, state::LazyKCState)
-    thunked_argument = LazyKCThunk(expr.args[2], env, state.callstack, 1, state)
+function compile_inner(expr::PExpr{App}, env, path_condition, state)
+    thunked_argument = make_thunk(expr.args[2], env, 1, state)
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         new_env = copy(f.env)
@@ -17,15 +17,15 @@ function compile_inner(expr::PExpr{Abs}, env, path_condition, state)
     return pure_monad(Closure(expr.args[1], env), path_condition, state)
 end
 
-function compile_inner(expr::PExpr{Construct}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
     # Constructors deterministically evaluate to a WHNF value, with their arguments thunked.
     # Create a thunk for each argument.
-    thunked_arguments = [LazyKCThunk(arg, env, state.callstack, i, state) for (i, arg) in enumerate(expr.args[2])] # TODO: use global args_syms to avoid runtime cost of Symbol?
+    thunked_arguments = [make_thunk(arg, env, i, state) for (i, arg) in enumerate(expr.args[2])] # TODO: use global args_syms to avoid runtime cost of Symbol?
     # Return the constructor and its arguments.
     return pure_monad(Value(expr.args[1], thunked_arguments), path_condition, state)
 end
 
-function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
     # caseof_type = type_of_constructor[first(keys(expr.cases))]
     bind_compile(expr.args[1], env, path_condition, state, 0) do scrutinee, path_condition
         # value_type = type_of_constructor[scrutinee.constructor]
@@ -66,14 +66,14 @@ end
 function compile_inner(expr::PExpr{Var}, env, path_condition, state)
 
     v = env[expr.args[1]]
-    if v <: Thunk
+    if v isa Thunk
         return evaluate(v, path_condition, state)
     end
 
     return pure_monad(v, path_condition, state)
 end
 
-function compile_inner(expr::PExpr{Defined}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # Execute Defined with a blanked out environment.
     return traced_compile_inner(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
 end
@@ -83,7 +83,7 @@ end
 #### PRIMOP IMPLEMENTATIONS ####
 ################################
 
-function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
 
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
         p = p.value
@@ -107,7 +107,7 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state::LazyKCSt
     end
 end
 
-function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state)
     npartials = state.manager.vector_size
 
     p_init = 0.5
@@ -132,7 +132,7 @@ function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state::Lazy
     end
 end
 
-function compile_inner(expr::PExpr{NativeEqOp}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{NativeEqOp}, env, path_condition, state)
     # Evaluate both arguments.
     bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
@@ -145,7 +145,7 @@ end
 """
 Given a Value, returns a Cons-list of its arguments.
 """
-function compile_inner(expr::PExpr{GetArgsOp}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{GetArgsOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
         res = Value(:Nil)
         for arg in reverse(val.args)
@@ -165,7 +165,7 @@ function compile_inner(expr::PExpr{ConstNative}, env, path_condition, state)
     return pure_monad(NativeValue(expr.args[1]), path_condition, state)
 end
 
-function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state)
     bitwidth = expr.args[1]::ConstNative
     val = expr.args[2]::ConstNative
     bools = digits(Bool, val.value, base = 2, pad = bitwidth.value)
@@ -174,7 +174,7 @@ function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state::LazyKCS
     return pure_monad(IntDist(bits), path_condition, state)
 end
 
-function compile_inner(expr::PExpr{IntDistEqOp}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{IntDistEqOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do first_int_dist, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do second_int_dist, path_condition
             bdd = int_dist_eq(first_int_dist, second_int_dist, state)
@@ -183,7 +183,7 @@ function compile_inner(expr::PExpr{IntDistEqOp}, env, path_condition, state::Laz
     end
 end
 
-function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state)
     cond = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
 
     p_true = -Inf
@@ -202,9 +202,9 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state::LazyKCS
 
     logtotal = logaddexp(p_true, p_false)
 
-    p_true_thunk = LazyKCThunk(ConstNative(exp(p_true - logtotal)), Pluck.EMPTY_ENV, state.callstack, 1, state)
-    true_thunk = LazyKCThunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, state.callstack, 2, state)
-    false_thunk = LazyKCThunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, state.callstack, 3, state)
+    p_true_thunk = make_thunk(ConstNative(exp(p_true - logtotal)), Pluck.EMPTY_ENV, 1, state)
+    true_thunk = make_thunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, 2, state)
+    false_thunk = make_thunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, 3, state)
     bind_monad(cond, path_condition, state) do cond, path_condition
         if cond.constructor == :True
             return pure_monad(Value(:PBool, p_true_thunk, true_thunk), path_condition, state)

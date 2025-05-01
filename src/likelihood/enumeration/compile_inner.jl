@@ -1,94 +1,5 @@
 
-function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    fs = traced_compile_inner(expr.args[1], env, trace, state, 0)
 
-    if state.strict
-        # in strict semantics its safe to evaluate xs independently of f instead of nesting
-        # it within the bind call.
-        xs = traced_compile_inner(expr.args[2], env, Trace(), state, 1)
-        results = []
-        for (f, ftrace) in fs
-            for (x, xtrace) in xs
-                state.hit_limit && return []
-                new_env = copy(f.env)
-                pushfirst!(new_env, x)
-                new_trace = cat_trace(ftrace, xtrace)
-                for result in traced_compile_inner(f.expr, new_env, new_trace, state, 2)
-                    push!(results, result)
-                end
-            end
-        end
-        return results
-        # same thing but with bind:
-        # return bind_monad(fs, state) do f, trace
-        #     bind_monad(xs, state) do x, trace
-        #         new_env = copy(f.env)
-        #         pushfirst!(new_env, x)
-        #         return traced_compile_inner(f.expr, new_env, trace, state, :app_closure)
-        #     end
-        # end
-    end
-
-    thunked_argument = LazyEnumeratorThunk(expr.args[2], env, state, 1)
-    return bind_monad(fs, trace, state) do f, trace
-        new_env = copy(f.env)
-        x = Pluck.var_is_free(f.expr, 1) ? thunked_argument : nothing
-        pushfirst!(new_env, x)
-        return traced_compile_inner(f.expr, new_env, trace, state, 2)
-    end
-end
-
-function compile_inner(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    if state.strict
-        options_of_arg = []
-        for (i, arg) in enumerate(expr.args[2])
-            push!(options_of_arg, traced_compile_inner(arg, env, Trace(), state, i))
-        end
-        results = []
-        for args in Iterators.product(options_of_arg...)
-            if check_time_limit(state)
-                state.hit_limit = true
-                return []
-            end
-            new_trace = trace
-            new_args = []
-            for (arg, arg_trace) in args
-                new_trace = cat_trace(new_trace, arg_trace)
-                push!(new_args, arg)
-            end
-            push!(results, (Value(expr.args[1], new_args), new_trace))
-        end
-        return results
-    end
-
-    # Create a thunk for each argument.
-    thunked_arguments = [LazyEnumeratorThunk(arg, env, state, i) for (i, arg) in enumerate(expr.args[2])] # TODO: use global args_syms to avoid runtime cost of Symbol?
-    # Return the constructor and its arguments.
-    return [(Value(expr.args[1], thunked_arguments), trace)]
-end
-
-function compile_inner(expr::PExpr{CaseOf}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    scrutinee_values = traced_compile_inner(expr.args[1], env, trace, state, 0)
-    bind_monad(scrutinee_values, trace, state) do scrutinee, trace
-        idx = findfirst(c -> c[1] == scrutinee.constructor, expr.args[2])
-        if !isnothing(idx)
-            case_expr = expr.args[2][idx][2]
-            num_args = length(args_of_constructor[scrutinee.constructor])
-            if num_args == 0
-                return traced_compile_inner(case_expr, env, trace, state, idx)
-            else
-                for _ = 1:num_args
-                    @assert case_expr isa PExpr{Abs} "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
-                    case_expr = case_expr.args[1]
-                end
-                new_env = vcat(reverse(scrutinee.args), env)
-                return traced_compile_inner(case_expr, new_env, trace, state, idx)
-            end
-        else
-            return []
-        end
-    end
-end
 
 function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     ps = traced_compile_inner(expr.args[1], env, trace, state, 0)
@@ -99,7 +10,7 @@ function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, stat
         elseif isapprox(p, 1.0)
             return [(Pluck.TRUE_VALUE, trace)]
         else
-            addr = lazy_enumerator_make_address(state)
+            addr = make_address(state)
 
             # check if we already have this choice in the trace
             choice = get_choice(trace, addr, state)
@@ -116,29 +27,61 @@ function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, stat
 end
 
 
-function compile_inner(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+#####################
+# Eager compilation #
+#####################
 
-    # Evaluate both arguments.  
-    first_arg_results = traced_compile_inner(expr.args[1], env, trace, state, 0)
 
-    if state.strict
-        # in strict semantics its safe to evaluate second argument independently of first
-        # instead of nesting it within the bind call.   
-        second_arg_results = traced_compile_inner(expr.args[2], env, trace, state, 1)
-        return bind_monad(first_arg_results, trace, state) do arg1, trace
-            return bind_monad(second_arg_results, trace, state) do arg2, trace
-                if arg1.value == arg2.value
-                    return [(Pluck.TRUE_VALUE, trace)]
-                else
-                    return [(Pluck.FALSE_VALUE, trace)]
-                end
+function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState{EagerMode})
+    # in strict semantics its safe to evaluate xs independently of f instead of nesting
+    # it within the bind call.
+    fs = traced_compile_inner(expr.args[1], env, trace, state, 0)
+    xs = traced_compile_inner(expr.args[2], env, Trace(), state, 1)
+    results = []
+    for (f, ftrace) in fs
+        for (x, xtrace) in xs
+            state.hit_limit && return []
+            new_env = copy(f.env)
+            pushfirst!(new_env, x)
+            new_trace = cat_trace(ftrace, xtrace)
+            for result in traced_compile_inner(f.expr, new_env, new_trace, state, 2)
+                push!(results, result)
             end
         end
     end
+    return results
+end
 
-    bind_monad(first_arg_results, trace, state) do arg1, trace
-        second_arg_results = traced_compile_inner(expr.args[2], env, trace, state, 1)
-        bind_monad(second_arg_results, trace, state) do arg2, trace
+function compile_inner(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState{EagerMode})
+    # in strict semantics its safe to evaluate all arguments independently of each other.
+    options_of_arg = []
+    for (i, arg) in enumerate(expr.args[2])
+        push!(options_of_arg, traced_compile_inner(arg, env, Trace(), state, i))
+    end
+    results = []
+    for args in Iterators.product(options_of_arg...)
+        if check_time_limit(state)
+            state.hit_limit = true
+            return []
+        end
+        new_trace = trace
+        new_args = []
+        for (arg, arg_trace) in args
+            new_trace = cat_trace(new_trace, arg_trace)
+            push!(new_args, arg)
+        end
+        push!(results, (Value(expr.args[1], new_args), new_trace))
+    end
+    return results
+end
+
+function compile_inner(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState{EagerMode})
+    # in strict semantics its safe to evaluate second argument independently of first
+    # instead of nesting it within the bind call.   
+    first_arg_results = traced_compile_inner(expr.args[1], env, trace, state, 0)
+    second_arg_results = traced_compile_inner(expr.args[2], env, trace, state, 1)
+    return bind_monad(first_arg_results, trace, state) do arg1, trace
+        return bind_monad(second_arg_results, trace, state) do arg2, trace
             if arg1.value == arg2.value
                 return [(Pluck.TRUE_VALUE, trace)]
             else
@@ -146,20 +89,4 @@ function compile_inner(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, 
             end
         end
     end
-end
-
-function compile_inner(expr::PExpr{Var}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-
-
-    v = env[expr.args[1]]
-    if v isa LazyEnumeratorThunk
-        return evaluate(v, trace, state)
-    else
-        return [(v, trace)]
-    end
-end
-
-function compile_inner(expr::PExpr{Defined}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    # Execute Defined with a blanked out environment.
-    return traced_compile_inner(lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, trace, state, 0)
 end

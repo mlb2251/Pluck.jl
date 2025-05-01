@@ -6,19 +6,19 @@ struct LazyKCThunk <: Thunk
     callstack::Callstack
     strict_order_index::Int
 
-    function LazyKCThunk(expr::PExpr, env::Env, callstack::Callstack, strict_order_index::Int, state)
+    function LazyKCThunk(expr::PExpr, env::Env, strict_order_index::Int, state)
         if expr isa Var && env[expr.idx] isa LazyKCThunk
             return env[expr.idx]
         end
 
-        key = (expr, env, callstack)
-        if state !== nothing && state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
+        key = (expr, env, state.callstack)
+        if state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
             return state.thunk_cache[key]
         else
             cache = []
-            thunk = new(expr, env, cache, copy(callstack), strict_order_index)
-            if state !== nothing && state.cfg.use_thunk_cache
-                state.thunk_cache[(expr, copy(env), copy(callstack))] = thunk
+            thunk = new(expr, env, cache, copy(state.callstack), strict_order_index)
+            if state.cfg.use_thunk_cache
+                state.thunk_cache[(expr, copy(env), copy(state.callstack))] = thunk
             end
             return thunk
         end
@@ -28,6 +28,11 @@ end
 function Base.show(io::IO, x::LazyKCThunk)
     print(io, "LazyKCThunk(", x.expr, ")")
 end
+
+function make_thunk(expr::PExpr, env, strict_order_index, state::LazyKCState)
+    return LazyKCThunk(expr, env, strict_order_index, state)
+end
+
 
 struct LazyKCThunkUnion <: Thunk
     thunks::Vector{Tuple{LazyKCThunk, BDD}}

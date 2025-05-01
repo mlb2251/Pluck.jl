@@ -95,9 +95,11 @@ function cat_trace(trace::TraceImmutCons, trace2::TraceImmutCons)
     return result
 end
 
+abstract type LazyEagerMode end
+struct LazyMode <: LazyEagerMode end
+struct EagerMode <: LazyEagerMode end
 
-
-mutable struct LazyEnumeratorEvalState
+mutable struct LazyEnumeratorEvalState{M <: LazyEagerMode}
     callstack::Vector{Int}
     id_of_callstack::Dict{Vector{Int}, Int}
     callstack_of_id::Vector{Vector{Int}}
@@ -113,7 +115,12 @@ mutable struct LazyEnumeratorEvalState
     strict::Bool
 
     function LazyEnumeratorEvalState(; max_depth = nothing, time_limit = nothing, disable_traces = false, disable_cache = true, strict = false)
-        return new(Int[], Dict(), Vector{Vector{Int}}(), 0, max_depth, time_limit, 0., 0., false, 1, disable_traces, disable_cache, strict)
+        args = (Int[], Dict(), Vector{Vector{Int}}(), 0, max_depth, time_limit, 0., 0., false, 1, disable_traces, disable_cache, strict)
+        if strict
+            return LazyEnumeratorEvalState{EagerMode}(args...)
+        else
+            return LazyEnumeratorEvalState{LazyMode}(args...)
+        end
     end
 end
 

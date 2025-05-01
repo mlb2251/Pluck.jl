@@ -16,6 +16,10 @@ mutable struct LazyEnumeratorThunk <: Thunk
     end
 end
 
+function make_thunk(expr::PExpr, env, strict_order_index, state::LazyEnumeratorEvalState)
+    return LazyEnumeratorThunk(expr, env, state, strict_order_index)
+end
+
 function evaluate(thunk::LazyEnumeratorThunk, trace::Trace, state::LazyEnumeratorEvalState)
     if state.hit_limit
         return []
