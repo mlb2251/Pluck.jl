@@ -1,4 +1,4 @@
-export posterior_sample, adaptive_rejection_sampling, sample_value, SampleValueState
+export posterior_sample, adaptive_rejection_sampling, SampleValueState
 
 function posterior_sample(val, state)    
     # First evaluate the evidence thunk to get true/false BDDs
@@ -115,45 +115,37 @@ mutable struct SampleValueState
     end
 end
 
-function traced_sample_value(expr::PExpr, env::Env, state::SampleValueState, strict_order_index::Int)
+function traced_compile_inner(expr::PExpr, env::Env, null::Nothing, state::SampleValueState, strict_order_index::Int)
     push!(state.callstack, strict_order_index)
-    result = sample_value_forward(expr, env, state)
+    result = compile_inner(expr, env, null, state)
     pop!(state.callstack)
     return result
 end
 
-function sample_value_forward(expr::PExpr, env::Env, state::SampleValueState)
-    error("sample_value_forward not implemented for $(typeof(expr))")
-end
 
-function sample_value_forward(expr::PExpr{ConstNative}, env::Env, state::SampleValueState)
-    return expr.args[1]
+function pure_monad(val, trace, state::SampleValueState)
+    return val
 end
 
 
-function sample_value_forward(expr::PExpr{App}, env::Env, state::SampleValueState)
-    f = traced_sample_value(expr.args[1], env, state, 0)
-    arg = state.lazy ? make_thunk(expr.args[2], env, 1, state) : traced_sample_value(expr.args[2], env, state, 1)
+function compile_inner(expr::PExpr{App}, env::Env, null::Nothing, state::SampleValueState)
+    f = traced_compile_inner(expr.args[1], env, null, state, 0)
+    arg = state.lazy ? make_thunk(expr.args[2], env, 1, state) : traced_compile_inner(expr.args[2], env, null, state, 1)
 
     new_env = copy(f.env)
     pushfirst!(new_env, arg)
-    return traced_sample_value(f.expr, new_env, state, 2)
+    return traced_compile_inner(f.expr, new_env, null, state, 2)
 end
 
-function sample_value_forward(expr::PExpr{Abs}, env::Env, state::SampleValueState)
-    # A lambda term deterministically evaluates to a closure.
-    return Closure(expr.args[1], env)
-end
-
-function sample_value_forward(expr::PExpr{Construct}, env::Env, state::SampleValueState)
+function compile_inner(expr::PExpr{Construct}, env::Env, null::Nothing, state::SampleValueState)
     # Evaluate each argument.
-    evaluated_arguments = [(state.lazy ? make_thunk(arg, env, i, state) : traced_sample_value(arg, env, state, i)) for (i, arg) in enumerate(expr.args[2])]
+    evaluated_arguments = [(state.lazy ? make_thunk(arg, env, i, state) : traced_compile_inner(arg, env, null, state, i)) for (i, arg) in enumerate(expr.args[2])]
     # Return the constructor and its arguments.
     return Value(expr.args[1], evaluated_arguments)
 end
 
-function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueState)
-    scrutinee_value = traced_sample_value(expr.args[1], env, state, 0)
+function compile_inner(expr::PExpr{CaseOf}, env::Env, null::Nothing, state::SampleValueState)
+    scrutinee_value = traced_compile_inner(expr.args[1], env, null, state, 0)
 
     idx = findfirst(c -> c[1] == scrutinee_value.constructor, expr.args[2])
 
@@ -165,7 +157,7 @@ function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueS
     case_expr = expr.args[2][idx][2]
     num_args = length(args_of_constructor[scrutinee_value.constructor])
     if num_args == 0
-        return traced_sample_value(case_expr, env, state, idx)
+        return traced_compile_inner(case_expr, env, null, state, idx)
     else
         for _ = 1:num_args
             case_expr = case_expr.args[1]
@@ -174,11 +166,11 @@ function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueS
         for (arg) in scrutinee_value.args
             pushfirst!(new_env, arg)
         end
-        return traced_sample_value(case_expr, new_env, state, idx)
+        return traced_compile_inner(case_expr, new_env, null, state, idx)
     end
 end
 
-function sample_value_forward(expr::PExpr{Y}, env::Env, state::SampleValueState)
+function compile_inner(expr::PExpr{Y}, env::Env, null::Nothing, state::SampleValueState)
     @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
 
     closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
@@ -188,19 +180,16 @@ function sample_value_forward(expr::PExpr{Y}, env::Env, state::SampleValueState)
 end
 
 
-function sample_value_forward(expr::PExpr{MkIntOp}, env::Env, state::SampleValueState)
-    return expr.args[2]
-end
 
-
-function sample_value_forward(expr::PExpr{IntDistEqOp}, env::Env, state::SampleValueState)
-    arg1 = traced_sample_value(expr.args[1], env, state, 0)
-    arg2 = traced_sample_value(expr.args[2], env, state, 1)
+function compile_inner(expr::PExpr{IntDistEqOp}, env::Env, null::Nothing, state::SampleValueState)
+    arg1 = traced_compile_inner(expr.args[1], env, null, state, 0)
+    arg2 = traced_compile_inner(expr.args[2], env, null, state, 1)
     return arg1 == arg2 ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
 end
 
-function sample_value_forward(expr::PExpr{FlipOp}, env::Env, state::SampleValueState)
-    p = traced_sample_value(expr.args[1], env, state, 0)
+function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::SampleValueState)
+    p = traced_compile_inner(expr.args[1], env, null, state, 0)
+    p = p.value
     if isapprox(p, 0.0)
         return Pluck.FALSE_VALUE
     elseif isapprox(p, 1.0)
@@ -234,10 +223,10 @@ function sample_value_forward(expr::PExpr{FlipOp}, env::Env, state::SampleValueS
     end
 end
 
-function sample_value_forward(expr::PExpr{NativeEqOp}, env::Env, state::SampleValueState)
+function compile_inner(expr::PExpr{NativeEqOp}, env::Env, null::Nothing, state::SampleValueState)
     # Evaluate both arguments.
-    first_arg_result = traced_sample_value(expr.args[1], env, state, 0)
-    second_arg_result = traced_sample_value(expr.args[2], env, state, 1)
+    first_arg_result = traced_compile_inner(expr.args[1], env, null, state, 0)
+    second_arg_result = traced_compile_inner(expr.args[2], env, null, state, 1)
     if first_arg_result.value == second_arg_result.value
         return Pluck.TRUE_VALUE
     else
@@ -245,8 +234,8 @@ function sample_value_forward(expr::PExpr{NativeEqOp}, env::Env, state::SampleVa
     end
 end
 
-function sample_value_forward(expr::PExpr{GetArgsOp}, env::Env, state::SampleValueState)
-    val = traced_sample_value(expr.args[1], env, state, 0)
+function compile_inner(expr::PExpr{GetArgsOp}, env::Env, null::Nothing, state::SampleValueState)
+    val = traced_compile_inner(expr.args[1], env, null, state, 0)
     @assert val isa Value
     res = Value(:Nil)
     for arg in reverse(val.args)
@@ -264,37 +253,20 @@ function sample_thunk(t::LazyKCThunk, state::SampleValueState)
     # Remember old callstack
     old_callstack = state.callstack
     state.callstack = copy(t.callstack)
-    result = traced_sample_value(t.expr, t.env, state, t.strict_order_index)
+    result = traced_compile_inner(t.expr, t.env, nothing, state, t.strict_order_index)
     state.callstack = old_callstack
     return result
 end
 
-function sample_thunk(t::LazyKCThunkUnion, state::SampleValueState)
-    error("LazyKCThunkUnion found while posterior sampling; this should not happen unless a PosteriorSample query was *randomly* generated.")
-end
-
-function sample_value_forward(expr::PExpr{Var}, env::Env, state::SampleValueState)
-    # Look up the variable in the environment.
-    if expr.args[1] > length(env)
-        @warn "Variable $expr not found in environment."
-        return nothing
-    end
-
-    if env[expr.args[1]] isa LazyKCThunk || env[expr.args[1]] isa LazyKCThunkUnion
-        return sample_thunk(env[expr.args[1]], state)
+function compile_inner(expr::PExpr{Var}, env::Env, null::Nothing, state::SampleValueState)
+    val = env[expr.args[1]]
+    if val isa LazyKCThunk || val isa LazyKCThunkUnion
+        return sample_thunk(val, state)
     else
-        return env[expr.args[1]]
+        return pure_monad(val, null, state)
     end
 end
 
-function sample_value_forward(expr::PExpr{Defined}, env::Env, state::SampleValueState)
-    # Execute Defined with a blanked out environment.
-    return traced_sample_value(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, state, 0)
-end
-
-function sample_value(expr::PExpr, env::Env, state::SampleValueState)
-    return traced_sample_value(expr, env, state, 0)
-end
 
 function force_value(v::Value, state::SampleValueState)
     for i in 1:length(v.args)
