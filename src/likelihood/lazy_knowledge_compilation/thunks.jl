@@ -3,10 +3,9 @@ struct LazyKCThunk
     env::Env
     cache::Vector{GuardedWorlds}
     callstack::Callstack
-    name::Symbol
     strict_order_index::Int
 
-    function LazyKCThunk(expr::PExpr, env::Env, callstack::Callstack, name::Symbol, strict_order_index::Int, state)
+    function LazyKCThunk(expr::PExpr, env::Env, callstack::Callstack, strict_order_index::Int, state)
         if expr isa Var && env[expr.idx] isa LazyKCThunk
             return env[expr.idx]
         end
@@ -16,7 +15,7 @@ struct LazyKCThunk
             return state.thunk_cache[key]
         else
             cache = []
-            thunk = new(expr, env, cache, copy(callstack), name, strict_order_index)
+            thunk = new(expr, env, cache, copy(callstack), strict_order_index)
             if state !== nothing && state.cfg.use_thunk_cache
                 state.thunk_cache[(expr, copy(env), copy(callstack))] = thunk
             end

@@ -3,7 +3,7 @@
 #################################
 
 function compile_inner(expr::PExpr{App}, env, path_condition, state::LazyKCState)
-    thunked_argument = LazyKCThunk(expr.args[2], env, state.callstack, :app_x, 1, state)
+    thunked_argument = LazyKCThunk(expr.args[2], env, state.callstack, 1, state)
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         new_env = copy(f.env)
@@ -20,7 +20,7 @@ end
 function compile_inner(expr::PExpr{Construct}, env, path_condition, state::LazyKCState)
     # Constructors deterministically evaluate to a WHNF value, with their arguments thunked.
     # Create a thunk for each argument.
-    thunked_arguments = [LazyKCThunk(arg, env, state.callstack, Symbol("$(expr.args[1]).arg$i"), i, state) for (i, arg) in enumerate(expr.args[2])] # TODO: use global args_syms to avoid runtime cost of Symbol?
+    thunked_arguments = [LazyKCThunk(arg, env, state.callstack, i, state) for (i, arg) in enumerate(expr.args[2])] # TODO: use global args_syms to avoid runtime cost of Symbol?
     # Return the constructor and its arguments.
     return pure_monad(Value(expr.args[1], thunked_arguments), path_condition, state)
 end
@@ -202,9 +202,9 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state::LazyKCS
 
     logtotal = logaddexp(p_true, p_false)
 
-    p_true_thunk = LazyKCThunk(ConstNative(exp(p_true - logtotal)), Pluck.EMPTY_ENV, state.callstack, :p_true, 1, state)
-    true_thunk = LazyKCThunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :true_thunk, 2, state)
-    false_thunk = LazyKCThunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :false_thunk, 3, state)
+    p_true_thunk = LazyKCThunk(ConstNative(exp(p_true - logtotal)), Pluck.EMPTY_ENV, state.callstack, 1, state)
+    true_thunk = LazyKCThunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, state.callstack, 2, state)
+    false_thunk = LazyKCThunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, state.callstack, 3, state)
     bind_monad(cond, path_condition, state) do cond, path_condition
         if cond.constructor == :True
             return pure_monad(Value(:PBool, p_true_thunk, true_thunk), path_condition, state)

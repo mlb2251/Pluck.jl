@@ -98,7 +98,7 @@ function viz_lower(thunk::LazyKCThunk, viz::BDDJSONLogger)
         "expr" => viz_lower(thunk.expr, viz),
         "env" => viz_lower(thunk.env, viz; expr = thunk.expr),
         "callstack" => copy(thunk.callstack),
-        "name" => thunk.name,
+        "strict_order_index" => thunk.strict_order_index,
     )
 end
 

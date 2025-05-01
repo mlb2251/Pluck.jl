@@ -128,7 +128,7 @@ end
 
 function sample_value_forward(expr::PExpr{App}, env::Env, state::SampleValueState)
     f = traced_sample_value(expr.args[1], env, state, 0)
-    arg = state.lazy ? LazyKCThunk(expr.args[2], env, state.callstack, :lazy_arg, 1, nothing) : traced_sample_value(expr.args[2], env, state, 1)
+    arg = state.lazy ? LazyKCThunk(expr.args[2], env, state.callstack, 1, nothing) : traced_sample_value(expr.args[2], env, state, 1)
 
     new_env = copy(f.env)
     pushfirst!(new_env, arg)
@@ -144,7 +144,7 @@ function sample_value_forward(expr::PExpr{Construct}, env::Env, state::SampleVal
     # Look up type of this constructor.
     spt = Pluck.spt_of_constructor[expr.constructor]
     # Evaluate each argument.
-    evaluated_arguments = [(state.lazy ? LazyKCThunk(arg, env, state.callstack, Symbol("lazy_arg$(i)"), i, nothing) : traced_sample_value(arg, env, state, i)) for (i, arg) in enumerate(expr.args)]
+    evaluated_arguments = [(state.lazy ? LazyKCThunk(arg, env, state.callstack, i, nothing) : traced_sample_value(arg, env, state, i)) for (i, arg) in enumerate(expr.args)]
     # Return the constructor and its arguments.
     return Value(expr.constructor, evaluated_arguments)
 end
