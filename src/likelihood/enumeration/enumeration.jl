@@ -1,4 +1,4 @@
-export lazy_enumerate
+export compile_inner
 import FunctionalCollections: PersistentHashMap, assoc
 
 
@@ -122,8 +122,8 @@ mutable struct LazyEnumeratorEvalState
     end
 end
 
-function traced_lazy_enumerate(expr::PExpr, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState, name::Symbol)
-    # println(" " ^ state.depth * "traced_lazy_enumerate($expr)")
+function traced_compile_inner(expr::PExpr, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState, name::Symbol)
+    # println(" " ^ state.depth * "traced_compile_inner($expr)")
 
     if state.hit_limit
         return []
@@ -141,7 +141,7 @@ function traced_lazy_enumerate(expr::PExpr, env::Vector{Any}, trace::Trace, stat
 
     state.depth += 1
     push!(state.callstack, name)
-    worlds = lazy_enumerate(expr, env, trace, state)
+    worlds = compile_inner(expr, env, trace, state)
     pop!(state.callstack)
     state.depth -= 1
     return worlds
@@ -172,7 +172,7 @@ end
 end
 
 
-function lazy_enumerate(expr; show_length = false, kwargs...)
+function compile_inner(expr; show_length = false, kwargs...)
     s = LazyEnumeratorEvalState(; kwargs...)
     if expr isa String
         expr = parse_expr(expr)
@@ -181,10 +181,10 @@ function lazy_enumerate(expr; show_length = false, kwargs...)
     s.start_time = time()
     
     ret = try
-        lazy_enumerate(expr, Pluck.EMPTY_ENV, Trace(), s)
+        compile_inner(expr, Pluck.EMPTY_ENV, Trace(), s)
     catch e
         if e isa StackOverflowError
-            # printstyled("[lazy_enumerate: stackoverflow]\n"; color=:yellow)
+            # printstyled("[compile_inner: stackoverflow]\n"; color=:yellow)
             s.hit_limit = true
             return []
         else

@@ -31,7 +31,7 @@ function evaluate(thunk::LazyEnumeratorThunk, trace::Trace, state::LazyEnumerato
     # Otherwise we have to evaluate the thunk. Set the callstack to the thunk's callstack.
     old_callstack = state.callstack
     state.callstack = thunk.callstack
-    result = traced_lazy_enumerate(thunk.expr, thunk.env, trace, state, thunk.name)
+    result = traced_compile_inner(thunk.expr, thunk.env, trace, state, thunk.name)
     state.callstack = old_callstack
     # Cache the result
     result = map(result) do (val, trace)
