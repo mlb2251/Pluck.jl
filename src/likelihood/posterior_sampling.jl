@@ -10,7 +10,7 @@ function posterior_sample(val, state)
         evidence_bdd = nothing
         for (result, bdd) in evidence_results
             if result == Pluck.TRUE_VALUE || (result isa Value && result.constructor == :True)
-                evidence_bdd, _ = RSDD.weighted_sample(bdd, state.weights)
+                evidence_bdd, _ = RSDD.weighted_sample(bdd, state.manager.weights)
                 break
             end
         end
@@ -47,7 +47,7 @@ function adaptive_rejection_sampling(val, state)
     sample_state = SampleValueState(constraint, [], state.var_of_callstack, true)
     
     while true
-        sampled_constraint, _ = RSDD.weighted_sample(constraint, state.weights)
+        sampled_constraint, _ = RSDD.weighted_sample(constraint, state.manager.weights)
         sample_state.constraint = sampled_constraint
         sampled_pred = sample_thunk(val.args[2], sample_state)
         
@@ -69,7 +69,7 @@ function adaptive_rejection_sampling(val, state)
                 insert!(sorted_callstacks, i, callstack)
                 insert!(sorted_var_labels, i, Int(bdd_topvar(addr)))
                 sample_state.var_of_callstack[callstack] = addr
-                RSDD.wmc_param_f64_set_weight(state.weights, bdd_topvar(addr), 1.0 - callstack[2], callstack[2])
+                RSDD.wmc_param_f64_set_weight(state.manager.weights, bdd_topvar(addr), 1.0 - callstack[2], callstack[2])
             end
             addr = sample_state.var_of_callstack[callstack]
             if result
@@ -126,6 +126,11 @@ function sample_value_forward(expr::PExpr, env::Env, state::SampleValueState)
     error("sample_value_forward not implemented for $(typeof(expr))")
 end
 
+function sample_value_forward(expr::PExpr{ConstNative}, env::Env, state::SampleValueState)
+    return expr.args[1]
+end
+
+
 function sample_value_forward(expr::PExpr{App}, env::Env, state::SampleValueState)
     f = traced_sample_value(expr.args[1], env, state, 0)
     arg = state.lazy ? make_thunk(expr.args[2], env, 1, state) : traced_sample_value(expr.args[2], env, state, 1)
@@ -141,12 +146,10 @@ function sample_value_forward(expr::PExpr{Abs}, env::Env, state::SampleValueStat
 end
 
 function sample_value_forward(expr::PExpr{Construct}, env::Env, state::SampleValueState)
-    # Look up type of this constructor.
-    spt = Pluck.spt_of_constructor[expr.constructor]
     # Evaluate each argument.
-    evaluated_arguments = [(state.lazy ? make_thunk(arg, env, i, state) : traced_sample_value(arg, env, state, i)) for (i, arg) in enumerate(expr.args)]
+    evaluated_arguments = [(state.lazy ? make_thunk(arg, env, i, state) : traced_sample_value(arg, env, state, i)) for (i, arg) in enumerate(expr.args[2])]
     # Return the constructor and its arguments.
-    return Value(expr.constructor, evaluated_arguments)
+    return Value(expr.args[1], evaluated_arguments)
 end
 
 function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueState)
@@ -160,7 +163,7 @@ function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueS
     end
 
     case_expr = expr.args[2][idx][2]
-    num_args = length(args_of_constructor(scrutinee_value.constructor))
+    num_args = length(args_of_constructor[scrutinee_value.constructor])
     if num_args == 0
         return traced_sample_value(case_expr, env, state, idx)
     else
@@ -253,6 +256,9 @@ function sample_value_forward(expr::PExpr{GetArgsOp}, env::Env, state::SampleVal
 end
 
 
+function make_thunk(expr::PExpr, env, strict_order_index, state::SampleValueState)
+    return LazyKCThunk(expr, env, strict_order_index, state)
+end
 
 function sample_thunk(t::LazyKCThunk, state::SampleValueState)
     # Remember old callstack

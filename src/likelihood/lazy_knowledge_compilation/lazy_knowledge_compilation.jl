@@ -13,7 +13,7 @@ Base.@kwdef mutable struct LazyKCConfig
     sample_after_max_depth::Bool = false
     use_strict_order::Bool = true
     use_reverse_order::Bool = false
-    use_thunk_cache::Bool = false
+    # use_thunk_cache::Bool = false
     use_thunk_unions::Bool = true
     disable_used_information::Bool = false
     disable_path_conditions::Bool = false

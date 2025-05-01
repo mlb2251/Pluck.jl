@@ -730,7 +730,7 @@ Returns: Tuple of (BDD, Float64) representing the sampled BDD and its probabilit
 function weighted_sample(bdd::BDD, wmc_params::WmcParams)
     result = @rsdd_timed ccall(robdd_weighted_sample_ptr, WeightedSampleResult,
         (ManagerPtr, Csize_t, Ptr{Cvoid}),
-        bdd.manager_ptr, bdd.ptr, wmc_params.ptr)
+        bdd.manager.ptr, bdd.ptr, wmc_params.ptr)
 
     sample_bdd = BDD(bdd.manager, result.sample)
     probability = result.probability

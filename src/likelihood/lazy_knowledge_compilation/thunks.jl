@@ -12,16 +12,16 @@ struct LazyKCThunk <: Thunk
         end
 
         key = (expr, env, state.callstack)
-        if state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
-            return state.thunk_cache[key]
-        else
-            cache = []
-            thunk = new(expr, env, cache, copy(state.callstack), strict_order_index)
-            if state.cfg.use_thunk_cache
-                state.thunk_cache[(expr, copy(env), copy(state.callstack))] = thunk
-            end
-            return thunk
-        end
+        # if state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
+        #     return state.thunk_cache[key]
+        # else
+        cache = []
+        thunk = new(expr, env, cache, copy(state.callstack), strict_order_index)
+        # if state.cfg.use_thunk_cache
+        #     state.thunk_cache[(expr, copy(env), copy(state.callstack))] = thunk
+        # end
+        return thunk
+        # end
     end
 end
 
