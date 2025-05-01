@@ -31,7 +31,7 @@ Trace() = Trace(TraceImmutNil(), ThunkCache(), 0.0)
 
 
 function get_choice(trace::Trace, addr::Int, state)
-    state.disable_traces && return nothing
+    state.cfg.disable_traces && return nothing
     trace = trace.trace
     while trace isa TraceImmutCons
         if trace.choice.addr == addr
@@ -43,12 +43,12 @@ function get_choice(trace::Trace, addr::Int, state)
 end
 
 function get_cache(trace::Trace, id::Int, state)
-    state.disable_cache && return nothing
+    state.cfg.disable_cache && return nothing
     return get(trace.cache, id, nothing)
 end
 
 function set_cache(trace::Trace, id::Int, val::Any, state)
-    state.disable_cache && return trace
+    state.cfg.disable_cache && return trace
     return Trace(trace.trace, assoc(trace.cache, id, val), trace.weight)
 end
 
@@ -69,7 +69,7 @@ weight(trace::Trace) = trace.weight
 
 
 function extend_trace(trace::Trace, choice::Choice, state)
-    if state.disable_traces
+    if state.cfg.disable_traces
         return Trace(trace.trace, trace.cache, trace.weight + choice.weight)
     end
     return Trace(TraceImmutCons(choice, trace.trace), trace.cache, trace.weight + choice.weight)
@@ -99,30 +99,42 @@ abstract type LazyEagerMode end
 struct LazyMode <: LazyEagerMode end
 struct EagerMode <: LazyEagerMode end
 
+
+Base.@kwdef mutable struct LazyEnumeratorConfig
+    max_depth::Union{Int, Nothing} = nothing
+    time_limit::Union{Float64, Nothing} = nothing
+    disable_traces::Bool = false
+    disable_cache::Bool = true
+    strict::Bool = false
+end
+
 mutable struct LazyEnumeratorEvalState{M <: LazyEagerMode}
     callstack::Vector{Int}
     id_of_callstack::Dict{Vector{Int}, Int}
     callstack_of_id::Vector{Vector{Int}}
     depth::Int
-    max_depth::Union{Int, Nothing}
-    time_limit::Union{Float64, Nothing}
     start_time::Float64
     depth_reached::Int
     hit_limit::Bool
     next_thunk_id::Int
-    disable_traces::Bool
-    disable_cache::Bool # we actually find cache slows things down
-    strict::Bool
+    cfg::LazyEnumeratorConfig
 
-    function LazyEnumeratorEvalState(; max_depth = nothing, time_limit = nothing, disable_traces = false, disable_cache = true, strict = false)
-        args = (Int[], Dict(), Vector{Vector{Int}}(), 0, max_depth, time_limit, 0., 0., false, 1, disable_traces, disable_cache, strict)
-        if strict
+    function LazyEnumeratorEvalState(cfg::LazyEnumeratorConfig)
+        args = (Int[], Dict(), Vector{Vector{Int}}(), 0, 0., 0, false, 1, cfg)
+        if cfg.strict
             return new{EagerMode}(args...)
         else
             return new{LazyMode}(args...)
         end
     end
+
+    function LazyEnumeratorEvalState(;kwargs...)
+        cfg = LazyEnumeratorConfig(;kwargs...)
+        LazyEnumeratorEvalState(cfg)
+    end
 end
+
+
 
 function traced_compile_inner(expr::PExpr, env, trace, state::LazyEnumeratorEvalState, strict_order_index)
     # println(" " ^ state.depth * "traced_compile_inner($expr)")
@@ -131,7 +143,7 @@ function traced_compile_inner(expr::PExpr, env, trace, state::LazyEnumeratorEval
         return []
     end
 
-    if state.max_depth !== nothing && state.depth > state.max_depth
+    if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth
         state.hit_limit = true
         return []
     end
@@ -151,7 +163,7 @@ end
 
 
 function current_address(state::LazyEnumeratorEvalState, p::Float64)
-    state.disable_traces && return 0
+    state.cfg.disable_traces && return 0
     if haskey(state.id_of_callstack, state.callstack)
         return state.id_of_callstack[state.callstack]
     else
@@ -169,12 +181,12 @@ end
 end
 
 @inline function check_time_limit(state::LazyEnumeratorEvalState)
-    res = !isnothing(state.time_limit) && elapsed_time(state) > state.time_limit
+    res = !isnothing(state.cfg.time_limit) && elapsed_time(state) > state.cfg.time_limit
     return res
 end
 
 
-function compile_inner(expr; show_length = false, kwargs...)
+function compile(expr; show_length = false, kwargs...)
     s = LazyEnumeratorEvalState(; kwargs...)
     if expr isa String
         expr = parse_expr(expr)

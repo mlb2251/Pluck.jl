@@ -8,7 +8,7 @@ const GuardedWorldsT{T} = Tuple{Vector{WorldT{T}}, BDD}
 const GuardedWorlds = GuardedWorldsT{Any}
 const EMPTY_ENV::Env = Any[]
 
-Base.@kwdef struct LazyKCConfig
+Base.@kwdef mutable struct LazyKCConfig
     max_depth::Union{Int, Nothing} = nothing
     sample_after_max_depth::Bool = false
     use_strict_order::Bool = true

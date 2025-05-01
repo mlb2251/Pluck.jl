@@ -6,7 +6,7 @@ mutable struct LazyEnumeratorThunk <: Thunk
     id::Int
 
     function LazyEnumeratorThunk(expr::PExpr, env::Vector{Any}, state::LazyEnumeratorEvalState, strict_order_index::Int)
-        @assert !state.strict
+        @assert !state.cfg.strict
         if expr isa Var && env[expr.idx] isa LazyEnumeratorThunk
             return env[expr.idx]
         end
