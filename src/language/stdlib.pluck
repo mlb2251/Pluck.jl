@@ -1,3 +1,5 @@
+(define (constructors_equal a b) (native_eq (get_constructor a) (get_constructor b)))
+
 ;; boolean operations
 (define (and a b) (if a b (False)))
 (define (or a b) (if a (True) b))

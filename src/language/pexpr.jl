@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, ConstructorEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative
 
 import DataStructures: OrderedDict
 
@@ -185,8 +185,8 @@ define_parser!("flip", FlipOp, 1)
 struct FlipOpDual <: Head end
 define_parser!("flipd", FlipOpDual, 1)
 
-struct ConstructorEqOp <: Head end
-define_parser!("constructors_equal", ConstructorEqOp, 2)
+struct NativeEqOp <: Head end
+define_parser!("native_eq", NativeEqOp, 2)
 
 struct GetArgsOp <: Head end
 define_parser!("get_args", GetArgsOp, 1)

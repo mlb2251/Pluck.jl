@@ -251,13 +251,13 @@ function bdd_prim_forward(expr::PExpr{FlipOp}, env::Env, state::BDDStrictEvalSta
     end
 end
 
-function bdd_prim_forward(expr::PExpr{ConstructorEqOp}, env::Env, state::BDDStrictEvalState)
+function bdd_prim_forward(expr::PExpr{NativeEqOp}, env::Env, state::BDDStrictEvalState)
     # Evaluate both arguments.
     first_arg_results = traced_bdd_forward(expr.args[1], env, state)
     bdd_bind(first_arg_results, state) do arg1, arg1_guard
         second_arg_results = traced_bdd_forward(expr.args[2], env, state)
         bdd_bind(second_arg_results, state) do arg2, arg2_guard
-            if arg1.constructor == arg2.constructor
+            if arg1.value == arg2.value
                 return [(Pluck.TRUE_VALUE, state.manager.BDD_TRUE)]
             else
                 return [(Pluck.FALSE_VALUE, state.manager.BDD_TRUE)]

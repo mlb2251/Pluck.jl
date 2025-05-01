@@ -371,7 +371,7 @@ function lazy_enumerate(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, sta
     end
 end
 
-function lazy_enumerate(expr::PExpr{ConstructorEqOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+function lazy_enumerate(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
 
     # Evaluate both arguments.  
     first_arg_results = traced_lazy_enumerate(expr.args[1], env, trace, state, :constructor_eq_arg1)
@@ -382,7 +382,7 @@ function lazy_enumerate(expr::PExpr{ConstructorEqOp}, env::Vector{Any}, trace::T
         second_arg_results = traced_lazy_enumerate(expr.args[2], env, trace, state, :constructor_eq_arg2)
         return lazy_enumerator_bind(first_arg_results, state) do arg1, trace
             return lazy_enumerator_bind(second_arg_results, state) do arg2, trace
-                if arg1.constructor == arg2.constructor
+                if arg1.value == arg2.value
                     return [(Pluck.TRUE_VALUE, trace)]
                 else
                     return [(Pluck.FALSE_VALUE, trace)]
@@ -394,7 +394,7 @@ function lazy_enumerate(expr::PExpr{ConstructorEqOp}, env::Vector{Any}, trace::T
     lazy_enumerator_bind(first_arg_results, state) do arg1, trace
         second_arg_results = traced_lazy_enumerate(expr.args[2], env, trace, state, :constructor_eq_arg2)
         lazy_enumerator_bind(second_arg_results, state) do arg2, trace
-            if arg1.constructor == arg2.constructor
+            if arg1.value == arg2.value
                 return [(Pluck.TRUE_VALUE, trace)]
             else
                 return [(Pluck.FALSE_VALUE, trace)]

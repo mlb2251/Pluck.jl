@@ -134,11 +134,11 @@ function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state::Lazy
     end
 end
 
-function compile_inner(expr::PExpr{ConstructorEqOp}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{NativeEqOp}, env, path_condition, state::LazyKCState)
     # Evaluate both arguments.
     bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
-            val = arg1.constructor == arg2.constructor ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
+            val = arg1.value == arg2.value ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
             return pure_monad(val, state)
         end
     end

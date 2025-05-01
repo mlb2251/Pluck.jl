@@ -6,7 +6,7 @@
   (PBool float bool))
 
 (define (factored=? x y)
-  (match (pbool (constructors_equal x y))
+  (match (pbool (constructor=? x y))
     PBool p_true con_equal => (match con_equal
                                 True => (Prob p_true (get_constructor x) (zip_with factored=? (get_args x) (get_args y))))))
 

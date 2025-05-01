@@ -233,11 +233,11 @@ function sample_value_forward(expr::PExpr{FlipOp}, env::Env, state::SampleValueS
     end
 end
 
-function sample_value_forward(expr::PExpr{ConstructorEqOp}, env::Env, state::SampleValueState)
+function sample_value_forward(expr::PExpr{NativeEqOp}, env::Env, state::SampleValueState)
     # Evaluate both arguments.
     first_arg_result = traced_sample_value(expr.args[1], env, state, 0)
     second_arg_result = traced_sample_value(expr.args[2], env, state, 1)
-    if first_arg_result.constructor == second_arg_result.constructor
+    if first_arg_result.value == second_arg_result.value
         return Pluck.TRUE_VALUE
     else
         return Pluck.FALSE_VALUE
