@@ -2,7 +2,7 @@
 #### COMPILE IMPLEMENTATIONS ####
 #################################
 
-function compile_inner(expr::PExpr{App}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{App}, env, path_condition, state::LazyKCState)
     thunked_argument = LazyKCThunk(expr.args[2], env, state.callstack, :app_x, 1, state)
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
@@ -13,12 +13,12 @@ function compile_inner(expr::PExpr{App}, env::Env, path_condition::BDD, state::L
     end
 end
 
-function compile_inner(expr::PExpr{Abs}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{Abs}, env, path_condition, state::LazyKCState)
     # A lambda term deterministically evaluates to a closure.
     return pure_monad(Closure(expr.args[1], env), state)
 end
 
-function compile_inner(expr::PExpr{Construct}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{Construct}, env, path_condition, state::LazyKCState)
     # Constructors deterministically evaluate to a WHNF value, with their arguments thunked.
     # Create a thunk for each argument.
     thunked_arguments = [LazyKCThunk(arg, env, state.callstack, Symbol("$(expr.args[1]).arg$i"), i, state) for (i, arg) in enumerate(expr.args[2])] # TODO: use global args_syms to avoid runtime cost of Symbol?
@@ -26,7 +26,7 @@ function compile_inner(expr::PExpr{Construct}, env::Env, path_condition::BDD, st
     return pure_monad(Value(expr.args[1], thunked_arguments), state)
 end
 
-function compile_inner(expr::PExpr{CaseOf}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state::LazyKCState)
     constructor_indices = Dict{Symbol, Int}()
     for (i, constructor) in enumerate(keys(expr.args[2])) # sort? reverse?
         constructor_indices[constructor] = i
@@ -60,13 +60,13 @@ function compile_inner(expr::PExpr{CaseOf}, env::Env, path_condition::BDD, state
     end
 end
 
-function compile_inner(expr::PExpr{Y}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{Y}, env, path_condition, state::LazyKCState)
     @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
     closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
     return pure_monad(closure, state)
 end
 
-function compile_inner(expr::PExpr{Var}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{Var}, env, path_condition, state::LazyKCState)
 
     v = env[expr.args[1]]
     if v isa LazyKCThunk || v isa LazyKCThunkUnion
@@ -76,16 +76,16 @@ function compile_inner(expr::PExpr{Var}, env::Env, path_condition::BDD, state::L
     return pure_monad(v, state)
 end
 
-function compile_inner(expr::PExpr{DiffVar}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{DiffVar}, env, path_condition, state::LazyKCState)
     return pure_monad(UIntValue(expr.args[1]), state)
 end
 
-function compile_inner(expr::PExpr{Defined}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{Defined}, env, path_condition, state::LazyKCState)
     # Execute Defined with a blanked out environment.
     return traced_compile_inner(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
 end
 
-function compile_inner(expr::PExpr{ConstReal}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{ConstReal}, env, path_condition, state::LazyKCState)
     return pure_monad(FloatValue(expr.args[1]), state)
 end
 
@@ -94,7 +94,7 @@ end
 #### PRIMOP IMPLEMENTATIONS ####
 ################################
 
-function compile_inner(expr::PExpr{FlipOp}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state::LazyKCState)
 
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
         p = p.value
@@ -122,7 +122,7 @@ function compile_inner(expr::PExpr{FlipOp}, env::Env, path_condition::BDD, state
     end
 end
 
-function compile_inner(expr::PExpr{FlipOpDual}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state::LazyKCState)
     npartials = state.manager.vector_size
 
     p_init = 0.5
@@ -147,7 +147,7 @@ function compile_inner(expr::PExpr{FlipOpDual}, env::Env, path_condition::BDD, s
     end
 end
 
-function compile_inner(expr::PExpr{ConstructorEqOp}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{ConstructorEqOp}, env, path_condition, state::LazyKCState)
     # Evaluate both arguments.
     bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
@@ -160,7 +160,7 @@ end
 """
 Given a Value, returns a Cons-list of its arguments.
 """
-function compile_inner(expr::PExpr{GetArgsOp}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{GetArgsOp}, env, path_condition, state::LazyKCState)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
         res = Value(:Nil)
         for arg in reverse(val.args)
@@ -170,13 +170,13 @@ function compile_inner(expr::PExpr{GetArgsOp}, env::Env, path_condition::BDD, st
     end
 end
 
-function compile_inner(expr::PExpr{GetConstructorOp}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state::LazyKCState)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
         return pure_monad(HostValue(val.constructor), state)
     end
 end
 
-function compile_inner(expr::PExpr{MkIntOp}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state::LazyKCState)
     bitwidth = expr.args[1]::RawInt
     val = expr.args[2]::RawInt
     bools = digits(Bool, val.val, base = 2, pad = bitwidth.val)
@@ -185,7 +185,7 @@ function compile_inner(expr::PExpr{MkIntOp}, env::Env, path_condition::BDD, stat
     return pure_monad(IntDist(bits), state)
 end
 
-function compile_inner(expr::PExpr{IntDistEqOp}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{IntDistEqOp}, env, path_condition, state::LazyKCState)
     bind_compile(expr.args[1], env, path_condition, state, 0) do first_int_dist, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do second_int_dist, path_condition
             bdd = int_dist_eq(first_int_dist, second_int_dist, state)
@@ -194,7 +194,7 @@ function compile_inner(expr::PExpr{IntDistEqOp}, env::Env, path_condition::BDD, 
     end
 end
 
-function compile_inner(expr::PExpr{PBoolOp}, env::Env, path_condition::BDD, state::LazyKCState)
+function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state::LazyKCState)
     cond = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
 
     p_true = -Inf
