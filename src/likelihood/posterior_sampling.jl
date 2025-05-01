@@ -151,20 +151,18 @@ end
 
 function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueState)
     scrutinee_value = traced_sample_value(expr.args[1], env, state, 0)
-    constructor_indices = Dict{Symbol, Int}()
-    for (i, constructor) in enumerate(keys(expr.args[2])) # sort? reverse?
-        constructor_indices[constructor] = i
-    end
 
-    if !(scrutinee_value.constructor in keys(expr.cases))
+    idx = findfirst(c -> c[1] == scrutinee_value.constructor, expr.args[2])
+
+    if isnothing(idx)
         @warn "Constructor $(scrutinee_value.constructor) not found in cases of expression $(expr)."
         return nothing
     end
 
-    case_expr = expr.args[2][scrutinee_value.constructor]
+    case_expr = expr.args[2][idx][2]
     num_args = length(args_of_constructor(scrutinee_value.constructor))
     if num_args == 0
-        return traced_sample_value(case_expr, env, state, constructor_indices[scrutinee_value.constructor])
+        return traced_sample_value(case_expr, env, state, idx)
     else
         for _ = 1:num_args
             case_expr = case_expr.args[1]
@@ -173,7 +171,7 @@ function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueS
         for (arg) in scrutinee_value.args
             pushfirst!(new_env, arg)
         end
-        return traced_sample_value(case_expr, new_env, state, constructor_indices[scrutinee_value.constructor])
+        return traced_sample_value(case_expr, new_env, state, idx)
     end
 end
 

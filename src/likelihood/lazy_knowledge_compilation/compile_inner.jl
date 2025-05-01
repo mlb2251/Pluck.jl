@@ -26,23 +26,21 @@ function compile_inner(expr::PExpr{Construct}, env, path_condition, state::LazyK
 end
 
 function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state::LazyKCState)
-    constructor_indices = Dict{Symbol, Int}()
-    for (i, constructor) in enumerate(keys(expr.args[2])) # sort? reverse?
-        constructor_indices[constructor] = i
-    end
     # caseof_type = type_of_constructor[first(keys(expr.cases))]
     bind_compile(expr.args[1], env, path_condition, state, 0) do scrutinee, path_condition
         # value_type = type_of_constructor[scrutinee.constructor]
         # if !isempty(expr.cases) && !(value_type == caseof_type)
             # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
         # end
+
+        idx = findfirst(c -> c[1] == scrutinee.constructor, expr.args[2])
         
-        if !(scrutinee.constructor in keys(expr.args[2]))
+        if isnothing(idx)
             # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return program_error_worlds(state)
         end
 
-        case_expr = expr.args[2][scrutinee.constructor]
+        case_expr = expr.args[2][idx][2]
         num_args = length(args_of_constructor[scrutinee.constructor])
         @assert length(scrutinee.args) == num_args
 
@@ -55,7 +53,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state::LazyKCSt
         for arg in scrutinee.args
             pushfirst!(new_env, arg)
         end
-        return traced_compile_inner(case_expr, new_env, path_condition, state, constructor_indices[scrutinee.constructor])
+        return traced_compile_inner(case_expr, new_env, path_condition, state, idx)
     end
 end
 

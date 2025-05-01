@@ -305,8 +305,9 @@ end
 function lazy_enumerate(expr::PExpr{CaseOf}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     scrutinee_values = traced_lazy_enumerate(expr.args[1], env, trace, state, :case_scrutinee)
     lazy_enumerator_bind(scrutinee_values, state) do scrutinee, trace
-        if scrutinee.constructor in keys(expr.args[2])
-            case_expr = expr.args[2][scrutinee.constructor]
+        idx = findfirst(c -> c[1] == scrutinee.constructor, expr.args[2])
+        if !isnothing(idx)
+            case_expr = expr.args[2][idx][2]
             num_args = length(args_of_constructor[scrutinee.constructor])
             if num_args == 0
                 return traced_lazy_enumerate(case_expr, env, trace, state, scrutinee.constructor)
