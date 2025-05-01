@@ -91,11 +91,6 @@ function adaptive_rejection_sampling(val, state)
 
 end
 
-# Representations of values:
-# - Closure: a list of guarded Closure objects, which each store a body and an environment.
-# - Float64: floats and BDDs.
-# - Value: a list of possible constructors, each guarded by a BDD, and each with a list of arguments, themselves values.
-
 mutable struct SampleValueState
     constraint::Union{BDD, Nothing}
     callstack::Vector{Int}
@@ -176,28 +171,6 @@ function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::Samp
     state.trace[callstack_to_check] = result
     return result ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
 end
-
-function compile_inner(expr::PExpr{NativeEqOp}, env::Env, null::Nothing, state::SampleValueState)
-    # Evaluate both arguments.
-    first_arg_result = traced_compile_inner(expr.args[1], env, null, state, 0)
-    second_arg_result = traced_compile_inner(expr.args[2], env, null, state, 1)
-    if first_arg_result.value == second_arg_result.value
-        return Pluck.TRUE_VALUE
-    else
-        return Pluck.FALSE_VALUE
-    end
-end
-
-function compile_inner(expr::PExpr{GetArgsOp}, env::Env, null::Nothing, state::SampleValueState)
-    val = traced_compile_inner(expr.args[1], env, null, state, 0)
-    @assert val isa Value
-    res = Value(:Nil)
-    for arg in reverse(val.args)
-        res = Value(:Cons, [arg, res])
-    end
-    return res
-end
-
 
 function make_thunk(expr::PExpr, env, strict_order_index, state::SampleValueState)
     return LazyKCThunk(expr, env, strict_order_index, state)
