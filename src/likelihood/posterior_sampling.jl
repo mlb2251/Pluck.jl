@@ -170,17 +170,6 @@ function compile_inner(expr::PExpr{CaseOf}, env::Env, null::Nothing, state::Samp
     end
 end
 
-function compile_inner(expr::PExpr{Y}, env::Env, null::Nothing, state::SampleValueState)
-    @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
-
-    closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
-
-    # set up a closure with a circular reference
-    return closure
-end
-
-
-
 function compile_inner(expr::PExpr{IntDistEqOp}, env::Env, null::Nothing, state::SampleValueState)
     arg1 = traced_compile_inner(expr.args[1], env, null, state, 0)
     arg2 = traced_compile_inner(expr.args[2], env, null, state, 1)
@@ -190,11 +179,8 @@ end
 function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::SampleValueState)
     p = traced_compile_inner(expr.args[1], env, null, state, 0)
     p = p.value
-    if isapprox(p, 0.0)
-        return Pluck.FALSE_VALUE
-    elseif isapprox(p, 1.0)
-        return Pluck.TRUE_VALUE
-    end
+    isapprox(p, 0.0) && return Pluck.FALSE_VALUE
+    isapprox(p, 1.0) && return Pluck.TRUE_VALUE
 
     callstack_to_check = ([state.callstack..., 1], p)
 
@@ -211,16 +197,11 @@ function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::Samp
 
 
     var = state.var_of_callstack[callstack_to_check]
-    if bdd_is_true(bdd_implies(state.constraint, var))
-        return Pluck.TRUE_VALUE
-    elseif bdd_is_true(bdd_implies(state.constraint, !var))
-        return Pluck.FALSE_VALUE
-    else
-        # @warn "Flip with a variable that appears in constraint but is not constrained."
-        result = rand() < p
-        state.trace[callstack_to_check] = result
-        return result ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-    end
+    bdd_is_true(bdd_implies(state.constraint, var)) && return Pluck.TRUE_VALUE
+    bdd_is_true(bdd_implies(state.constraint, !var)) && return Pluck.FALSE_VALUE
+    result = rand() < p
+    state.trace[callstack_to_check] = result
+    return result ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
 end
 
 function compile_inner(expr::PExpr{NativeEqOp}, env::Env, null::Nothing, state::SampleValueState)
