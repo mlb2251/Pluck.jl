@@ -115,7 +115,7 @@ mutable struct SampleValueState
     end
 end
 
-function traced_compile_inner(expr::PExpr, env::Env, null::Nothing, state::SampleValueState, strict_order_index::Int)
+function traced_compile_inner(expr::PExpr, env::Env, null, state::SampleValueState, strict_order_index::Int)
     push!(state.callstack, strict_order_index)
     result = compile_inner(expr, env, null, state)
     pop!(state.callstack)
@@ -123,8 +123,13 @@ function traced_compile_inner(expr::PExpr, env::Env, null::Nothing, state::Sampl
 end
 
 
-function pure_monad(val, trace, state::SampleValueState)
+function pure_monad(val, null, state::SampleValueState)
     return val
+end
+
+function bind_monad(cont::F, val, null, state::SampleValueState) where F <: Function
+    # isnothing(val) && return nothing
+    return cont(val, null)
 end
 
 
@@ -142,38 +147,6 @@ function compile_inner(expr::PExpr{Construct}, env::Env, null::Nothing, state::S
     evaluated_arguments = [(state.lazy ? make_thunk(arg, env, i, state) : traced_compile_inner(arg, env, null, state, i)) for (i, arg) in enumerate(expr.args[2])]
     # Return the constructor and its arguments.
     return Value(expr.args[1], evaluated_arguments)
-end
-
-function compile_inner(expr::PExpr{CaseOf}, env::Env, null::Nothing, state::SampleValueState)
-    scrutinee_value = traced_compile_inner(expr.args[1], env, null, state, 0)
-
-    idx = findfirst(c -> c[1] == scrutinee_value.constructor, expr.args[2])
-
-    if isnothing(idx)
-        @warn "Constructor $(scrutinee_value.constructor) not found in cases of expression $(expr)."
-        return nothing
-    end
-
-    case_expr = expr.args[2][idx][2]
-    num_args = length(args_of_constructor[scrutinee_value.constructor])
-    if num_args == 0
-        return traced_compile_inner(case_expr, env, null, state, idx)
-    else
-        for _ = 1:num_args
-            case_expr = case_expr.args[1]
-        end
-        new_env = copy(env)
-        for (arg) in scrutinee_value.args
-            pushfirst!(new_env, arg)
-        end
-        return traced_compile_inner(case_expr, new_env, null, state, idx)
-    end
-end
-
-function compile_inner(expr::PExpr{IntDistEqOp}, env::Env, null::Nothing, state::SampleValueState)
-    arg1 = traced_compile_inner(expr.args[1], env, null, state, 0)
-    arg2 = traced_compile_inner(expr.args[2], env, null, state, 1)
-    return arg1 == arg2 ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
 end
 
 function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::SampleValueState)
