@@ -22,14 +22,14 @@ end
 
 function evaluate(thunk::LazyEnumeratorThunk, trace::Trace, state::LazyEnumeratorEvalState)
     if state.hit_limit
-        return []
+        return inference_error_worlds(state)
     end
 
     # Check the cache
     cached = get_cache(trace, thunk.id, state)
     if cached !== nothing
         # println("hitting cache containing:", cached)
-        return [(cached, trace)]
+        return pure_monad(cached, trace, state)
     end
 
     # Otherwise we have to evaluate the thunk. Set the callstack to the thunk's callstack.

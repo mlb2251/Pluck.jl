@@ -140,17 +140,17 @@ function traced_compile_inner(expr::PExpr, env, trace, state::LazyEnumeratorEval
     # println(" " ^ state.depth * "traced_compile_inner($expr)")
 
     if state.hit_limit
-        return []
+        return inference_error_worlds(state)
     end
 
     if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth
         state.hit_limit = true
-        return []
+        return inference_error_worlds(state)
     end
 
     if check_time_limit(state)
         state.hit_limit = true
-        return []
+        return inference_error_worlds(state)
     end
 
     state.depth += 1
@@ -200,7 +200,7 @@ function compile(expr; show_length = false, kwargs...)
         if e isa StackOverflowError
             # printstyled("[compile_inner: stackoverflow]\n"; color=:yellow)
             s.hit_limit = true
-            return []
+            return inference_error_worlds(s)
         else
             rethrow(e)
         end
@@ -210,7 +210,7 @@ function compile(expr; show_length = false, kwargs...)
         if !isempty(ret)
             @warn "enumeration hit time limit but had nonempty result"
         end
-        ret = []
+        ret = inference_error_worlds(s)
     end
 
     # Trying a model count of each possibility.

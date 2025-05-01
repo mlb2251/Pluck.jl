@@ -1,4 +1,17 @@
 
+function program_error_worlds(state::LazyEnumeratorEvalState)
+    return []
+end
+
+function inference_error_worlds(state::LazyEnumeratorEvalState)
+    return []
+end
+
+function false_path_condition_worlds(state::LazyEnumeratorEvalState)
+    return []
+end
+
+
 
 function pure_monad(val, trace, state::LazyEnumeratorEvalState)
     return [(val, trace)]
@@ -15,13 +28,13 @@ end
 function bind_monad(cont::F, first_stage_results, trace, state::LazyEnumeratorEvalState) where F <: Function
     if check_time_limit(state)
         state.hit_limit = true
-        return []
+        return inference_error_worlds(state)
     end
     results = []
     for (result, trace) in first_stage_results
-        state.hit_limit && return []
+        state.hit_limit && return inference_error_worlds(state)
         second_stage_worlds = cont(result, trace)
-        state.hit_limit && return []
+        state.hit_limit && return inference_error_worlds(state)
         for (final_result, final_trace) in second_stage_worlds
             push!(results, (final_result, final_trace))
         end

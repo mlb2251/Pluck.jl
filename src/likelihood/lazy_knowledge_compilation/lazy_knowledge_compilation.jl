@@ -168,7 +168,7 @@ function traced_compile_inner(expr::PExpr, env, path_condition, state::LazyKCSta
     end
 
     if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth
-        return [], state.manager.BDD_TRUE
+        return inference_error_worlds(state)
     end
 
     state.depth += 1

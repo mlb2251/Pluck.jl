@@ -2,15 +2,23 @@
 Shaves off probability. Used for the case where the path condition is not necessarily
 false, but rather there's some sort of program error (e.g. scrutinee not in case expression).
 """
-function program_error_worlds(state)::GuardedWorlds
+function program_error_worlds(state::LazyKCState)::GuardedWorlds
     return World[], state.manager.BDD_TRUE
 end
+
+"""
+Some inference error eg a depth limit was hit
+"""
+function inference_error_worlds(state::LazyKCState)::GuardedWorlds
+    return World[], state.manager.BDD_TRUE
+end
+
 
 """
 Shaves off probability. Used for the case where the path condition is false. This result
 can be reused if you can prove false with your path condition.
 """
-function false_path_condition_worlds(state)::GuardedWorlds
+function false_path_condition_worlds(state::LazyKCState)::GuardedWorlds
     return World[], state.manager.BDD_FALSE
 end
 

@@ -37,7 +37,7 @@ function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::
     results = []
     for (f, ftrace) in fs
         for (x, xtrace) in xs
-            state.hit_limit && return []
+            state.hit_limit && return inference_error_worlds(state)
             new_env = copy(f.env)
             pushfirst!(new_env, x)
             new_trace = cat_trace(ftrace, xtrace)
@@ -59,7 +59,7 @@ function compile_inner(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, s
     for args in Iterators.product(options_of_arg...)
         if check_time_limit(state)
             state.hit_limit = true
-            return []
+            return inference_error_worlds(state)
         end
         new_trace = trace
         new_args = []
