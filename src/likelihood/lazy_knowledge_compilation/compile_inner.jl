@@ -100,10 +100,10 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
         # BDDs do not represent quantitative probabilities. Therefore, for each 
         # different probability `p`, we need to create a new variable in the BDD.
         push!(state.callstack, 1)
-        addr = current_bdd_address(state, p)
+        addr = current_address(state, p)
         RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
         pop!(state.callstack)
-        return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, state)
+        return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
     end
 end
 
@@ -119,7 +119,7 @@ function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state)
             return [(sampled_value, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
         end
         push!(state.callstack, 1)
-        addr = current_bdd_address(state, p_init)
+        addr = current_address(state, p_init)
         topvar = bdd_topvar(addr)
         state.param2metaparam[topvar] = metaparam
         partials_hi = zeros(Float64, npartials)
@@ -178,7 +178,7 @@ function compile_inner(expr::PExpr{IntDistEqOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do first_int_dist, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do second_int_dist, path_condition
             bdd = int_dist_eq(first_int_dist, second_int_dist, state)
-            return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, bdd, state)
+            return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, bdd, path_condition, state)
         end
     end
 end

@@ -195,7 +195,7 @@ end
 Returns the single-variable BDD corresponding to the current callstack and probability, creating
 the variable if it doesn't exist yet.
 """
-function current_bdd_address(state::LazyKCState, p::Float64)
+function current_address(state::LazyKCState, p::Float64)
     if haskey(state.var_of_callstack, (state.callstack, p))
         return state.var_of_callstack[(state.callstack, p)]
     end

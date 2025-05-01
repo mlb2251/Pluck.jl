@@ -25,7 +25,7 @@ end
 """
 Constructs a pair of worlds, one with the condition true and one with the condition false.
 """
-function if_then_else_monad(val_if_true, val_if_false, condition, state)
+function if_then_else_monad(val_if_true, val_if_false, condition, path_condition, state::LazyKCState)
     return World[(val_if_true, condition), (val_if_false, !condition)], state.manager.BDD_TRUE
 end
 

@@ -5,7 +5,7 @@ import FunctionalCollections: PersistentHashMap, assoc
 
 struct Choice
     addr::Int
-    val::Any
+    val::Bool
     weight::Float64
 end
 
@@ -117,9 +117,9 @@ mutable struct LazyEnumeratorEvalState{M <: LazyEagerMode}
     function LazyEnumeratorEvalState(; max_depth = nothing, time_limit = nothing, disable_traces = false, disable_cache = true, strict = false)
         args = (Int[], Dict(), Vector{Vector{Int}}(), 0, max_depth, time_limit, 0., 0., false, 1, disable_traces, disable_cache, strict)
         if strict
-            return LazyEnumeratorEvalState{EagerMode}(args...)
+            return new{EagerMode}(args...)
         else
-            return LazyEnumeratorEvalState{LazyMode}(args...)
+            return new{LazyMode}(args...)
         end
     end
 end
@@ -150,7 +150,7 @@ function traced_compile_inner(expr::PExpr, env, trace, state::LazyEnumeratorEval
 end
 
 
-function lazy_enumerator_make_address(state::LazyEnumeratorEvalState)
+function current_address(state::LazyEnumeratorEvalState, p::Float64)
     state.disable_traces && return 0
     if haskey(state.id_of_callstack, state.callstack)
         return state.id_of_callstack[state.callstack]

@@ -5,6 +5,13 @@ function pure_monad(val, trace, state::LazyEnumeratorEvalState)
 end
 
 
+function if_then_else_monad(val_if_true, val_if_false, addr_p::Tuple{Int, Float64}, trace, state::LazyEnumeratorEvalState)
+    addr, p = addr_p
+    trace_true = extend_trace(trace, Choice(addr, true, log(p)), state)
+    trace_false = extend_trace(trace, Choice(addr, false, log1p(-p)), state)
+    return [(val_if_true, trace_true), (val_if_false, trace_false)]
+end
+
 function bind_monad(cont::F, first_stage_results, trace, state::LazyEnumeratorEvalState) where F <: Function
     if check_time_limit(state)
         state.hit_limit = true

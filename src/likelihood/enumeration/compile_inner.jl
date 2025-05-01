@@ -5,24 +5,21 @@ function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, stat
     ps = traced_compile_inner(expr.args[1], env, trace, state, 0)
     bind_monad(ps, trace, state) do p, trace
         p = p.value
-        if isapprox(p, 0.0)
-            return [(Pluck.FALSE_VALUE, trace)]
-        elseif isapprox(p, 1.0)
-            return [(Pluck.TRUE_VALUE, trace)]
-        else
-            addr = make_address(state)
+        isapprox(p, 0.0) && return pure_monad(Pluck.FALSE_VALUE, trace, state)
+        isapprox(p, 1.0) && return pure_monad(Pluck.TRUE_VALUE, trace, state)
 
-            # check if we already have this choice in the trace
-            choice = get_choice(trace, addr, state)
-            if choice !== nothing
-                return [(choice.val, trace)]
-            end
+        push!(state.callstack, 1)
+        addr = current_address(state, p)
+        pop!(state.callstack)
 
-
-            trace_true = extend_trace(trace, Choice(addr, Pluck.TRUE_VALUE, log(p)), state)
-            trace_false = extend_trace(trace, Choice(addr, Pluck.FALSE_VALUE, log1p(-p)), state)
-            return [(Pluck.TRUE_VALUE, trace_true), (Pluck.FALSE_VALUE, trace_false)]
+        # check if we already have this choice in the trace
+        choice = get_choice(trace, addr, state)
+        if choice !== nothing
+            val = choice.val ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
+            return pure_monad(val, trace, state)
         end
+
+        return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, (addr, p), trace, state)
     end
 end
 

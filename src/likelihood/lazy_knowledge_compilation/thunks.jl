@@ -136,7 +136,7 @@ function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
     We can do this through a bind():
     """
 
-    hit_cache_worlds = if_then_else_monad(true, false, cache_guard, state)
+    hit_cache_worlds = if_then_else_monad(true, false, cache_guard, path_condition, state)
     path_condition |= cache_guard
     worlds = bind_monad(hit_cache_worlds, path_condition, state; cont_state=true) do hit_cache, path_condition, state
         hit_cache ? (cached_worlds, state.manager.BDD_TRUE) : evaluate_no_cache(thunk, path_condition, state)
