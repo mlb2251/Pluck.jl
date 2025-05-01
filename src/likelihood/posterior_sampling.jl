@@ -3,7 +3,7 @@ export posterior_sample, adaptive_rejection_sampling, SampleValueState
 function posterior_sample(val, state)    
     # First evaluate the evidence thunk to get true/false BDDs
     evidence_results, _ = evaluate(val.args[2], state.manager.BDD_TRUE, state)
-    n, concrete = from_value(sample_thunk(val.args[3], SampleValueState(nothing, [], nothing, false)))
+    n, concrete = from_value(evaluate_no_cache(val.args[3], nothing, SampleValueState(nothing, [], nothing, false)))
     samples = []
     for i in 1:n
         # Find the BDD where evidence is true
@@ -31,7 +31,7 @@ function posterior_sample(val, state)
         )
     
         # Sample from the query under the evidence constraint
-        sampled_value = sample_thunk(query_thunk, sample_state)
+        sampled_value = evaluate_no_cache(query_thunk, nothing, sample_state)
         push!(samples, force_value(sampled_value, sample_state))
     end
     return samples
@@ -49,11 +49,11 @@ function adaptive_rejection_sampling(val, state)
     while true
         sampled_constraint, _ = RSDD.weighted_sample(constraint, state.manager.weights)
         sample_state.constraint = sampled_constraint
-        sampled_pred = sample_thunk(val.args[2], sample_state)
+        sampled_pred = evaluate_no_cache(val.args[2], nothing, sample_state)
         
         if sampled_pred == Pluck.TRUE_VALUE
             sample_state.lazy = false
-            return sample_thunk(val.args[1], sample_state)
+            return evaluate_no_cache(val.args[1], nothing, sample_state)
         end
 
         # Construct a BDD using the sampled trace.
@@ -82,7 +82,7 @@ function adaptive_rejection_sampling(val, state)
         constraint = RSDD.bdd_and(constraint, !trace_as_bdd)
 
         sample_state.lazy = false
-        println(sample_thunk(val.args[1], sample_state))
+        println(evaluate_no_cache(val.args[1], nothing, sample_state))
         sample_state.lazy = true
         sample_state.trace = Dict{Tuple{Vector{Int}, Float64}, Bool}()
         @assert !RSDD.bdd_is_false(constraint) "Constraint is false..."
@@ -163,19 +163,10 @@ function make_thunk(expr::PExpr, env, strict_order_index, state::SampleValueStat
     state.lazy ? LazyKCThunk(expr, env, strict_order_index, state) : traced_compile_inner(expr, env, nothing, state, strict_order_index)
 end
 
-function sample_thunk(t::LazyKCThunk, state::SampleValueState)
-    # Remember old callstack
-    old_callstack = state.callstack
-    state.callstack = copy(t.callstack)
-    result = traced_compile_inner(t.expr, t.env, nothing, state, t.strict_order_index)
-    state.callstack = old_callstack
-    return result
-end
-
 function compile_inner(expr::PExpr{Var}, env::Env, null::Nothing, state::SampleValueState)
     val = env[expr.args[1]]
     if val isa LazyKCThunk || val isa LazyKCThunkUnion
-        return sample_thunk(val, state)
+        return evaluate_no_cache(val, nothing, state)
     else
         return pure_monad(val, null, state)
     end
@@ -185,7 +176,7 @@ end
 function force_value(v::Value, state::SampleValueState)
     for i in 1:length(v.args)
         if v.args[i] isa LazyKCThunk
-            v.args[i] = force_value(sample_thunk(v.args[i], state), state)
+            v.args[i] = force_value(evaluate_no_cache(v.args[i], nothing, state), state)
         end
     end
     return v

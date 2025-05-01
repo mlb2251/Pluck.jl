@@ -91,7 +91,7 @@ function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCSta
     return bind_monad(evaluate, nested_worlds, path_condition, state; cont_state=true)
 end
 
-function evaluate_no_cache(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
+function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
     old_callstack = state.callstack
     state.callstack = thunk.callstack
     result = traced_compile_inner(thunk.expr, thunk.env, path_condition, state, thunk.strict_order_index)
