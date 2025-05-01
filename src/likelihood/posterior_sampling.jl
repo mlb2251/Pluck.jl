@@ -128,21 +128,6 @@ function bind_monad(cont::F, val, null, state::SampleValueState) where F <: Func
 end
 
 
-function compile_inner(expr::PExpr{App}, env::Env, null::Nothing, state::SampleValueState)
-    f = traced_compile_inner(expr.args[1], env, null, state, 0)
-    arg = state.lazy ? make_thunk(expr.args[2], env, 1, state) : traced_compile_inner(expr.args[2], env, null, state, 1)
-
-    new_env = copy(f.env)
-    pushfirst!(new_env, arg)
-    return traced_compile_inner(f.expr, new_env, null, state, 2)
-end
-
-function compile_inner(expr::PExpr{Construct}, env::Env, null::Nothing, state::SampleValueState)
-    # Evaluate each argument.
-    evaluated_arguments = [(state.lazy ? make_thunk(arg, env, i, state) : traced_compile_inner(arg, env, null, state, i)) for (i, arg) in enumerate(expr.args[2])]
-    # Return the constructor and its arguments.
-    return Value(expr.args[1], evaluated_arguments)
-end
 
 function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::SampleValueState)
     p = traced_compile_inner(expr.args[1], env, null, state, 0)
@@ -172,8 +157,10 @@ function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::Samp
     return result ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
 end
 
+
 function make_thunk(expr::PExpr, env, strict_order_index, state::SampleValueState)
-    return LazyKCThunk(expr, env, strict_order_index, state)
+    # since posterior sampling just produces one result, we dont need to worry about binding in the strict case
+    state.lazy ? LazyKCThunk(expr, env, strict_order_index, state) : traced_compile_inner(expr, env, nothing, state, strict_order_index)
 end
 
 function sample_thunk(t::LazyKCThunk, state::SampleValueState)
