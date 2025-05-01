@@ -122,8 +122,12 @@ function pure_monad(val, null, state::SampleValueState)
     return val
 end
 
+function program_error_worlds(state::SampleValueState)
+    return nothing
+end
+
 function bind_monad(cont::F, val, null, state::SampleValueState) where F <: Function
-    # isnothing(val) && return nothing
+    isnothing(val) && return nothing
     return cont(val, null)
 end
 
