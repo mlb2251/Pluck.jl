@@ -82,6 +82,10 @@ function lazy_enumerate(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, 
     return [(Value(expr.args[1], thunked_arguments), trace)]
 end
 
+function lazy_enumerate(expr::PExpr{ConstNative}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+    return [(expr.args[1], trace)]
+end
+
 function lazy_enumerate(expr::PExpr{CaseOf}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     scrutinee_values = traced_lazy_enumerate(expr.args[1], env, trace, state, :case_scrutinee)
     lazy_enumerator_bind(scrutinee_values, state) do scrutinee, trace
@@ -137,6 +141,13 @@ function lazy_enumerate(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, sta
         end
     end
 end
+
+function lazy_enumerate(expr::PExpr{GetConstructorOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+    lazy_enumerator_bind(traced_lazy_enumerate(expr.args[1], env, trace, state, :get_constructor_arg), state) do arg, trace
+        return [(NativeValue(arg.constructor), trace)]
+    end
+end
+
 
 function lazy_enumerate(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
 
