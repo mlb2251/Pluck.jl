@@ -1,4 +1,4 @@
-mutable struct LazyEnumeratorThunk
+mutable struct LazyEnumeratorThunk <: Thunk
     expr::PExpr
     env::Vector{Any}
     callstack::Vector{Int}

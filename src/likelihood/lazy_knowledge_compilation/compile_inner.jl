@@ -63,10 +63,10 @@ function compile_inner(expr::PExpr{Y}, env, path_condition, state)
     return pure_monad(closure, path_condition, state)
 end
 
-function compile_inner(expr::PExpr{Var}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{Var}, env, path_condition, state)
 
     v = env[expr.args[1]]
-    if v isa LazyKCThunk || v isa LazyKCThunkUnion
+    if v <: Thunk
         return evaluate(v, path_condition, state)
     end
 
@@ -155,7 +155,7 @@ function compile_inner(expr::PExpr{GetArgsOp}, env, path_condition, state::LazyK
     end
 end
 
-function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
         return pure_monad(NativeValue(val.constructor), path_condition, state)
     end

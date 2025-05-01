@@ -153,7 +153,7 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
 end
 
 
-function bind_compile(cont::F, expr::PExpr, env, path_condition, state::LazyKCState, strict_order_index::Int) where F <: Function
+function bind_compile(cont::F, expr::PExpr, env, path_condition, state, strict_order_index) where F <: Function
     pre_worlds = traced_compile_inner(expr, env, path_condition, state, strict_order_index)
     return bind_monad(cont, pre_worlds, path_condition, state)
 end

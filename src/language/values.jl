@@ -1,8 +1,10 @@
-export pluck_list, StateVars, Value, get_true_result
+export pluck_list, StateVars, Value, get_true_result, Thunk
 using Printf
 
 
+
 abstract type AbstractValue end
+abstract type Thunk end
 
 Base.:(==)(x::AbstractValue, y::Any) = error("Cannot compare Value with $(typeof(y))")
 Base.:(==)(x::Any, y::AbstractValue) = error("Cannot compare $(typeof(x)) with Value")

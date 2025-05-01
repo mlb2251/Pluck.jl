@@ -115,12 +115,6 @@ function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, stat
     end
 end
 
-function compile_inner(expr::PExpr{GetConstructorOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    bind_monad(traced_compile_inner(expr.args[1], env, trace, state, 0), trace, state) do arg, trace
-        return [(NativeValue(arg.constructor), trace)]
-    end
-end
-
 
 function compile_inner(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
 
@@ -155,11 +149,7 @@ function compile_inner(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, 
 end
 
 function compile_inner(expr::PExpr{Var}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    # Look up the variable in the environment.
-    if expr.args[1] > length(env)
-        @warn "Variable $expr not found in environment; shaving off probability."
-        return []
-    end
+
 
     v = env[expr.args[1]]
     if v isa LazyEnumeratorThunk

@@ -1,4 +1,5 @@
-struct LazyKCThunk
+
+struct LazyKCThunk <: Thunk
     expr::PExpr
     env::Env
     cache::Vector{GuardedWorlds}
@@ -28,7 +29,7 @@ function Base.show(io::IO, x::LazyKCThunk)
     print(io, "LazyKCThunk(", x.expr, ")")
 end
 
-struct LazyKCThunkUnion
+struct LazyKCThunkUnion <: Thunk
     thunks::Vector{Tuple{LazyKCThunk, BDD}}
     function LazyKCThunkUnion(worlds::Vector{Tuple{T, BDD}}, state) where T
 
