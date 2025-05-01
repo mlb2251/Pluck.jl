@@ -160,7 +160,7 @@ end
 get_config(state::LazyKCState) = state.cfg
 
 
-function traced_compile_inner(expr::PExpr, env, path_condition, state::LazyKCState, strict_order_index::Int)
+function traced_compile_inner(expr::PExpr, env, path_condition, state::LazyKCState, strict_order_index)
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
     # Check whether path_condition is false.
     if !state.cfg.disable_used_information && bdd_is_false(path_condition)

@@ -20,8 +20,8 @@ function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::
         end
         return results
         # same thing but with bind:
-        # return lazy_enumerator_bind(fs, state) do f, trace
-        #     lazy_enumerator_bind(xs, state) do x, trace
+        # return bind_monad(fs, state) do f, trace
+        #     bind_monad(xs, state) do x, trace
         #         new_env = copy(f.env)
         #         pushfirst!(new_env, x)
         #         return traced_compile_inner(f.expr, new_env, trace, state, :app_closure)
@@ -30,7 +30,7 @@ function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::
     end
 
     thunked_argument = LazyEnumeratorThunk(expr.args[2], env, state, 1)
-    return lazy_enumerator_bind(fs, state) do f, trace
+    return bind_monad(fs, trace, state) do f, trace
         new_env = copy(f.env)
         x = Pluck.var_is_free(f.expr, 1) ? thunked_argument : nothing
         pushfirst!(new_env, x)
@@ -69,7 +69,7 @@ end
 
 function compile_inner(expr::PExpr{CaseOf}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     scrutinee_values = traced_compile_inner(expr.args[1], env, trace, state, 0)
-    lazy_enumerator_bind(scrutinee_values, state) do scrutinee, trace
+    bind_monad(scrutinee_values, trace, state) do scrutinee, trace
         idx = findfirst(c -> c[1] == scrutinee.constructor, expr.args[2])
         if !isnothing(idx)
             case_expr = expr.args[2][idx][2]
@@ -92,7 +92,7 @@ end
 
 function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     ps = traced_compile_inner(expr.args[1], env, trace, state, 0)
-    lazy_enumerator_bind(ps, state) do p, trace
+    bind_monad(ps, trace, state) do p, trace
         p = p.value
         if isapprox(p, 0.0)
             return [(Pluck.FALSE_VALUE, trace)]
@@ -116,7 +116,7 @@ function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, stat
 end
 
 function compile_inner(expr::PExpr{GetConstructorOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    lazy_enumerator_bind(traced_compile_inner(expr.args[1], env, trace, state, 0), state) do arg, trace
+    bind_monad(traced_compile_inner(expr.args[1], env, trace, state, 0), trace, state) do arg, trace
         return [(NativeValue(arg.constructor), trace)]
     end
 end
@@ -131,8 +131,8 @@ function compile_inner(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, 
         # in strict semantics its safe to evaluate second argument independently of first
         # instead of nesting it within the bind call.   
         second_arg_results = traced_compile_inner(expr.args[2], env, trace, state, 1)
-        return lazy_enumerator_bind(first_arg_results, state) do arg1, trace
-            return lazy_enumerator_bind(second_arg_results, state) do arg2, trace
+        return bind_monad(first_arg_results, trace, state) do arg1, trace
+            return bind_monad(second_arg_results, trace, state) do arg2, trace
                 if arg1.value == arg2.value
                     return [(Pluck.TRUE_VALUE, trace)]
                 else
@@ -142,9 +142,9 @@ function compile_inner(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, 
         end
     end
 
-    lazy_enumerator_bind(first_arg_results, state) do arg1, trace
+    bind_monad(first_arg_results, trace, state) do arg1, trace
         second_arg_results = traced_compile_inner(expr.args[2], env, trace, state, 1)
-        lazy_enumerator_bind(second_arg_results, state) do arg2, trace
+        bind_monad(second_arg_results, trace, state) do arg2, trace
             if arg1.value == arg2.value
                 return [(Pluck.TRUE_VALUE, trace)]
             else

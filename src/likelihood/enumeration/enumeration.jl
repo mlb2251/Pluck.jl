@@ -117,7 +117,7 @@ mutable struct LazyEnumeratorEvalState
     end
 end
 
-function traced_compile_inner(expr::PExpr, env, trace, state::LazyEnumeratorEvalState, strict_order_index::Int)
+function traced_compile_inner(expr::PExpr, env, trace, state::LazyEnumeratorEvalState, strict_order_index)
     # println(" " ^ state.depth * "traced_compile_inner($expr)")
 
     if state.hit_limit

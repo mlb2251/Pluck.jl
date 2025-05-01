@@ -5,7 +5,7 @@ function pure_monad(val, trace, state::LazyEnumeratorEvalState)
 end
 
 
-function lazy_enumerator_bind(cont, first_stage_results, state)
+function bind_monad(cont::F, first_stage_results, trace, state::LazyEnumeratorEvalState) where F <: Function
     if check_time_limit(state)
         state.hit_limit = true
         return []

@@ -45,7 +45,7 @@ bind :: M a -> (a -> M b) -> M b
 join :: M (M a) -> M a
 """
 
-function bind_monad(cont::F, pre_worlds, path_condition, state; cont_state=false) where F <: Function
+function bind_monad(cont::F, pre_worlds, path_condition, state::LazyKCState; cont_state=false) where F <: Function
     pre_worlds, pre_used_info = pre_worlds
     nested_worlds = Vector{Tuple{GuardedWorlds, BDD}}()
     for (pre_val, pre_guard) in pre_worlds
