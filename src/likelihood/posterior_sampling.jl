@@ -167,7 +167,7 @@ function sample_value_forward(expr::PExpr{CaseOf}, env::Env, state::SampleValueS
         return traced_sample_value(case_expr, env, state, constructor_indices[scrutinee_value.constructor])
     else
         for _ = 1:num_args
-            case_expr = case_expr.body
+            case_expr = case_expr.args[1]
         end
         new_env = copy(env)
         for (arg) in scrutinee_value.args

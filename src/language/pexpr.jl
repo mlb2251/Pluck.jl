@@ -30,14 +30,6 @@ Base.copy(e::PExpr) = PExpr(e.op, [copy(arg) for arg in e.args])
 Base.:(==)(a::PExpr, b::PExpr) = a.op == b.op && a.args == b.args
 Base.hash(e::PExpr, h::UInt) = hash(e.op, hash(e.args, hash(:PExpr, h)))
 
-# by default we just look in subexpressions for free variables
-var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args if var isa PExpr)
-var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
-var_is_free(e::PExpr{Var}, var) = e.args[1] == var
-var_is_free(e::PExpr{CaseOf}, var) =
-    var_is_free(e.args[1], var) || any(case -> var_is_free(case, var), values(e.args[2]))
-
-
 ##############
 # Operations #
 ##############
@@ -224,3 +216,14 @@ define_parser!("quote", QuoteOp, 1)
 struct EvalOp <: Head end
 define_parser!("eval", EvalOp, 1)
 
+
+
+
+
+# by default we just look in subexpressions for free variables
+var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args if arg isa PExpr)
+var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
+var_is_free(e::PExpr{Var}, var) = e.args[1] == var
+var_is_free(e::PExpr{CaseOf}, var) =
+    var_is_free(e.args[1], var) || any(case -> var_is_free(case, var), values(e.args[2]))
+var_is_free(e::PExpr{Construct}, var) = any(var_is_free(arg, var) for arg in e.args[2])

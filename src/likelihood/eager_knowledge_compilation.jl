@@ -179,7 +179,7 @@ function bdd_forward(expr::PExpr{CaseOf}, env::Env, state::BDDStrictEvalState)
             else
                 for _ = 1:num_args
                     @assert case_expr isa PExpr{Abs} "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
-                    case_expr = case_expr.body
+                    case_expr = case_expr.args[1]
                 end
                 # In each of the scrutinee arguments, filter out options that contradict the available information.
                 new_env = copy(env)
@@ -197,7 +197,7 @@ end
 function bdd_forward(expr::PExpr{Y}, env::Env, state::BDDStrictEvalState)
     @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
 
-    closure = Pluck.make_self_loop(expr.f.body.body, env)
+    closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
 
     # set up a closure with a circular reference
     return [(closure, state.manager.BDD_TRUE)]
