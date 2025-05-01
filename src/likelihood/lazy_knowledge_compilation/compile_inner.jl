@@ -75,17 +75,9 @@ function compile_inner(expr::PExpr{Var}, env, path_condition, state::LazyKCState
     return pure_monad(v, state)
 end
 
-function compile_inner(expr::PExpr{DiffVar}, env, path_condition, state::LazyKCState)
-    return pure_monad(NativeValue{UInt64}(expr.args[1]), state)
-end
-
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state::LazyKCState)
     # Execute Defined with a blanked out environment.
     return traced_compile_inner(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
-end
-
-function compile_inner(expr::PExpr{ConstReal}, env, path_condition, state::LazyKCState)
-    return pure_monad(NativeValue{Float64}(expr.args[1]), state)
 end
 
 
@@ -146,7 +138,7 @@ function compile_inner(expr::PExpr{ConstructorEqOp}, env, path_condition, state:
     # Evaluate both arguments.
     bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
-            val =  arg1.constructor == arg2.constructor ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
+            val = arg1.constructor == arg2.constructor ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
             return pure_monad(val, state)
         end
     end
@@ -172,9 +164,9 @@ function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state
 end
 
 function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state::LazyKCState)
-    bitwidth = expr.args[1]::RawInt
-    val = expr.args[2]::RawInt
-    bools = digits(Bool, val.val, base = 2, pad = bitwidth.val)
+    bitwidth = expr.args[1]::ConstNative
+    val = expr.args[2]::ConstNative
+    bools = digits(Bool, val.value, base = 2, pad = bitwidth.value)
     bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
 
     return pure_monad(IntDist(bits), state)
@@ -208,7 +200,7 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state::LazyKCS
 
     logtotal = logaddexp(p_true, p_false)
 
-    p_true_thunk = LazyKCThunk(ConstReal(exp(p_true - logtotal)), Pluck.EMPTY_ENV, state.callstack, :p_true, 1, state)
+    p_true_thunk = LazyKCThunk(ConstNative(exp(p_true - logtotal)), Pluck.EMPTY_ENV, state.callstack, :p_true, 1, state)
     true_thunk = LazyKCThunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :true_thunk, 2, state)
     false_thunk = LazyKCThunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :false_thunk, 3, state)
     bind_monad(cond, path_condition, state) do cond, path_condition

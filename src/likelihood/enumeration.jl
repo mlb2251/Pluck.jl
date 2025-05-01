@@ -423,9 +423,6 @@ function lazy_enumerate(expr::PExpr{Defined}, env::Vector{Any}, trace::Trace, st
     return traced_lazy_enumerate(lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, trace, state, expr.args[1])
 end
 
-function lazy_enumerate(expr::PExpr{ConstReal}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    return [(expr.args[1], trace)]
-end
 
 function lazy_enumerate(expr; show_length = false, kwargs...)
     s = LazyEnumeratorEvalState(; kwargs...)

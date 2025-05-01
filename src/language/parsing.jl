@@ -14,7 +14,7 @@ function const_to_expr(v::Int)
     parse_expr(pluck_nat(v))
 end
 
-const_to_expr(v::Float64) = ConstReal(v)
+const_to_expr(v::Float64) = ConstNative(v)
 const_to_expr(v::Bool) =
     v ? Construct(:True, Symbol[]) : Construct(:False, Symbol[])
 
@@ -295,9 +295,13 @@ function parse_expr_inner(tokens, defs, env)
             end
             return expr, view(tokens, 2:length(tokens))
         end
+    elseif token[1] == '\''
+        # parse a symbol
+        sym = Symbol(token[2:end])
+        return NativeValue(sym), view(tokens, 2:length(tokens))
     elseif token[1] == '&'
         val = parse(Int, token[2:end])
-        return RawInt(val), view(tokens, 2:length(tokens))
+        return ConstNative(val), view(tokens, 2:length(tokens))
     elseif token ∈ env
         # Parse a var by name like "foo"
         idx = findfirst(x -> x == token, env) # shadowing
@@ -316,7 +320,7 @@ function parse_expr_inner(tokens, defs, env)
         return Var(idx, name), view(tokens, 2:length(tokens))
     elseif '@' ∈ token
         idx = parse(Int, token[2:end])
-        return DiffVar(idx), view(tokens, 2:length(tokens))
+        return ConstNative(idx), view(tokens, 2:length(tokens))
     elseif all(isdigit, token)
         val = parse(Int, token)
         return const_to_expr(val), view(tokens, 2:length(tokens))

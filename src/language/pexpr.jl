@@ -1,4 +1,4 @@
-export PExpr, Head, Var, DiffVar, App, Abs, Y, Defined, PExpr, ConstReal, CaseOf, Construct, RawInt, FlipOp, ConstructorEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, ConstructorEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig
 
 import DataStructures: OrderedDict
 
@@ -82,26 +82,16 @@ Base.show(io::IO, e::PExpr{Var}) =
     e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
 
 
-struct DiffVar <: Head end
-DiffVar(idx::Int) = DiffVar(idx, :noname)
-DiffVar(idx, name) = PExpr(DiffVar(), Any[idx, name])
-Base.show(io::IO, e::PExpr{DiffVar}) =
-    e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
-
 struct Defined <: Head end
 Defined(name) = PExpr(Defined(), Any[name])
 shortname(e::PExpr{Defined}) = string(e.args[1])
 Base.show(io::IO, e::PExpr{Defined}) = print(io, e.args[1])
 
-struct RawInt <: Head end
-RawInt(val) = PExpr(RawInt(), Any[val])
-shortname(e::PExpr{RawInt}) = "&"
-Base.show(io::IO, e::PExpr{RawInt}) = print(io, "&", e.args[1])
+struct ConstNative <: Head end
+ConstNative(val) = PExpr(ConstNative(), Any[val])
+shortname(e::PExpr{ConstNative}) = string(e.args[1])
+Base.show(io::IO, e::PExpr{ConstNative}) = print(io, e.args[1])
 
-struct ConstReal <: Head end
-ConstReal(val) = PExpr(ConstReal(), Any[val])
-shortname(e::PExpr{ConstReal}) = string(e.args[1])
-Base.show(io::IO, e::PExpr{ConstReal}) = print(io, e.args[1])
 
 struct CaseOf <: Head end
 CaseOf(scrutinee, cases) = PExpr(CaseOf(), Any[scrutinee, cases])

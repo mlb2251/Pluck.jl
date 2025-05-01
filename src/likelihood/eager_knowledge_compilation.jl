@@ -205,9 +205,9 @@ end
 
 
 function bdd_prim_forward(expr::PExpr{MkIntOp}, env::Env, state::BDDStrictEvalState)
-    bitwidth = expr.args[1]::RawInt
-    val = expr.args[2]::RawInt
-    bools = digits(Bool, val.val, base = 2, pad = bitwidth.val)
+    bitwidth = expr.args[1]::ConstNative
+    val = expr.args[2]::ConstNative
+    bools = digits(Bool, val.value, base = 2, pad = bitwidth.value)
     bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
 
     return [(IntDist(bits), state.manager.BDD_TRUE)]
@@ -282,10 +282,6 @@ end
 function bdd_forward(expr::PExpr{Defined}, env::Env, state::BDDStrictEvalState)
     # Execute Defined with a blanked out environment.
     return traced_bdd_forward(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, state)
-end
-
-function bdd_forward(expr::PExpr{ConstReal}, env::Env, state::BDDStrictEvalState)
-    return [(expr.args[1], state.manager.BDD_TRUE)]
 end
 
 function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, record_bdd_json = false, state = BDDStrictEvalState())
