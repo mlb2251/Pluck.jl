@@ -163,6 +163,10 @@ function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state
     end
 end
 
+function compile_inner(expr::PExpr{ConstNative}, env, path_condition, state::LazyKCState)
+    return pure_monad(NativeValue(expr.args[1]), state)
+end
+
 function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state::LazyKCState)
     bitwidth = expr.args[1]::ConstNative
     val = expr.args[2]::ConstNative

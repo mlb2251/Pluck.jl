@@ -299,9 +299,6 @@ function parse_expr_inner(tokens, defs, env)
         # parse a symbol
         sym = Symbol(token[2:end])
         return NativeValue(sym), view(tokens, 2:length(tokens))
-    elseif token[1] == '&'
-        val = parse(Int, token[2:end])
-        return ConstNative(val), view(tokens, 2:length(tokens))
     elseif token ∈ env
         # Parse a var by name like "foo"
         idx = findfirst(x -> x == token, env) # shadowing

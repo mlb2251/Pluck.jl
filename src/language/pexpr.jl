@@ -90,7 +90,13 @@ Base.show(io::IO, e::PExpr{Defined}) = print(io, e.args[1])
 struct ConstNative <: Head end
 ConstNative(val) = PExpr(ConstNative(), Any[val])
 shortname(e::PExpr{ConstNative}) = string(e.args[1])
-Base.show(io::IO, e::PExpr{ConstNative}) = print(io, e.args[1])
+function Base.show(io::IO, e::PExpr{ConstNative})
+    if e.args[1] isa Int
+        print(io, "@", e.args[1])
+    else
+        print(io, e.args[1])
+    end
+end
 
 
 struct CaseOf <: Head end
