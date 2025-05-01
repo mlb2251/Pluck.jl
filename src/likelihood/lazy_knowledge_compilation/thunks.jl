@@ -99,7 +99,7 @@ function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
     return result
 end
 
-function evaluate(thunk::LazyKCThunk, path_condition::BDD, state::LazyKCState)
+function evaluate(thunk::LazyKCThunk, path_condition, state::LazyKCState)
     if !state.cfg.disable_used_information && bdd_is_false(path_condition)
         return false_path_condition_worlds(state)
     end
