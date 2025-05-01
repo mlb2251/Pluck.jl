@@ -97,27 +97,23 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state::LazyKCSt
 
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
         p = p.value
-        if isapprox(p, 0.0)
-            return pure_monad(Pluck.FALSE_VALUE, state)
-        elseif isapprox(p, 1.0)
-            return pure_monad(Pluck.TRUE_VALUE, state)
-        else
-            # If we are past the max depth, AND we are sampling after the max depth, AND 
-            # this flip is new (not previously instantiated), THEN sample a value.
-            if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
-                sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-                return pure_monad(sampled_value, state)
-            end
-
-            # Otherwise, we perform the usual logic.
-            # BDDs do not represent quantitative probabilities. Therefore, for each 
-            # different probability `p`, we need to create a new variable in the BDD.
-            push!(state.callstack, 1)
-            addr = current_bdd_address(state, p)
-            RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
-            pop!(state.callstack)
-            return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, state)
+        isapprox(p, 0.0) && return pure_monad(Pluck.FALSE_VALUE, state)
+        isapprox(p, 1.0) && return pure_monad(Pluck.TRUE_VALUE, state)
+        # If we are past the max depth, AND we are sampling after the max depth, AND 
+        # this flip is new (not previously instantiated), THEN sample a value.
+        if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
+            sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
+            return pure_monad(sampled_value, state)
         end
+
+        # Otherwise, we perform the usual logic.
+        # BDDs do not represent quantitative probabilities. Therefore, for each 
+        # different probability `p`, we need to create a new variable in the BDD.
+        push!(state.callstack, 1)
+        addr = current_bdd_address(state, p)
+        RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
+        pop!(state.callstack)
+        return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, state)
     end
 end
 
