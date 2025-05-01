@@ -18,21 +18,21 @@ end
 Construct a single world with the given value. Lifts a deterministic
 value into the monad.
 """
-@inline function pure_monad(val, state)
+function pure_monad(val, path_condition, state::LazyKCState)
     return World[(val, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
 end
 
 """
 Constructs a pair of worlds, one with the condition true and one with the condition false.
 """
-@inline function if_then_else_monad(val_if_true, val_if_false, condition, state)
+function if_then_else_monad(val_if_true, val_if_false, condition, state)
     return World[(val_if_true, condition), (val_if_false, !condition)], state.manager.BDD_TRUE
 end
 
 """
 Condition every world in a set of worlds on a condition
 """
-@inline function condition_worlds(worlds, condition)
+function condition_worlds(worlds, condition)
     return World[(val, guard & condition) for (val, guard) in worlds]
 end
 

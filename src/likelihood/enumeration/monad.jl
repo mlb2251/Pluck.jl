@@ -1,6 +1,8 @@
 
 
-
+function pure_monad(val, trace, state::LazyEnumeratorEvalState)
+    return [(val, trace)]
+end
 
 
 function lazy_enumerator_bind(cont, first_stage_results, state)

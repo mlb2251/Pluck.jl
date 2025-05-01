@@ -14,7 +14,7 @@ end
 
 function compile_inner(expr::PExpr{Abs}, env, path_condition, state::LazyKCState)
     # A lambda term deterministically evaluates to a closure.
-    return pure_monad(Closure(expr.args[1], env), state)
+    return pure_monad(Closure(expr.args[1], env), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Construct}, env, path_condition, state::LazyKCState)
@@ -22,7 +22,7 @@ function compile_inner(expr::PExpr{Construct}, env, path_condition, state::LazyK
     # Create a thunk for each argument.
     thunked_arguments = [LazyKCThunk(arg, env, state.callstack, Symbol("$(expr.args[1]).arg$i"), i, state) for (i, arg) in enumerate(expr.args[2])] # TODO: use global args_syms to avoid runtime cost of Symbol?
     # Return the constructor and its arguments.
-    return pure_monad(Value(expr.args[1], thunked_arguments), state)
+    return pure_monad(Value(expr.args[1], thunked_arguments), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state::LazyKCState)
@@ -60,7 +60,7 @@ end
 function compile_inner(expr::PExpr{Y}, env, path_condition, state::LazyKCState)
     @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
     closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
-    return pure_monad(closure, state)
+    return pure_monad(closure, path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Var}, env, path_condition, state::LazyKCState)
@@ -70,7 +70,7 @@ function compile_inner(expr::PExpr{Var}, env, path_condition, state::LazyKCState
         return evaluate(v, path_condition, state)
     end
 
-    return pure_monad(v, state)
+    return pure_monad(v, path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state::LazyKCState)
@@ -87,13 +87,13 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state::LazyKCSt
 
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
         p = p.value
-        isapprox(p, 0.0) && return pure_monad(Pluck.FALSE_VALUE, state)
-        isapprox(p, 1.0) && return pure_monad(Pluck.TRUE_VALUE, state)
+        isapprox(p, 0.0) && return pure_monad(Pluck.FALSE_VALUE, path_condition, state)
+        isapprox(p, 1.0) && return pure_monad(Pluck.TRUE_VALUE, path_condition, state)
         # If we are past the max depth, AND we are sampling after the max depth, AND 
         # this flip is new (not previously instantiated), THEN sample a value.
         if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
             sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-            return pure_monad(sampled_value, state)
+            return pure_monad(sampled_value, path_condition, state)
         end
 
         # Otherwise, we perform the usual logic.
@@ -137,7 +137,7 @@ function compile_inner(expr::PExpr{NativeEqOp}, env, path_condition, state::Lazy
     bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
             val = arg1.value == arg2.value ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-            return pure_monad(val, state)
+            return pure_monad(val, path_condition, state)
         end
     end
 end
@@ -151,18 +151,18 @@ function compile_inner(expr::PExpr{GetArgsOp}, env, path_condition, state::LazyK
         for arg in reverse(val.args)
             res = Value(:Cons, [arg, res])
         end
-        return pure_monad(res, state)
+        return pure_monad(res, path_condition, state)
     end
 end
 
 function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state::LazyKCState)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
-        return pure_monad(NativeValue(val.constructor), state)
+        return pure_monad(NativeValue(val.constructor), path_condition, state)
     end
 end
 
 function compile_inner(expr::PExpr{ConstNative}, env, path_condition, state::LazyKCState)
-    return pure_monad(NativeValue(expr.args[1]), state)
+    return pure_monad(NativeValue(expr.args[1]), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state::LazyKCState)
@@ -171,7 +171,7 @@ function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state::LazyKCS
     bools = digits(Bool, val.value, base = 2, pad = bitwidth.value)
     bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
 
-    return pure_monad(IntDist(bits), state)
+    return pure_monad(IntDist(bits), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{IntDistEqOp}, env, path_condition, state::LazyKCState)
@@ -207,9 +207,9 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state::LazyKCS
     false_thunk = LazyKCThunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :false_thunk, 3, state)
     bind_monad(cond, path_condition, state) do cond, path_condition
         if cond.constructor == :True
-            return pure_monad(Value(:PBool, p_true_thunk, true_thunk), state)
+            return pure_monad(Value(:PBool, p_true_thunk, true_thunk), path_condition, state)
         elseif cond.constructor == :False
-            return pure_monad(Value(:PBool, p_true_thunk, false_thunk), state)
+            return pure_monad(Value(:PBool, p_true_thunk, false_thunk), path_condition, state)
         else
             error("PBoolOp: condition must be a boolean, got $(cond)")
         end
