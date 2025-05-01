@@ -7,8 +7,7 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state::LazyKCState
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         new_env = copy(f.env)
-        x = thunked_argument
-        pushfirst!(new_env, x)
+        pushfirst!(new_env, thunked_argument)
         return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
     end
 end
