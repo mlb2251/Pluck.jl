@@ -3,10 +3,9 @@
 #################################
 
 function compile_inner(expr::PExpr{App}, env::Env, path_condition::BDD, state::LazyKCState)
-    fs = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
     thunked_argument = LazyKCThunk(expr.args[2], env, state.callstack, :app_x, 1, state)
 
-    return bind_monad(fs, path_condition, state) do f, path_condition
+    return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         new_env = copy(f.env)
         x = thunked_argument
         pushfirst!(new_env, x)
@@ -28,13 +27,12 @@ function compile_inner(expr::PExpr{Construct}, env::Env, path_condition::BDD, st
 end
 
 function compile_inner(expr::PExpr{CaseOf}, env::Env, path_condition::BDD, state::LazyKCState)
-    scrutinee_values = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
     constructor_indices = Dict{Symbol, Int}()
     for (i, constructor) in enumerate(keys(expr.args[2])) # sort? reverse?
         constructor_indices[constructor] = i
     end
     # caseof_type = type_of_constructor[first(keys(expr.cases))]
-    bind_monad(scrutinee_values, path_condition, state) do scrutinee, path_condition
+    bind_compile(expr.args[1], env, path_condition, state, 0) do scrutinee, path_condition
         # value_type = type_of_constructor[scrutinee.constructor]
         # if !isempty(expr.cases) && !(value_type == caseof_type)
             # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
@@ -98,8 +96,7 @@ end
 
 function compile_inner(expr::PExpr{FlipOp}, env::Env, path_condition::BDD, state::LazyKCState)
 
-    ps = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
-    bind_monad(ps, path_condition, state) do p, path_condition
+    bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
         p = p.value
         if isapprox(p, 0.0)
             return pure_monad(Pluck.FALSE_VALUE, state)
@@ -128,10 +125,9 @@ end
 function compile_inner(expr::PExpr{FlipOpDual}, env::Env, path_condition::BDD, state::LazyKCState)
     npartials = state.manager.vector_size
 
-    metaparams = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
     p_init = 0.5
     # All we want to do is update a dictionary in BDDEvalState saying that bdd_topvar(addr) is associated with args[1].metaparam
-    bind_monad(metaparams, path_condition, state) do metaparam, path_condition
+    bind_compile(expr.args[1], env, path_condition, state, 0) do metaparam, path_condition
         metaparam = metaparam.value
         if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
             sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
@@ -153,10 +149,8 @@ end
 
 function compile_inner(expr::PExpr{ConstructorEqOp}, env::Env, path_condition::BDD, state::LazyKCState)
     # Evaluate both arguments.
-    first_arg_results = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
-    bind_monad(first_arg_results, path_condition, state) do arg1, path_condition
-        second_arg_results = traced_compile_inner(expr.args[2], env, path_condition, state, 1)
-        bind_monad(second_arg_results, path_condition, state) do arg2, path_condition
+    bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
+        bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
             val =  arg1.constructor == arg2.constructor ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
             return pure_monad(val, state)
         end
@@ -167,8 +161,7 @@ end
 Given a Value, returns a Cons-list of its arguments.
 """
 function compile_inner(expr::PExpr{GetArgsOp}, env::Env, path_condition::BDD, state::LazyKCState)
-    vals = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
-    bind_monad(vals, path_condition, state) do val, path_condition
+    bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
         res = Value(:Nil)
         for arg in reverse(val.args)
             res = Value(:Cons, [arg, res])
@@ -178,8 +171,7 @@ function compile_inner(expr::PExpr{GetArgsOp}, env::Env, path_condition::BDD, st
 end
 
 function compile_inner(expr::PExpr{GetConstructorOp}, env::Env, path_condition::BDD, state::LazyKCState)
-    val = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
-    bind_monad(val, path_condition, state) do val, path_condition
+    bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
         return pure_monad(HostValue(val.constructor), state)
     end
 end
@@ -194,10 +186,8 @@ function compile_inner(expr::PExpr{MkIntOp}, env::Env, path_condition::BDD, stat
 end
 
 function compile_inner(expr::PExpr{IntDistEqOp}, env::Env, path_condition::BDD, state::LazyKCState)
-    first_int_dist = traced_compile_inner(expr.args[1], env, path_condition, state, 0)
-    bind_monad(first_int_dist, path_condition, state) do first_int_dist, path_condition
-        second_int_dist = traced_compile_inner(expr.args[2], env, path_condition, state, 1)
-        bind_monad(second_int_dist, path_condition, state) do second_int_dist, path_condition
+    bind_compile(expr.args[1], env, path_condition, state, 0) do first_int_dist, path_condition
+        bind_compile(expr.args[2], env, path_condition, state, 1) do second_int_dist, path_condition
             bdd = int_dist_eq(first_int_dist, second_int_dist, state)
             return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, bdd, state)
         end
@@ -224,8 +214,8 @@ function compile_inner(expr::PExpr{PBoolOp}, env::Env, path_condition::BDD, stat
     logtotal = logaddexp(p_true, p_false)
 
     p_true_thunk = LazyKCThunk(ConstReal(exp(p_true - logtotal)), Pluck.EMPTY_ENV, state.callstack, :p_true, 1, state)
-    true_thunk = LazyKCThunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :true_thunk, 3, state)
-    false_thunk = LazyKCThunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :false_thunk, 4, state)
+    true_thunk = LazyKCThunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :true_thunk, 2, state)
+    false_thunk = LazyKCThunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, state.callstack, :false_thunk, 3, state)
     bind_monad(cond, path_condition, state) do cond, path_condition
         if cond.constructor == :True
             return pure_monad(Value(:PBool, p_true_thunk, true_thunk), state)
