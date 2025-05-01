@@ -112,7 +112,7 @@ function Base.show(io::IO, e::PExpr{CaseOf})
     end
     print(io, ")")
 end
-Base.copy(e::PExpr{CaseOf}) = PExpr(CaseOf(), Any[copy(e.args[1]), OrderedDict(constructor => copy(e.args[2][constructor]) for constructor in keys(e.args[2]))])
+Base.copy(e::PExpr{CaseOf}) = PExpr(CaseOf(), Any[copy(e.args[1]), [(copy(con), copy(branch)) for (con, branch) in e.args[2]]])
 
 struct Construct <: Head end
 Construct(constructor, args) = PExpr(Construct(), Any[constructor, collect(args)])
@@ -221,5 +221,5 @@ var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args if arg 
 var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
 var_is_free(e::PExpr{Var}, var) = e.args[1] == var
 var_is_free(e::PExpr{CaseOf}, var) =
-    var_is_free(e.args[1], var) || any(case -> var_is_free(case, var), values(e.args[2]))
+    var_is_free(e.args[1], var) || any(case -> var_is_free(case[2], var), e.args[2])
 var_is_free(e::PExpr{Construct}, var) = any(var_is_free(arg, var) for arg in e.args[2])
