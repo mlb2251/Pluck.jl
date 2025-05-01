@@ -11,7 +11,6 @@ end
 
 function Base.show(io::IO, choice::Choice)
     print(io, "(", choice.addr, " => ", choice.val, ")")
-    #  ", w = ", round(exp(choice.weight), sigdigits=2), ")")
 end
 
 abstract type TraceImmut end
@@ -66,10 +65,6 @@ function Base.show(io::IO, trace::TraceImmutNil)
     print(io, "[]")
 end
 
-
-# weight(trace::Trace) = weight(trace.trace)
-# weight(trace::TraceImmutCons) = trace.choice.weight + weight(trace.rest)
-# weight(trace::TraceImmutNil) = 0.0
 weight(trace::Trace) = trace.weight
 
 
@@ -103,9 +98,9 @@ end
 
 
 mutable struct LazyEnumeratorEvalState
-    callstack::Vector{Symbol}
-    id_of_callstack::Dict{Vector{Symbol}, Int}
-    callstack_of_id::Vector{Vector{Symbol}}
+    callstack::Vector{Int}
+    id_of_callstack::Dict{Vector{Int}, Int}
+    callstack_of_id::Vector{Vector{Int}}
     depth::Int
     max_depth::Union{Int, Nothing}
     time_limit::Union{Float64, Nothing}
@@ -118,11 +113,11 @@ mutable struct LazyEnumeratorEvalState
     strict::Bool
 
     function LazyEnumeratorEvalState(; max_depth = nothing, time_limit = nothing, disable_traces = false, disable_cache = true, strict = false)
-        return new(Symbol[], Dict(), Vector{Vector{Symbol}}(), 0, max_depth, time_limit, 0., 0., false, 1, disable_traces, disable_cache, strict)
+        return new(Int[], Dict(), Vector{Vector{Int}}(), 0, max_depth, time_limit, 0., 0., false, 1, disable_traces, disable_cache, strict)
     end
 end
 
-function traced_compile_inner(expr::PExpr, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState, name::Symbol)
+function traced_compile_inner(expr::PExpr, env, trace, state::LazyEnumeratorEvalState, strict_order_index::Int)
     # println(" " ^ state.depth * "traced_compile_inner($expr)")
 
     if state.hit_limit
@@ -140,7 +135,7 @@ function traced_compile_inner(expr::PExpr, env::Vector{Any}, trace::Trace, state
     end
 
     state.depth += 1
-    push!(state.callstack, name)
+    push!(state.callstack, strict_order_index)
     worlds = compile_inner(expr, env, trace, state)
     pop!(state.callstack)
     state.depth -= 1

@@ -1,18 +1,18 @@
 mutable struct LazyEnumeratorThunk
     expr::PExpr
     env::Vector{Any}
-    callstack::Vector{Symbol}
-    name::Symbol
+    callstack::Vector{Int}
+    strict_order_index::Int
     id::Int
 
-    function LazyEnumeratorThunk(expr::PExpr, env::Vector{Any}, state::LazyEnumeratorEvalState, name::Symbol)
+    function LazyEnumeratorThunk(expr::PExpr, env::Vector{Any}, state::LazyEnumeratorEvalState, strict_order_index::Int)
         @assert !state.strict
         if expr isa Var && env[expr.idx] isa LazyEnumeratorThunk
             return env[expr.idx]
         end
         id = state.next_thunk_id
         state.next_thunk_id += 1
-        new(expr, env, copy(state.callstack), name, id)
+        new(expr, env, copy(state.callstack), strict_order_index, id)
     end
 end
 
@@ -31,7 +31,7 @@ function evaluate(thunk::LazyEnumeratorThunk, trace::Trace, state::LazyEnumerato
     # Otherwise we have to evaluate the thunk. Set the callstack to the thunk's callstack.
     old_callstack = state.callstack
     state.callstack = thunk.callstack
-    result = traced_compile_inner(thunk.expr, thunk.env, trace, state, thunk.name)
+    result = traced_compile_inner(thunk.expr, thunk.env, trace, state, thunk.strict_order_index)
     state.callstack = old_callstack
     # Cache the result
     result = map(result) do (val, trace)
