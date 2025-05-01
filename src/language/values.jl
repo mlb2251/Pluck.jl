@@ -9,14 +9,14 @@ abstract type Thunk end
 Base.:(==)(x::AbstractValue, y::Any) = error("Cannot compare Value with $(typeof(y))")
 Base.:(==)(x::Any, y::AbstractValue) = error("Cannot compare $(typeof(x)) with Value")
 
-struct NativeValue{T} <: AbstractValue
+mutable struct NativeValue{T} <: AbstractValue
     value::T
 end
 Base.:(==)(x::NativeValue{T}, y::NativeValue{T}) where T = x.value == y.value
 Base.hash(x::NativeValue{T}, h::UInt) where T = hash(x.value, h)
 Base.show(io::IO, x::NativeValue{T}) where T = print(io, x.value)
 
-struct Value <: AbstractValue
+mutable struct Value <: AbstractValue
     constructor::Symbol
     args::Vector{Any}
 end

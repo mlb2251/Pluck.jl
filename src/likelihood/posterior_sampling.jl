@@ -32,7 +32,8 @@ function posterior_sample(val, state)
     
         # Sample from the query under the evidence constraint
         sampled_value = evaluate(query_thunk, nothing, sample_state)
-        push!(samples, force_value(sampled_value, sample_state))
+        forced = force_value(sampled_value, query_thunk.env, sample_state)
+        push!(samples, forced)
     end
     return samples
 end
@@ -110,9 +111,11 @@ mutable struct SampleValueState
     end
 end
 
-function traced_compile_inner(expr::PExpr, env::Env, null, state::SampleValueState, strict_order_index::Int)
+function traced_compile_inner(expr::PExpr, env, null, state::SampleValueState, strict_order_index::Int)
     push!(state.callstack, strict_order_index)
+    print_enter(expr, env, state)
     result = compile_inner(expr, env, null, state)
+    print_exit(expr, result, env, state)
     pop!(state.callstack)
     return result
 end
@@ -133,7 +136,8 @@ end
 
 function evaluate(thunk::LazyKCThunk, null, state::SampleValueState)
     # no cache for posterior sampling – but we can reuse the cacheless version from lazy KC
-    return evaluate_no_cache(thunk, null, state)
+    res = evaluate_no_cache(thunk, null, state)
+    return res
 end
 
 
@@ -169,18 +173,104 @@ end
 
 function make_thunk(expr::PExpr, env, strict_order_index, state::SampleValueState)
     # since posterior sampling just produces one result, we dont need to worry about binding in the strict case
-    state.lazy ? LazyKCThunk(expr, env, strict_order_index, state) : traced_compile_inner(expr, env, nothing, state, strict_order_index)
+    !state.lazy && return traced_compile_inner(expr, env, nothing, state, strict_order_index)
+    thunk = LazyKCThunk(expr, env, strict_order_index, state)
+    print_make_thunk(thunk, state)
+    return thunk
 end
 
-function force_value(v::Value, state::SampleValueState)
-    for i in 1:length(v.args)
-        if v.args[i] isa LazyKCThunk
-            v.args[i] = force_value(evaluate(v.args[i], nothing, state), state)
-        end
-    end
+function traced_force_value(v, env, state, strict_order_index)
+    # push!(state.callstack, strict_order_index)
+    res = force_value(v, env, state)
+    # pop!(state.callstack)
+    return res
+end
+
+"""
+thunks get evaluated, and their results are forced as well
+"""
+function force_value(v::Thunk, env, state::SampleValueState)
+    traced_force_value(evaluate(v, nothing, state), env, state, 0)
+end
+
+"""
+values get forced by forcing their args recursively
+"""
+function force_value(v::Value, env, state::SampleValueState)
+    v.args = traced_force_value(v.args, env, state, 0)
     return v
 end
 
-function force_value(v::Closure, state::SampleValueState)
+"""
+vectors get forced elementwise
+"""
+function force_value(v::Vector, env, state::SampleValueState)
+    return map(i_x -> traced_force_value(i_x[2], env, state, i_x[1]), enumerate(v))
+end
+
+"""
+tuples get forced elementwise - they appear in CaseOf for example
+"""
+function force_value(v::Tuple, env, state::SampleValueState)
+    return map(i_x -> traced_force_value(i_x[2], env, state, i_x[1]), enumerate(v))
+end
+
+function force_value(v::PExpr{Unquote}, env, state::SampleValueState)
+    error("unquotes should never be forced because compile_inner(Quote) should ensure unquotes are always wrapped by and handled by quotes")
+end
+
+"""
+When a Quote is forced we get a NativeValue{PExpr}, which may contain thunks so we need to force them
+"""
+function force_value(v::NativeValue{PExpr{T}}, env, state::SampleValueState) where T
+    return traced_force_value(v.value, env, state, 0)
+end
+
+"""
+This is for the inner PExpr of a NativeValue{PExpr} as well as for nested PExprs. We force all the args,
+    just like how compile_inner(Quote) creates thunks for all the args.
+Note some of these args might be vectors/tuples/etc which force will handle recursively.
+"""
+function force_value(v::PExpr, env, state::SampleValueState)
+    v.args = traced_force_value(v.args, env, state, 0)
     return v
 end
+
+"""
+Force is a no-op for all other values
+"""
+force_value(v, env, state::SampleValueState) = v
+
+
+
+# unquotes get forced as well
+# function force_value(v::PExpr{Unquote}, env, state::SampleValueState)
+#     # println("force_value unquote: $v")
+#     e = traced_compile_inner(v, env, nothing, state, 0)
+#     # println("force_value unquote yielded: $e of type $(typeof(e))")
+#     @assert e isa NativeValue && e.value isa LazyKCThunk "unquote created a non-LazyKCThunk: $e"
+#     return traced_force_value(e, env, state, 1)
+# end
+
+# function force_value(v::PExpr{Quote}, env, state::SampleValueState)
+#     v.args = traced_force_value(v.args, env, state, 0)
+#     return v
+# end
+
+# to look for unquotes we need to force PExpr arguments
+# function force_value(v::NativeValue{LazyKCThunk}, env, state::SampleValueState)
+#     println("force_value lazy kc thunk: $v")
+#     # v.value = traced_force_value(v.value, env, state, 0)
+#     return traced_force_value(v.value, env, state, 0)
+# end
+
+
+
+
+
+
+
+
+
+
+

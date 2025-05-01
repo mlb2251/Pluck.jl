@@ -217,6 +217,7 @@ function parse_and_process_define_function(tokens, defs)
     # Parse body with updated environment
     body, tokens = parse_expr_inner(tokens, defs, new_env)
 
+    # @show body
     # Construct lambda expression
     expr = body
     if isempty(args)
@@ -227,7 +228,7 @@ function parse_and_process_define_function(tokens, defs)
         end
     end
 
-    @assert tokens[1] == ")" "Expected closing paren"
+    @assert tokens[1] == ")" "Expected closing paren when defining $fname, instead got: $(tokens[1:min(length(tokens), 10)])"
 
     # Update the definition with the actual expression
     defs[fname] = Definition(fname, expr)

@@ -166,6 +166,10 @@ function bind_compile(cont::F, expr::PExpr, env, path_condition, state, strict_o
     return bind_monad(cont, pre_worlds, path_condition, state)
 end
 
+function bind_evaluate(cont::F, thunk, env, path_condition, state) where F <: Function
+    pre_worlds = evaluate(thunk, path_condition, state)
+    return bind_monad(cont, pre_worlds, path_condition, state)
+end
 
 # Not tested or used right now.
 function bind_compile_many(cont::F, exprs::Vector{PExpr}, env, path_condition, state::LazyKCState, strict_order_indices::Vector{Int}) where F <: Function

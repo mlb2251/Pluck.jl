@@ -30,9 +30,25 @@ function Base.show(io::IO, x::LazyKCThunk)
 end
 
 function make_thunk(expr::PExpr, env, strict_order_index, state::LazyKCState)
-    return LazyKCThunk(expr, env, strict_order_index, state)
+    thunk = LazyKCThunk(expr, env, strict_order_index, state)
+    print_make_thunk(thunk, state)
+    return thunk
 end
 
+"""
+this thunk returns a NativeValue{PExpr} so say it might look like (quote ...)
+though of course it might also return more than one expression.
+We'd like to effectively make a thunk that goes (eval (quote ...))
+
+(eval #1)
+
+"""
+# function make_thunk(thunk::Thunk, env, strict_order_index, state::LazyKCState)
+#     bind_evaluate(thunk, env, path_condition, state) do e, path_condition
+#         @assert e isa NativeValue && e.value isa PExpr "Thunk must be evaluated to a NativeValue{PExpr}, got $(e) :: $(typeof(e))"
+#         return make_thunk(e.value, env, strict_order_index, state)
+#     end
+# end
 
 struct LazyKCThunkUnion <: Thunk
     thunks::Vector{Tuple{LazyKCThunk, BDD}}
@@ -92,10 +108,12 @@ function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCSta
 end
 
 function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
+    print_thunk_enter(thunk, state)
     old_callstack = state.callstack
     state.callstack = thunk.callstack
     result = traced_compile_inner(thunk.expr, thunk.env, path_condition, state, thunk.strict_order_index)
     state.callstack = old_callstack
+    print_thunk_exit(thunk, result, state)
     return result
 end
 
@@ -243,4 +261,31 @@ function replace_at_path(val::Value, path::Vector{Int}, new_val)
     end
     
     return Value(val.constructor, new_args)
+end
+
+function pretty_thunk(thunk::LazyKCThunk)
+    return "Thunk $(thunk.expr)"
+end
+
+function print_thunk_enter(thunk::LazyKCThunk, state)
+    get_verbose() || return
+    cs = pretty_callstack(state.callstack)
+    thunk_cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
+    printstyled("$cs $(pretty_thunk(thunk)) ", color=:yellow)
+    printstyled("@ $thunk_cs\n", color=:magenta)
+end
+
+function print_thunk_exit(thunk::LazyKCThunk, result, state)
+    get_verbose() || return
+    cs = pretty_callstack(state.callstack)
+    thunk_cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
+    printstyled("$thunk_cs $(pretty_thunk(thunk)) ", color=:green)
+    printstyled("-> $result ", color=:blue)
+    printstyled("@ $cs\n", color=:magenta)
+end
+
+function print_make_thunk(thunk::LazyKCThunk, state)
+    get_verbose() || return
+    cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
+    printstyled("$cs Make $(pretty_thunk(thunk))\n", color=:cyan)
 end

@@ -1,0 +1,98 @@
+;; (define-type expr
+;;   (Expr sym list))
+
+
+
+;; (query
+;;   (Marginal
+;;     (eval (Expr 'Construct (Cons 'Nil (Cons (Nil) (Nil)))))))
+
+
+
+;; (eval '(Nil))
+;; (eval '(S (O)))
+;; (eval '1)
+
+;; (eval '#1)
+;; (eval 'x)
+
+
+;; fn generating a random list of nats
+(define (rnat)
+  (if (flip 0.5) (O) (S (rnat))))
+(define (rlist)
+  (if (flip 0.5) (Nil) (Cons (rnat) (rlist))))
+
+
+;; fn generating the code for a random list of nats as constants
+(define (rnat_code)
+  (if (flip 0.5) `(O) `(S ~(rnat_code))))
+
+(define (rlist_code)
+  (if (flip 0.5) `(Nil) `(Cons ~(rnat_code) ~(rlist_code))))
+
+
+
+;; forward declaration
+(define (nat-exp) (Unit))
+
+;; writing a basic DSL
+(define (nat-term)
+  (if (flip 0.2) `(O) `(S ~(nat-term))))
+
+(define (nat-nonterm)
+  (discrete
+    (`(+ ~(nat-exp) ~(nat-exp)) 0.5)
+    (`(- ~(nat-exp) ~(nat-exp)) 0.5)))
+
+
+(define (nat-exp)
+  (discrete
+    ((nat-term) 0.7)
+    ((nat-nonterm) 0.3)))
+
+(query
+ nat-exp-samples
+ (let ((e (nat-exp)))
+   (PosteriorSamples
+    ;; Query
+    e
+    ;; Evidence
+    true
+    ;; Number of samples
+    10)))
+
+
+
+;; writing a dsl with variables
+;; (ctx-cons ctx 'nat-term `x)
+;; (ctx-has ctx 'nat-term)
+;; (uniform (ctx-get ctx 'nat-term))
+;; (uniform (ctx-get ctx 'nat-nonterm `(f ~(nat-exp ctx))))
+
+
+;; (define (nat-exp ctx)
+;;   (discrete
+;;     ((nat-term ctx) 0.7)
+;;     ((nat-nonterm ctx) 0.3)))
+
+;; (define (nat-term ctx)
+;;   (if (and (ctx-has 'nat-term) (flip 0.5))
+;;     (ctx-get-uniform ctx 'nat-term)
+;;     (nat-const ctx)))
+
+;; (define (nat-const ctx)
+;;   (if (flip 0.5) `(O) `(S ~(nat-term ctx))))
+
+;; (define (nat-nonterm ctx)
+;;   (discrete
+;;     (`(let (x ~(nat-exp ctx)) ~(nat-exp (ctx-cons ctx 'nat-term `x))) 0.4)
+;;     (`(+ ~(nat-exp ctx) ~(nat-exp ctx)) 0.3)
+;;     (`(- ~(nat-exp ctx) ~(nat-exp ctx)) 0.3)))
+
+
+
+
+
+
+

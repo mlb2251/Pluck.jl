@@ -49,7 +49,7 @@ end
 num_apps(e::PExpr) = 0
 num_apps(e::PExpr{App}) = 1 + num_apps(e.args[1])
 get_func(e::PExpr{App}) = get_func(e.args[1])
-get_func(e::PExpr) = e
+get_func(e) = e
 function getarg(e::PExpr{App}, i)
     # for an app chain (app (app f x) y) we want x to be the 1st arg and y to be
     # the second arg.
@@ -62,7 +62,6 @@ end
 
 # functional abstraction
 struct Abs <: Head end
-# Abs(body, name) = PExpr(Abs(), Any[body, name])
 
 shortname(e::PExpr{Abs}) = "λ" * string(e.args[2])
 function Base.show(io::IO, e::PExpr{Abs})
@@ -77,15 +76,22 @@ end
 
 struct Var <: Head end
 Var(idx::Int) = Var(idx, :noname)
-Var(idx, name) = PExpr(Var(), Any[idx, name])
 Base.show(io::IO, e::PExpr{Var}) =
     e.args[2] === :noname ? print(io, "#", e.args[1]) : print(io, e.args[2], "#", e.args[1])
 
 
 struct Defined <: Head end
-Defined(name) = PExpr(Defined(), Any[name])
 shortname(e::PExpr{Defined}) = string(e.args[1])
 Base.show(io::IO, e::PExpr{Defined}) = print(io, e.args[1])
+
+struct Unquote <: Head end
+shortname(e::PExpr{Unquote}) = "unquote"
+Base.show(io::IO, e::PExpr{Unquote}) = print(io, "~", e.args[1])
+
+struct Quote <: Head end
+shortname(e::PExpr{Quote}) = "quote"
+Base.show(io::IO, e::PExpr{Quote}) = print(io, "`", e.args[1])
+
 
 struct ConstNative <: Head end
 ConstNative(val) = PExpr(ConstNative(), Any[val])
@@ -93,6 +99,10 @@ shortname(e::PExpr{ConstNative}) = string(e.args[1])
 function Base.show(io::IO, e::PExpr{ConstNative})
     if e.args[1] isa Int
         print(io, "@", e.args[1])
+    elseif e.args[1] isa Symbol
+        print(io, "'", e.args[1])
+    elseif e.args[1] isa PExpr
+        print(io, "`", e.args[1])
     else
         print(io, e.args[1])
     end
@@ -100,7 +110,6 @@ end
 
 
 struct CaseOf <: Head end
-CaseOf(scrutinee, cases) = PExpr(CaseOf(), Any[scrutinee, cases])
 shortname(e::PExpr{CaseOf}) = "caseof"
 function Base.show(io::IO, e::PExpr{CaseOf})
     print(io, "(case ", e.args[1], " of ")
@@ -115,7 +124,7 @@ end
 Base.copy(e::PExpr{CaseOf}) = PExpr(CaseOf(), Any[copy(e.args[1]), [(copy(con), copy(branch)) for (con, branch) in e.args[2]]])
 
 struct Construct <: Head end
-Construct(constructor, args) = PExpr(Construct(), Any[constructor, collect(args)])
+# primop_of_sym[:Construct] = Construct
 Construct(constructor) = Construct(constructor, [])
 shortname(e::PExpr{Construct}) = string(e.args[1])
 function Base.show(io::IO, e::PExpr{Construct})
@@ -149,6 +158,7 @@ Base.copy(e::PExpr{Construct}) = PExpr(Construct(), Any[copy(e.args[1]), [copy(a
 ##############
 
 const primop_of_name::Dict{String, Type} = Dict()
+const primop_of_sym::Dict{Symbol, Type} = Dict()
 const name_of_primop::Dict{Type, String} = Dict()
 const arity_of_primop::Dict{Type, Int} = Dict()
 
@@ -178,7 +188,6 @@ end
 struct Y <: Head end
 define_parser!("Y", Y, 1)
 
-
 struct FlipOp <: Head end
 define_parser!("flip", FlipOp, 1)
 
@@ -206,12 +215,12 @@ define_parser!("mk_int", MkIntOp, 2)
 struct IntDistEqOp <: Head end
 define_parser!("int_dist_eq", IntDistEqOp, 2)
 
-struct QuoteOp <: Head end
-define_parser!("quote", QuoteOp, 1)
 
 struct EvalOp <: Head end
 define_parser!("eval", EvalOp, 1)
 
+struct PrintOp <: Head end
+define_parser!("print", PrintOp, 1)
 
 
 

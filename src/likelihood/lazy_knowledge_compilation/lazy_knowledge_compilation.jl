@@ -159,7 +159,6 @@ end
 
 get_config(state::LazyKCState) = state.cfg
 
-
 function traced_compile_inner(expr::PExpr, env, path_condition, state::LazyKCState, strict_order_index)
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
     # Check whether path_condition is false.
@@ -178,7 +177,9 @@ function traced_compile_inner(expr::PExpr, env, path_condition, state::LazyKCSta
         record_forward!(state.viz, expr, env, path_condition, strict_order_index)
     end
 
+    print_enter(expr, env, state)
     result, used_information = compile_inner(expr, env, path_condition, state)
+    print_exit(expr, result, env, state)
 
     if state.cfg.record_json
         record_result!(state.viz, result, used_information)
@@ -188,6 +189,19 @@ function traced_compile_inner(expr::PExpr, env, path_condition, state::LazyKCSta
     state.num_forward_calls += 1
     state.depth -= 1
     return result, used_information
+end
+
+"""
+When compiling a thunk, we assume it is a Thunk that will return a NativeValue{PExpr}, so
+we first evaluate that thunk (callstack doesnt matter) then use the result to compile the PExpr
+at the given callstack / strict_order_index.
+"""
+function traced_compile_inner(thunk::Thunk, env, path_condition, state::LazyKCState, strict_order_index)
+    @assert false "temporarily disabled"
+    bind_evaluate(thunk, env, path_condition, state) do e, path_condition
+        @assert e isa NativeValue && e.value isa PExpr "Thunk must be evaluated to a NativeValue{PExpr}, got $(e) :: $(typeof(e))"
+        return traced_compile_inner(e.value, env, path_condition, state, strict_order_index)
+    end
 end
 
 
@@ -220,3 +234,44 @@ function current_address(state::LazyKCState, p::Float64)
     return addr
 end
 
+
+function pretty_callstack(callstack, strict_order_index=nothing)
+    if !isnothing(strict_order_index)
+        callstack = vcat(callstack, strict_order_index)
+    end
+    return "." *join(callstack, ".")
+end
+
+const VERBOSE = Ref{Bool}(false)
+set_verbose!(verbose::Bool) = (VERBOSE[] = verbose)
+get_verbose()::Bool = VERBOSE[]
+
+function print_enter(expr, env, state)
+    get_verbose() || expr isa PExpr{PrintOp} || return
+    cs = pretty_callstack(state.callstack)
+    printstyled("$cs $expr :: $(typeof(expr))\n", color=:yellow)
+end
+
+function pretty_worlds(worlds; weights=false)
+    res = "["
+    for (i, (val, bdd)) in enumerate(worlds)
+        res *= string(val)
+        weights && (res *= " (P=" * @sprintf("%.1e", RSDD.bdd_wmc(bdd)) * ")")
+        i < length(worlds) && (res *= ", ")
+    end
+    return res * "]"
+end
+
+function print_exit(expr, result, env, state)
+    get_verbose() || expr isa PExpr{PrintOp} || return
+    cs = pretty_callstack(state.callstack)
+    green = "$cs $expr :: $(typeof(expr)) "
+    if result isa Vector
+        blue = "-> " * pretty_worlds(result; weights=true) * "\n"
+    else
+        blue = "-> $result :: $(typeof(result))\n"
+    end
+    printstyled(green, color=:green)
+    length(green) + length(blue) > 80 && print("\n")
+    printstyled(blue, color=:blue)
+end
