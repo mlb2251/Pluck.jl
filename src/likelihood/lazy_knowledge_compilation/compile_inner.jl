@@ -12,7 +12,7 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state::LazyKCState
     end
 end
 
-function compile_inner(expr::PExpr{Abs}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{Abs}, env, path_condition, state)
     # A lambda term deterministically evaluates to a closure.
     return pure_monad(Closure(expr.args[1], env), path_condition, state)
 end
@@ -57,7 +57,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state::LazyKCSt
     end
 end
 
-function compile_inner(expr::PExpr{Y}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{Y}, env, path_condition, state)
     @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
     closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
     return pure_monad(closure, path_condition, state)
@@ -161,7 +161,7 @@ function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state
     end
 end
 
-function compile_inner(expr::PExpr{ConstNative}, env, path_condition, state::LazyKCState)
+function compile_inner(expr::PExpr{ConstNative}, env, path_condition, state)
     return pure_monad(NativeValue(expr.args[1]), path_condition, state)
 end
 

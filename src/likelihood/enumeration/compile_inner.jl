@@ -38,22 +38,7 @@ function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::
     end
 end
 
-function compile_inner(expr::PExpr{Abs}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    # A lambda term deterministically evaluates to a closure.
-    return [(Closure(expr.args[1], env), trace)]
-end
-
-# function bind_recursive(args, state)
-#     length(args) == 1 && return args[1]
-#     lazy_enumerator_bind(args[1], state) do arg1, trace
-#         bind_recursive(args[2:end], state)
-#     end
-# end
 function compile_inner(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    # Constructors deterministically evaluate to a WHNF value, with their arguments thunked.
-    # Look up type of this constructor.
-    # spt = Pluck.spt_of_constructor[expr.constructor]
-
     if state.strict
         options_of_arg = []
         for (i, arg) in enumerate(expr.args[2])
@@ -82,10 +67,6 @@ function compile_inner(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, s
     return [(Value(expr.args[1], thunked_arguments), trace)]
 end
 
-function compile_inner(expr::PExpr{ConstNative}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    return [(expr.args[1], trace)]
-end
-
 function compile_inner(expr::PExpr{CaseOf}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
     scrutinee_values = traced_compile_inner(expr.args[1], env, trace, state, :case_scrutinee)
     lazy_enumerator_bind(scrutinee_values, state) do scrutinee, trace
@@ -107,15 +88,6 @@ function compile_inner(expr::PExpr{CaseOf}, env::Vector{Any}, trace::Trace, stat
             return []
         end
     end
-end
-
-function compile_inner(expr::PExpr{Y}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
-    @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
- 
-    closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
-
-    # set up a closure with a circular reference
-    return [(closure, trace)]
 end
 
 function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
