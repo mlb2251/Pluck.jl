@@ -104,3 +104,5 @@ prob, metaparam_vals = optimize(["(let (a (geom 0.5)
                                     (== a b))"], 0.01, [0.5 for _ ∈ 1:4], 1000, max_depth=100)
 @assert isapprox(prob[1], 0.5)
 @assert isapprox(metaparam_vals[1], 1.0)
+
+printstyled("passed all tests", color=:green)
