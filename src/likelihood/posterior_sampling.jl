@@ -111,7 +111,7 @@ mutable struct SampleValueState
     end
 end
 
-function traced_compile_inner(expr::PExpr, env, null, state::SampleValueState, strict_order_index::Int)
+function traced_compile_inner(expr, env, null, state::SampleValueState, strict_order_index::Int)
     push!(state.callstack, strict_order_index)
     print_enter(expr, env, state)
     result = compile_inner(expr, env, null, state)
@@ -119,6 +119,7 @@ function traced_compile_inner(expr::PExpr, env, null, state::SampleValueState, s
     pop!(state.callstack)
     return result
 end
+
 
 
 function pure_monad(val, null, state::SampleValueState)
@@ -171,7 +172,7 @@ function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::Samp
 end
 
 
-function make_thunk(expr::PExpr, env, strict_order_index, state::SampleValueState)
+function make_thunk(expr, env, strict_order_index, state::SampleValueState)
     # since posterior sampling just produces one result, we dont need to worry about binding in the strict case
     !state.lazy && return traced_compile_inner(expr, env, nothing, state, strict_order_index)
     thunk = LazyKCThunk(expr, env, strict_order_index, state)

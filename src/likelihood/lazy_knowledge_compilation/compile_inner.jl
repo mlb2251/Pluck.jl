@@ -265,14 +265,12 @@ Remember that NativeValue{PExpr} have arguments that are themselves NativeValue{
 because of how Quote creates thunked Quotes for each argument and quotes always produces
 NativeValue{PExpr}s.
 """
-# function compile_inner(expr::PExpr{EvalOp}, env, path_condition, state)
-#     bind_compile(expr.args[1], env, path_condition, state, 0) do e, path_condition
-#         @assert e isa NativeValue && e.value isa PExpr "EvalOp must be applied to a PExpr, got $(e) :: $(typeof(e))"
-
-
-#     end
-        
-# end
+function compile_inner(expr::PExpr{EvalOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do e, path_condition
+        @assert e isa NativeValue && e.value isa PExpr "EvalOp must be applied to a PExpr, got $(e) :: $(typeof(e))"
+        return traced_compile_inner(e.value, env, path_condition, state, 1)
+    end
+end
 
 # function thunk_eval(e::PExpr, env, i::Int, state)
 #     return make_thunk(EvalOp(e), env, i, state), i + 1

@@ -28,7 +28,7 @@ function Base.show(io::IO, x::LazyKCThunk)
     print(io, "LazyKCThunk(", x.expr, ")")
 end
 
-function make_thunk(expr::PExpr, env, strict_order_index, state::LazyKCState)
+function make_thunk(expr, env, strict_order_index, state::LazyKCState)
     thunk = LazyKCThunk(expr, env, strict_order_index, state)
     print_make_thunk(thunk, state)
     return thunk
@@ -117,7 +117,10 @@ function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
         return bind_evaluate(expr, thunk.env, path_condition, state) do e, path_condition
             # @assert e isa PExprValue "LazyKCThunk must be evaluated to a PExprValue, got $(e) :: $(typeof(e))"
             @assert e isa NativeValue && e.value isa PExpr "LazyKCThunk must be evaluated to a NativeValue{PExpr{T}}, got $(e) :: $(typeof(e))"
-            return evaluate(e, path_condition, state)
+            result = traced_compile_inner(e.value, thunk.env, path_condition, state, thunk.strict_order_index)
+            state.callstack = old_callstack
+            print_thunk_exit(thunk, result, state)
+            return result
         end
     end
     result = traced_compile_inner(expr, thunk.env, path_condition, state, thunk.strict_order_index)

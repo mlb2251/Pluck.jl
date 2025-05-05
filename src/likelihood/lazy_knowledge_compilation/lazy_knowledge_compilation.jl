@@ -159,7 +159,7 @@ end
 
 get_config(state::LazyKCState) = state.cfg
 
-function traced_compile_inner(expr::PExpr, env, path_condition, state::LazyKCState, strict_order_index)
+function traced_compile_inner(expr, env, path_condition, state::LazyKCState, strict_order_index)
     # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
     # Check whether path_condition is false.
     if !state.cfg.disable_used_information && bdd_is_false(path_condition)
@@ -196,13 +196,18 @@ When compiling a thunk, we assume it is a Thunk that will return a NativeValue{P
 we first evaluate that thunk (callstack doesnt matter) then use the result to compile the PExpr
 at the given callstack / strict_order_index.
 """
-function traced_compile_inner(thunk::Thunk, env, path_condition, state::LazyKCState, strict_order_index)
-    @assert false "temporarily disabled"
+function compile_inner(thunk::Thunk, env, path_condition, state)
     bind_evaluate(thunk, env, path_condition, state) do e, path_condition
         @assert e isa NativeValue && e.value isa PExpr "Thunk must be evaluated to a NativeValue{PExpr}, got $(e) :: $(typeof(e))"
-        return traced_compile_inner(e.value, env, path_condition, state, strict_order_index)
+        return compile_inner(e.value, env, path_condition, state)
     end
 end
+# function traced_compile_inner(thunk::Thunk, env, path_condition, state, strict_order_index)
+#     bind_evaluate(thunk, env, path_condition, state) do e, path_condition
+#         @assert e isa NativeValue && e.value isa PExpr "Thunk must be evaluated to a NativeValue{PExpr}, got $(e) :: $(typeof(e))"
+#         return traced_compile_inner(e.value, env, path_condition, state, strict_order_index)
+#     end
+# end
 
 
 """

@@ -136,7 +136,7 @@ end
 
 
 
-function traced_compile_inner(expr::PExpr, env, trace, state::LazyEnumeratorEvalState, strict_order_index)
+function traced_compile_inner(expr, env, trace, state::LazyEnumeratorEvalState, strict_order_index)
     # println(" " ^ state.depth * "traced_compile_inner($expr)")
 
     if state.hit_limit

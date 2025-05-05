@@ -56,7 +56,7 @@
  (let ((e (nat-exp)))
    (PosteriorSamples
     ;; Query
-    e
+    (Pair e (eval e))
     ;; Evidence
     true
     ;; Number of samples
