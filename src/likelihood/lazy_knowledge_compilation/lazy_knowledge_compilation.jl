@@ -1,12 +1,11 @@
 export normalize, compile, LazyKCState, LazyKCConfig, LazyKCStateDual, get_time_limit, set_time_limit!
 
 const Callstack = Vector{Int}
-const Env = Vector{Any}
 const WorldT{T} = Tuple{T, BDD}
 const World = WorldT{Any}
 const GuardedWorldsT{T} = Tuple{Vector{WorldT{T}}, BDD}
 const GuardedWorlds = GuardedWorldsT{Any}
-const EMPTY_ENV::Env = Any[]
+const EMPTY_ENV::Env = EnvNil()
 
 Base.@kwdef mutable struct LazyKCConfig
     max_depth::Union{Int, Nothing} = nothing

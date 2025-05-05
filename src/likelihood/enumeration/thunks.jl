@@ -7,8 +7,8 @@ mutable struct LazyEnumeratorThunk <: Thunk
 
     function LazyEnumeratorThunk(expr::PExpr, env::Vector{Any}, state::LazyEnumeratorEvalState, strict_order_index::Int)
         @assert !state.cfg.strict
-        if expr isa Var && env[expr.idx] isa LazyEnumeratorThunk
-            return env[expr.idx]
+        if expr isa Var && getenv(env, expr.name) isa LazyEnumeratorThunk
+            return getenv(env, expr.name)
         end
         id = state.next_thunk_id
         state.next_thunk_id += 1

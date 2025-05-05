@@ -7,8 +7,8 @@ struct LazyKCThunk <: Thunk
     strict_order_index::Int
 
     function LazyKCThunk(expr, env::Env, strict_order_index::Int, state)
-        if expr isa PExpr{Var} && env[expr.head.idx] isa LazyKCThunk
-            return env[expr.head.idx]
+        if expr isa PExpr{Var} && getenv(env, expr.head.name) isa LazyKCThunk
+            return getenv(env, expr.head.name)
         end
 
         # key = (expr, env, state.callstack)

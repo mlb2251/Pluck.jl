@@ -53,7 +53,7 @@
    (PosteriorSamples
     e
     true
-    20)))
+    1)))
 
 (query
  test-nat-exp-eval
@@ -117,35 +117,35 @@
 
 
 ;; forward declaration
-;; (define (nat-exp-var) (Unit))
+(define (nat-exp-var) (Unit))
 
-;; (define (nat-const ctx)
-;;   (if (flip 0.5) `(O) `(S ~(nat-const ctx))))
+(define (nat-const ctx)
+  (if (flip 0.5) `(O) `(S ~(nat-const ctx))))
 
-;; (define (nat-term-var ctx)
-;;   (if (and (ctx-has ctx 'nat-term) (flip 0.5)) ;; if there's a nat-term in the context, and the coin flip works out
-;;     (ctx-uniform ctx 'nat-term) ;; then sample from the context
-;;     (nat-const ctx))) ;; otherwise generate a constant
+(define (nat-term-var ctx)
+  (if (and (ctx-has ctx 'nat-term) (flip 0.5)) ;; if there's a nat-term in the context, and the coin flip works out
+    (ctx-uniform ctx 'nat-term) ;; then sample from the context
+    (nat-const ctx))) ;; otherwise generate a constant
 
-;; (define (nat-nonterm-var ctx)
-;;   (discrete
-;;     ;; let-statement adds x to the ctx
-;;     (`(let ((x ~(nat-exp-var ctx))) ~(nat-exp-var (ctx-add ctx#1 'nat-term `x))) 0.4)
-;;     (`(+ ~(nat-exp-var ctx) ~(nat-exp-var ctx)) 0.3)
-;;     (`(- ~(nat-exp-var ctx) ~(nat-exp-var ctx)) 0.3)))
+(define (nat-nonterm-var ctx)
+  (discrete
+    ;; let-statement adds x to the ctx
+    (`(let ((x ~(nat-exp-var ctx))) ~(nat-exp-var (ctx-add ctx 'nat-term `x))) 0.4)
+    (`(+ ~(nat-exp-var ctx) ~(nat-exp-var ctx)) 0.3)
+    (`(- ~(nat-exp-var ctx) ~(nat-exp-var ctx)) 0.3)))
 
-;; (define (nat-exp-var ctx)
-;;   (discrete
-;;     ((nat-term-var ctx) 0.7)
-;;     ((nat-nonterm-var ctx) 0.3)))
+(define (nat-exp-var ctx)
+  (discrete
+    ((nat-term-var ctx) 0.7)
+    ((nat-nonterm-var ctx) 0.3)))
 
 
-;; ;; sample some expressions
-;; (query
-;;  (PosteriorSamples
-;;   (nat-exp-var (ctx-empty))
-;;   true
-;;   20))
+;; sample some expressions
+(query
+ (PosteriorSamples
+  (nat-exp-var (ctx-empty))
+  true
+  20))
 
 
 

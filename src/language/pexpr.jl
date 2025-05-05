@@ -95,15 +95,10 @@ function Base.show(io::IO, e::PExpr{Abs})
 end
 
 @auto_hash_equals struct Var <: Head
-    idx::Int
     name::Symbol
-    
-    Var(idx::Int) = new(idx, :noname)
-    Var(idx::Int, name::Symbol) = new(idx, name)
 end
-Base.show(io::IO, h::Var) = h.name === :noname ? print(io, "#", h.idx) : print(io, h.name, "#", h.idx)
+Base.show(io::IO, h::Var) = print(io, h.name)
 Base.show(io::IO, e::PExpr{Var}) = print(io, e.head)
-
 
 @auto_hash_equals struct Defined <: Head
     name::Symbol
@@ -283,7 +278,7 @@ define_parser!("error", ErrorOp, 1)
 # by default we just look in subexpressions for free variables
 var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args)
 var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
-var_is_free(e::PExpr{Var}, var) = e.head.idx == var
+var_is_free(e::PExpr{Var}, var) = e.head.name == var
 # CaseOf branches also bind variables – one for each arg to the guard
 var_is_free(e::PExpr{CaseOf}, var) = 
-    var_is_free(getscrutinee(e), var) || any(case -> var_is_free(getbranch(e, case), var + length(getguard(e, case).args)), 1:numbranches(e))
+    var_is_free(getscrutinee(e), var) || any(case -> !any(arg -> arg == var, getguard(e, case).args) && var_is_free(getbranch(e, case), var), 1:numbranches(e))

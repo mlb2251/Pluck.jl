@@ -8,15 +8,14 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         @assert f isa Closure "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)"
-        new_env = copy(f.env)
-        pushfirst!(new_env, thunked_argument)
+        new_env = EnvCons(f.name, thunked_argument, f.env)
         return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
     end
 end
 
 function compile_inner(expr::PExpr{Abs}, env, path_condition, state)
     # A lambda term deterministically evaluates to a closure.
-    return pure_monad(Closure(expr.args[1], env), path_condition, state)
+    return pure_monad(Closure(expr.args[1], env, expr.head.var), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
@@ -49,23 +48,24 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
         @assert length(scrutinee.args) == length(getguard(expr, idx).args)
 
         # In each of the scrutinee arguments, filter out options that contradict the available information.
-        new_env = isempty(scrutinee.args) ? env : copy(env)
-        for arg in scrutinee.args
-            pushfirst!(new_env, arg)
+        for (arg, name) in zip(scrutinee.args, getguard(expr, idx).args)
+            env = EnvCons(name, arg, env)
         end
-        return traced_compile_inner(case_expr, new_env, path_condition, state, idx)
+        return traced_compile_inner(case_expr, env, path_condition, state, idx)
     end
 end
 
 function compile_inner(expr::PExpr{Y}, env, path_condition, state)
-    @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
-    closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
+    rec_lambda = expr.args[1] :: PExpr{Abs}
+    arg_lambda = rec_lambda.args[1] :: PExpr{Abs}
+    closure = make_self_loop(arg_lambda.args[1], env, rec_lambda.head.name, arg_lambda.head.name)
+
     return pure_monad(closure, path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Var}, env, path_condition, state)
 
-    v = env[expr.head.idx]
+    v = getenv(env, expr.head.name)
     if v isa Thunk
         return evaluate(v, path_condition, state)
     end

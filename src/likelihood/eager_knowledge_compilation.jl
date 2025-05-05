@@ -196,9 +196,10 @@ function bdd_forward(expr::PExpr{CaseOf}, env::Env, state::BDDStrictEvalState)
 end
 
 function bdd_forward(expr::PExpr{Y}, env::Env, state::BDDStrictEvalState)
-    @assert expr.args[1] isa PExpr{Abs} && expr.args[1].args[1] isa PExpr{Abs} "y-combinator must be applied to a double-lambda"
+    rec_lambda = expr.args[1] :: PExpr{Abs}
+    arg_lambda = rec_lambda.args[1] :: PExpr{Abs}
 
-    closure = Pluck.make_self_loop(expr.args[1].args[1].args[1], env)
+    closure = make_self_loop(arg_lambda.args[1], env, rec_lambda.head.name, arg_lambda.head.name)
 
     # set up a closure with a circular reference
     return [(closure, state.manager.BDD_TRUE)]

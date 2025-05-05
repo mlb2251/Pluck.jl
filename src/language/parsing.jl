@@ -334,22 +334,6 @@ function parse_expr_inner(tokens, defs, env)
             expr = Construct(:Cons)(val, expr)
         end
         return expr, tokens
-    elseif token ∈ env
-        # Parse a var by name like "foo"
-        idx = findfirst(x -> x == token, env) # shadowing
-        return Var(idx, Symbol(token))(), view(tokens, 2:length(tokens))
-    elseif token[1] == '#'
-        # parse debruijn index
-        idx = parse(Int, token[2:end])
-        @assert idx > 0 "need one-index debruijn"
-        return Var(idx)(), view(tokens, 2:length(tokens))
-    elseif '#' ∈ token
-        # variable combining name and debruijn like x#4
-        parts = split(token, "#")
-        name = Symbol(parts[1])
-        idx = parse(Int, parts[2])
-        @assert parts[1] == env[idx] "debruijn index must match variable name: $token and $(env[idx])"
-        return Var(idx, name)(), view(tokens, 2:length(tokens))
     elseif '@' ∈ token
         idx = parse(Int, token[2:end])
         return ConstNative(idx)(), view(tokens, 2:length(tokens))
@@ -363,10 +347,10 @@ function parse_expr_inner(tokens, defs, env)
     elseif token == "true" || token == "false"
         val = parse(Bool, token)
         return const_to_expr(val), view(tokens, 2:length(tokens))
-        # Look up in defs
+    elseif token ∈ env || token[1] == '#' # leading with a hash forces variable parsing even if it isn't statically present in the environment
+        # Parse a var by name like "foo"
+        return Var(Symbol(token))(), view(tokens, 2:length(tokens))
     elseif haskey(defs, Symbol(token))
-        # return defs[Symbol(token)], view(tokens,2:length(tokens))
-        # TODO: do gensyms need to be regenerated?
         return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
         context = detokenize(tokens)

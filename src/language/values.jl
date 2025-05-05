@@ -1,6 +1,27 @@
 export pluck_list, StateVars, Value, get_true_result, Thunk
 using Printf
 
+abstract type Env end
+mutable struct EnvCons <: Env
+    var::Symbol
+    val::Any
+    tail::Env
+end
+struct EnvNil <: Env end
+
+getenv(env::EnvCons, var::Symbol) = env.var === var ? env.val : getenv(env.tail, var)
+getenv(env::EnvNil, var::Symbol) = error("Variable $var not found in environment")
+
+Base.isempty(env::EnvNil) = true
+Base.isempty(env::EnvCons) = false
+
+fst(env::EnvCons) = env.var
+fst(env::EnvNil) = error("Empty environment has no first variable")
+
+Base.length(env::EnvNil) = 0
+Base.length(env::EnvCons) = 1 + length(env.tail)
+
+
 
 
 abstract type AbstractValue end
