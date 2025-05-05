@@ -216,69 +216,42 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state)
     end
 end
 
-# function compile_inner(expr::PExpr{EvalOp}, env, path_condition, state)
-#     # force argument to be a NativeValue{PExpr}, then compile that PExpr
-#     bind_compile(expr.args[1], env, path_condition, state, 0) do e, path_condition
-#         @assert e isa NativeValue{LazyKCThunk}
-#         return traced_compile_inner(e.value, env, path_condition, state, 1)
-#     end
-# end
-
 function compile_inner(expr::PExpr{PrintOp}, env, path_condition, state)
     return traced_compile_inner(expr.args[1], env, path_condition, state, 0)
 end
-
-# function compile_inner(expr::PExpr{Unquote}, env, path_condition, state)
-#     return traced_compile_inner(expr.args[1], env, path_condition, state, 0)
-# end
 
 function compile_inner(expr::PExpr{Unquote}, env, path_condition, state)
     error("Unquote not inside a Quote: $expr")
 end
 
 """
-compile_inner on a Quote always produces a NativeValue{PExpr}.
-compile_inner(Quote(e)) -> NativeValue(e) where any args that are PExprs get replaced with thunks of quoted PExprs.
+compile_inner on a Quote always produces a PExprValue
+compile_inner(Quote(e)) -> PExprValue(e.head, thunk_quote(e.args)) where any args that are PExprs get replaced with thunks of quoted PExprs.
 compile_inner(Quote(Unquote(e))) -> compile_inner(e) :: NativeValue{PExpr}
 """
 function compile_inner(expr::PExpr{Quote}, env, path_condition, state)
-    e = expr.args[1]::PExpr
+    quoted_expr = expr.args[1]::PExpr
 
-    # forcing a quote of an unquote causes the unquote to evaluate
-    if e isa PExpr{Unquote}
-        return bind_compile(e.args[1], env, path_condition, state, 0) do e, path_condition
+    # forcing a quote of an unquote causes the contents of the unquote to evaluate
+    if quoted_expr isa PExpr{Unquote}
+        quoted_unquoted_expr = quoted_expr.args[1]
+        return bind_compile(quoted_unquoted_expr, env, path_condition, state, 0) do e, path_condition
             # this bind is unnecessary, I'm just doing it to check the type during debugging
-            @assert e isa NativeValue && e.value isa PExpr
+            @assert e isa PExprValue
             return pure_monad(e, path_condition, state)
         end
     end
 
     # forcing a quote of a non-unquote just returns the underlying PExpr with all the args quoted (and thunked)
-    quoted_args, _ = thunk_quote(e.args, env, 0, state)
-    return pure_monad(NativeValue(PExpr(e.head, quoted_args)), path_condition, state)
-end
-
-function thunk_quote(e::PExpr, env, i::Int, state)
-    return make_thunk(Quote()(e), env, i, state), i + 1
-end
-
-function thunk_quote(xs::Vector, env, i::Int, state)
-    res = Any[] # cant be a map bc of `i` scoping
-    for x in xs
-        x, i = thunk_quote(x, env, i, state)
-        push!(res, x)
+    quoted_args = Any[]
+    for (i, arg) in enumerate(quoted_expr.args)
+        push!(quoted_args, make_thunk(Quote()(arg), env, i, state))
     end
-    return res, i
+
+    return pure_monad(PExprValue(quoted_expr.head, quoted_args), path_condition, state)
 end
 
-function thunk_quote(xs::Tuple, env, i::Int, state)
-    xs, i = thunk_quote(collect(xs), env, i, state)
-    return Tuple(xs), i
-end
 
-function thunk_quote(x, env, i::Int, state)
-    return x, i
-end
 
 """
 compile_inner on an EvalOp always takes a NativeValue{PExpr} and runs it.

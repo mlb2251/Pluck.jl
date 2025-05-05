@@ -18,8 +18,11 @@ Base.show(io::IO, x::NativeValue{T}) where T = print(io, x.value)
 
 mutable struct PExprValue{H <: Head} <: AbstractValue
     head::H
-    args::Vector{PExprValue}
+    args::Vector{Any} # thunks that produce other PExprValues
 end
+Base.show(io::IO, x::PExprValue{T}) where T = print(io, x.head, " ", x.args)
+Base.:(==)(x::PExprValue, y::PExprValue) = x.head === y.head && x.args == y.args
+Base.hash(x::PExprValue, h::UInt) = hash(x.head, hash(x.args, h))
 
 mutable struct Value <: AbstractValue
     constructor::Symbol
