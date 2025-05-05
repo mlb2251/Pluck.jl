@@ -147,6 +147,14 @@
   true
   20))
 
+;; sample and evaluate some expressions
+(query
+ (PosteriorSamples
+  (let ((e (nat-exp-var (ctx-empty))))
+    (Pair e (eval e)))
+  true
+  20))
+
 
 
 

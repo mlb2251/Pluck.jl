@@ -168,11 +168,12 @@ function parse_expr_inner(tokens, defs, env)
         elseif token == "let"
             # Parse a let expression
             tokens = view(tokens, 2:length(tokens))
-            @assert tokens[1] == "(" "Expected opening parenthesis after 'let'"
+            @assert tokens[1] == "(" || tokens[1] == "[" "Expected opening parenthesis or open bracket after 'let' at $(detokenize(tokens))"
+            close_token = tokens[1] == "(" ? ")" : "]"
             tokens = view(tokens, 2:length(tokens))
 
             bindings = []
-            while tokens[1] != ")"
+            while tokens[1] != close_token
                 # Handle both formats:
                 # 1. Flat list: var1 val1 var2 val2
                 # 2. Nested pairs: (var1 val1) (var2 val2)

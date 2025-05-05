@@ -55,6 +55,28 @@ end
 @auto_hash_equals struct App <: Head end
 Base.show(io::IO, e::App) = print(io, "App")
 function Base.show(io::IO, e::PExpr{App})
+    # show (App (λ x -> e) arg) as (let [x e] arg)
+    # and show (App (λ x -> (App (λ x -> e) ey)) ex) as (let [x ex y ey] e) 
+    if e.args[1].head isa Abs
+        bindings = Tuple{Symbol, PExpr}[(e.args[1].head.var, e.args[2])]
+        body = e.args[1].args[1]
+        while body.head isa App && body.args[1].head isa Abs
+            push!(bindings, (body.args[1].head.var, body.args[2]))
+            body = body.args[1].args[1]
+        end
+
+        print(io, "(let [")
+        for (i, (var, expr)) in enumerate(bindings)
+            print(io, "$var $expr")
+            i < length(bindings) && print(io, " ")
+        end
+        print(io, "] ")
+        print(io, body)
+        print(io, ")")
+        return
+    end
+
+    # show like (f x y)
     print(io, "(", getfunc(e))
     for i ∈ 1:num_apps(e)
         print(io, " ", getarg(e, i))
