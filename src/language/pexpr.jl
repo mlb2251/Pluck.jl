@@ -263,6 +263,23 @@ define_parser!("eval", EvalOp, 1)
 struct PrintOp <: Head end
 define_parser!("print", PrintOp, 1)
 
+struct FDivOp <: Head end
+define_parser!("/.", FDivOp, 2)
+
+struct FMulOp <: Head end
+define_parser!("*.", FMulOp, 2)
+
+struct FAddOp <: Head end
+define_parser!("+.", FAddOp, 2)
+
+struct FSubOp <: Head end
+define_parser!("-.", FSubOp, 2)
+
+struct ErrorOp <: Head end
+define_parser!("error", ErrorOp, 1)
+
+
+
 # by default we just look in subexpressions for free variables
 var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args)
 var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)

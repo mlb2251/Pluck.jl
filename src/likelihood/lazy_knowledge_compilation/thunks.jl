@@ -197,7 +197,7 @@ function infer_full_distribution(initial_results, state)
     # Queue of (value, bdd) pairs to process
     queue = initial_results
     # Final set of fully resolved (value, bdd) pairs
-    resolved = Vector{Tuple{Value, BDD}}()
+    resolved = Vector{Tuple{Any, BDD}}()
 
     while !isempty(queue)
         (current_val, current_bdd) = pop!(queue)
@@ -232,7 +232,7 @@ end
 function find_first_thunk(val::Value, path::Vector{Int} = Int[])
     # Check direct arguments first
     for (i, arg) in enumerate(val.args)
-        if arg isa LazyKCThunk || arg isa LazyKCThunkUnion
+        if arg isa Thunk
             push!(path, i)
             return path
         elseif arg isa Value
@@ -247,14 +247,40 @@ function find_first_thunk(val::Value, path::Vector{Int} = Int[])
     return nothing
 end
 
-# Helper to get value at a path in the value tree
-function get_value_at_path(val::Value, path::Vector{Int})
-    current = val
-    for i in path[1:end-1]
-        current = current.args[i]
-    end
-    return current.args[path[end]]
+function find_first_thunk(val::NativeValue{PExpr{T}}, path::Vector{Int} = Int[]) where T <: Head
+    return find_first_thunk(val.value, path)
 end
+
+function find_first_thunk(val::PExpr{T}, path = Int[]) where T <: Head
+    for (i, arg) in enumerate(val.args)
+        if arg isa Thunk
+            push!(path, i)
+            return path
+        end
+        sub_path = find_first_thunk(arg, copy(path))
+        if !isnothing(sub_path)
+            pushfirst!(sub_path, i)
+            return sub_path
+        end
+    end
+    return nothing
+end
+
+
+find_first_thunk(val, path = Int[]) = nothing
+
+# Helper to get value at a path in the value tree
+function get_value_at_path(val, path)
+    isempty(path) && return val
+    val = val.args[path[1]]
+    get_value_at_path(val, view(path, 2:length(path)))
+end
+
+function get_value_at_path(val::NativeValue{PExpr{T}}, path) where T <: Head
+    return get_value_at_path(val.value, path)
+end
+
+
 
 # Helper to create a copy of a value with replacement at path
 function replace_at_path(val::Value, path::Vector{Int}, new_val)
@@ -276,6 +302,22 @@ function replace_at_path(val::Value, path::Vector{Int}, new_val)
     return Value(val.constructor, new_args)
 end
 
+function replace_at_path(val::NativeValue{PExpr{T}}, path::Vector{Int}, new_val) where T <: Head
+    return NativeValue(replace_at_path(val.value, path, new_val))
+end
+
+function replace_at_path(val::PExpr{T}, path::Vector{Int}, new_val) where T <: Head
+    isempty(path) && return new_val
+    new_args = copy(val.args)
+    if length(path) == 1
+        new_args[path[1]] = new_val
+    else
+        new_args[path[1]] = replace_at_path(val.args[path[1]], path[2:end], new_val)
+    end
+    return PExpr(val.head, new_args)
+end
+
+
 function pretty_thunk(thunk::LazyKCThunk)
     return "Thunk $(thunk.expr)"
 end
@@ -293,8 +335,9 @@ function print_thunk_exit(thunk::LazyKCThunk, result, state)
     cs = pretty_callstack(state.callstack)
     thunk_cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
     printstyled("$thunk_cs $(pretty_thunk(thunk)) ", color=:green)
-    printstyled("-> $result ", color=:blue)
-    printstyled("@ $cs\n", color=:magenta)
+    result = pretty_result(result; weights=true)
+    printstyled(result, color=:blue)
+    printstyled(" @ $cs\n", color=:magenta)
 end
 
 function print_make_thunk(thunk::LazyKCThunk, state)

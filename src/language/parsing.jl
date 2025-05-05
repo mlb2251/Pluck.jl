@@ -45,6 +45,8 @@ function tokenize(s)
         "," => " , ",
         "~" => " ~ ",
         "`" => " ` ",
+        "[" => " [ ",
+        "]" => " ] ",
     )
     # Remove all extraneous whitespace
     s = replace(s, r"\s+" => " ")
@@ -314,6 +316,24 @@ function parse_expr_inner(tokens, defs, env)
         tokens = view(tokens, 2:length(tokens))
         expr, tokens = parse_expr_inner(tokens, defs, env)
         return Unquote()(expr), tokens
+    elseif token == "["
+        # parse a list: parse expressions until ]
+        tokens = view(tokens, 2:length(tokens))
+        vals = []
+        while tokens[1] != "]"
+            head, tokens = parse_expr_inner(tokens, defs, env)
+            @assert tokens[1] == "," || tokens[1] == "]" "expected comma or closing bracket in list at $(detokenize(tokens))"
+            if tokens[1] == ","
+                tokens = view(tokens, 2:length(tokens))
+            end
+            push!(vals, head)
+        end
+        tokens = view(tokens, 2:length(tokens))
+        expr = Construct(:Nil)()
+        for val in reverse(vals)
+            expr = Construct(:Cons)(val, expr)
+        end
+        return expr, tokens
     elseif token ∈ env
         # Parse a var by name like "foo"
         idx = findfirst(x -> x == token, env) # shadowing
@@ -328,7 +348,7 @@ function parse_expr_inner(tokens, defs, env)
         parts = split(token, "#")
         name = Symbol(parts[1])
         idx = parse(Int, parts[2])
-        @assert parts[1] == env[idx] "debruijn index must match variable name"
+        @assert parts[1] == env[idx] "debruijn index must match variable name: $token and $(env[idx])"
         return Var(idx, name)(), view(tokens, 2:length(tokens))
     elseif '@' ∈ token
         idx = parse(Int, token[2:end])

@@ -12,9 +12,11 @@ Base.:(==)(x::Any, y::AbstractValue) = error("Cannot compare $(typeof(x)) with V
 mutable struct NativeValue{T} <: AbstractValue
     value::T
 end
-Base.:(==)(x::NativeValue{T}, y::NativeValue{T}) where T = x.value == y.value
-Base.hash(x::NativeValue{T}, h::UInt) where T = hash(x.value, h)
+Base.:(==)(x::NativeValue{T}, y::NativeValue{U}) where {T, U} = T == U && x.value == y.value
+Base.hash(x::NativeValue{T}, h::UInt) where T = hash(T, hash(x.value, h))
 Base.show(io::IO, x::NativeValue{T}) where T = print(io, x.value)
+# Base.show(io::IO, x::NativeValue{PExpr{T}}) where T = print(io, "`", x.value)
+
 
 # mutable struct PExprValue{H <: Head} <: AbstractValue
 #     head::H

@@ -257,7 +257,7 @@ function print_enter(expr, env, state)
     printstyled("$cs $expr :: $(typeof(expr))\n", color=:yellow)
 end
 
-function pretty_worlds(worlds; weights=false)
+function pretty_worlds(worlds::Vector; weights=false)
     res = "["
     for (i, (val, bdd)) in enumerate(worlds)
         res *= string(val)
@@ -267,16 +267,20 @@ function pretty_worlds(worlds; weights=false)
     return res * "]"
 end
 
+function pretty_result(result; weights=false)
+    if result isa Vector
+        return "-> " * pretty_worlds(result; weights=weights)
+    else
+        return "-> $result :: $(typeof(result))"
+    end
+end
+
 function print_exit(expr, result, env, state)
     get_verbose() || expr isa PExpr{PrintOp} || return
     cs = pretty_callstack(state.callstack)
     green = "$cs $expr :: $(typeof(expr)) "
-    if result isa Vector
-        blue = "-> " * pretty_worlds(result; weights=true) * "\n"
-    else
-        blue = "-> $result :: $(typeof(result))\n"
-    end
+    blue = pretty_result(result; weights=true)
     printstyled(green, color=:green)
     length(green) + length(blue) > 80 && print("\n")
-    printstyled(blue, color=:blue)
+    printstyled(blue * "\n", color=:blue)
 end

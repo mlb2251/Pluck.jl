@@ -128,6 +128,16 @@
     Cons x xs => (let (xs (filter f xs))
                    (if (f x) (Cons x xs) xs))))
 
+(define (any f xs)
+  (match xs
+    Nil => (False)
+    Cons x xs => (or (f x) (any f xs))))
+
+(define (all f xs)
+  (match xs
+    Nil => (True)
+    Cons x xs => (and (f x) (all f xs))))
+
 (define (filteri f xs)
   (let ((helper
          (Y (fn rec xs i ->
@@ -251,3 +261,39 @@
 (define (int4=? a b) (match a
                        Int4 a1 a2 a3 a4 => (match b
                                                Int4 b1 b2 b3 b4 => (and (iff a1 b1) (and (iff a2 b2) (and (iff a3 b3) (iff a4 b4)))))))
+
+
+(define (head-or xs x)
+  (match xs
+    Nil => x
+    Cons hd _ => hd))
+
+(define (float-of-nat n)
+  (match n
+    O => 0.0
+    S n => (+. 1.0 (float-of-nat n))))
+
+;; builds a uniform distribution over a list
+(define (make-uniform xs)
+  (let ((p (/. 1. (float-of-nat (length xs)))))
+    (map (fn x -> (Pair x p)) xs)))
+
+
+(define (normalize-seq-rec pairs)
+  (match pairs
+    Nil => (Pair (Nil) 0.0)
+    Cons pair tl => (let ((tail_result (normalize-seq-rec tl))
+                          (total_weight (+. (snd pair) (snd tail_result))))
+                     (Pair (Cons (Pair (fst pair) (/. (snd pair) total_weight)) (fst tail_result)) total_weight))))
+
+;; normalize a list of (Pair value weight) pairs, not so that they sum to 1 but rather
+;; so that when you sequentially sample from the start of the list, you can use the weights
+;; for flips (e.g. the very last weight must be 1.0)
+(define (normalize-seq pairs)
+  (fst (normalize-seq-rec pairs)))
+
+;; sample from a distribution - assumes the distribution is normalized with normalize-seq
+;; (note this does NOT mean the dist sums to 1, see normalize-seq)
+(define (sample-seq dist)
+  (match dist
+    Cons pair tl => (if (flip (snd pair)) (fst pair) (sample-seq tl))))

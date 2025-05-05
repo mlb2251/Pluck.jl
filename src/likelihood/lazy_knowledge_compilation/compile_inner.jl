@@ -132,15 +132,58 @@ function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state)
     end
 end
 
-function compile_inner(expr::PExpr{NativeEqOp}, env, path_condition, state)
-    # Evaluate both arguments.
+"""
+Compile a unary native operation.
+"""
+function compile_native_unop(f::F, expr::PExpr{T}, env, path_condition, state) where {T <: Head, F <: Function}
+    bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
+        val = f(arg1.value)
+        return pure_monad(NativeValue(val), path_condition, state)
+    end
+end
+
+"""
+Compile a binary native operation.
+"""
+function compile_native_binop(f::F, expr::PExpr{T}, env, path_condition, state) where {T <: Head, F <: Function}
     bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
-            val = arg1.value == arg2.value ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-            return pure_monad(val, path_condition, state)
+            val = f(arg1.value, arg2.value)
+            return pure_monad(NativeValue(val), path_condition, state)
         end
     end
 end
+
+function compile_inner(expr::PExpr{NativeEqOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
+        bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
+            return pure_monad(arg1.value == arg2.value ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE, path_condition, state)
+        end
+    end
+end
+
+function compile_inner(expr::PExpr{FDivOp}, env, path_condition, state)
+    compile_native_binop(/, expr, env, path_condition, state)
+end
+
+function compile_inner(expr::PExpr{FMulOp}, env, path_condition, state)
+    compile_native_binop(*, expr, env, path_condition, state)
+end
+
+function compile_inner(expr::PExpr{FAddOp}, env, path_condition, state)
+    compile_native_binop(+, expr, env, path_condition, state)
+end
+
+function compile_inner(expr::PExpr{FSubOp}, env, path_condition, state)
+    compile_native_binop(-, expr, env, path_condition, state)
+end
+
+function compile_inner(expr::PExpr{ErrorOp}, env, path_condition, state)
+    error("ErrorOp: $expr")
+end
+
+
+
 
 """
 Given a Value, returns a Cons-list of its arguments.
@@ -256,115 +299,9 @@ end
 
 
 
-"""
-compile_inner on an EvalOp always takes a NativeValue{PExpr} and runs it.
-
-
-
-Remember that NativeValue{PExpr} have arguments that are themselves NativeValue{PExpr}s
-because of how Quote creates thunked Quotes for each argument and quotes always produces
-NativeValue{PExpr}s.
-"""
 function compile_inner(expr::PExpr{EvalOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do e, path_condition
         @assert e isa NativeValue && e.value isa PExpr "EvalOp must be applied to a PExpr, got $(e) :: $(typeof(e))"
         return traced_compile_inner(e.value, env, path_condition, state, 1)
     end
 end
-
-# function thunk_eval(e::PExpr, env, i::Int, state)
-#     return make_thunk(EvalOp(e), env, i, state), i + 1
-# end
-
-# function thunk_eval(xs::Vector, env, i::Int, state)
-#     res = Any[] # cant be a map bc of `i` scoping
-#     for x in xs
-#         x, i = thunk_eval(x, env, i, state)
-#         push!(res, x)
-#     end
-#     return res, i
-# end
-
-# function thunk_eval(xs::Tuple, env, i::Int, state)
-#     xs, i = thunk_eval(collect(xs), env, i, state)
-#     return Tuple(xs), i
-# end
-
-# function thunk_eval(x, env, i::Int, state)
-#     return x, i
-# end
-
-
-
-# function compile_inner(expr::PExpr{Quote}, env, path_condition, state)
-#     # quoting makes a thunk because internal unquotes need to be evaluated in the future
-#     return NativeValue(make_thunk(ConstNative(expr.args[1]), env, 0, state))
-# end
-
-
-# function compile_inner(expr::PExpr{EvalOp}, env, path_condition, state)
-#     # force the expr to a Value, then compile the result
-#     bind_compile(expr.args[1], env, path_condition, state, 0) do e, path_condition
-#         return traced_compile_inner(e, env, path_condition, state, 1)
-#     end
-# end
-
-# """
-# Compiling a thunk means forcing the thunk, then compiling the result
-# """
-# function compile_inner(thunk::T, env, path_condition, state) where T <: Thunk
-#     bind_evaluate(thunk, env, path_condition, state) do expr_val, path_condition
-#         return compile_inner(expr_val, env, path_condition, state)
-#     end
-# end
-
-# """
-# Compiling a Value means it must be a Value(:Expr, ...) so we'll build a PExpr then compile that
-# """
-# function compile_inner(e::Value, env, path_condition, state)
-#     @assert e isa Value && e.constructor == :Expr
-#     head = e.args[1]
-#     args = e.args[2]
-#     # force the head
-#     println("head: $head")
-#     bind_evaluate(head, env, path_condition, state) do head, path_condition
-#         println("inside head: $head")
-#         @assert head isa NativeValue{Symbol}
-#         # force the Cons-list part of the args, but not the elements
-#         bind_evaluate_uncons(args, env, path_condition, state) do args, path_condition
-#             if head.value == :Construct
-#                 bind_evaluate_uncons(args[2], env, path_condition, state) do args_2, path_condition
-#                     args = [args[1], args_2]
-#                     @show args
-#                     new_expr = primop_of_sym[head.value](args...)
-#                     return traced_compile_inner(new_expr, env, path_condition, state, 1)    
-#                 end
-#             end
-
-#             # build a native PExpr object and run it
-#             new_expr = primop_of_sym[head.value](args...)
-#             return traced_compile_inner(new_expr, env, path_condition, state, 1)
-#         end
-#     end
-# end
-
-# """
-# Forces a Cons list to be a native list but doesnt force any elements.
-# """
-# function bind_evaluate_uncons(cont::F, list_value, env, path_condition, state) where F <: Function
-#     bind_evaluate(list_value, env, path_condition, state) do list_value, path_condition
-#         list_value.constructor == :Nil && return cont(Any[], path_condition)
-#         @assert list_value.constructor == :Cons
-#         head = list_value.args[1]
-#         tail = list_value.args[2]
-#         bind_evaluate_uncons(tail, env, path_condition, state) do tail_list, path_condition
-#             return cont(Any[head; tail_list], path_condition)
-#         end
-#     end
-# end
-
-# function uncons(list_value::Value)
-#     list_value.constructor == :Nil && return Any[]
-#     @assert list_value.constructor == :Cons
-#     return [list_value.args[1]; uncons(list_value.args[2])]
-# end

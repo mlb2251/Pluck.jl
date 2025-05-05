@@ -22,7 +22,7 @@ function print_query_results(results, query_str; save = false)
 
     max_val_length = maximum(length(string(v)) for (v, _) in results)
     # Sort results by probability
-    sorted_results = sort(results, by = x -> x[2], rev = true)
+    sorted_results = sort(results, by = x -> (-x[2], string(x[1])))
     for (v, p) in sorted_results
         if p == 0
             continue
