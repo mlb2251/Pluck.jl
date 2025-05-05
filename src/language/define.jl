@@ -6,7 +6,7 @@ struct Definition
     expr::PExpr
 end
 
-DUMMY_EXPRESSION = Construct(:Unit, PExpr[])
+DUMMY_EXPRESSION = Construct(:Unit)()
 
 const DEFINITIONS::Dict{Symbol, Definition} = Dict{Symbol, PExpr}()
 

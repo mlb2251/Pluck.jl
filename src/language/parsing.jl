@@ -1,11 +1,8 @@
 export parse_expr
 
-
-parse_expr(s::String) = parse_expr(s, DEFINITIONS)
-
-function parse_expr(s::String, defs)
+function parse_expr(s::String; defs=DEFINITIONS, env=[])
     tokens = tokenize(s)
-    expr, rest = parse_expr_inner(tokens, defs, [])
+    expr, rest = parse_expr_inner(tokens, defs, env)
     @assert isempty(rest)
     return expr
 end
@@ -14,9 +11,9 @@ function const_to_expr(v::Int)
     parse_expr(pluck_nat(v))
 end
 
-const_to_expr(v::Float64) = ConstNative(v)
+const_to_expr(v::Float64) = ConstNative(v)()
 const_to_expr(v::Bool) =
-    v ? Construct(:True, Symbol[]) : Construct(:False, Symbol[])
+    v ? Construct(:True)() : Construct(:False)()
 
 
 # Parse from Scheme notation (string) into PExpr
@@ -78,7 +75,7 @@ function parse_expr_inner(tokens, defs, env)
                 env = ["_", env...]
                 body, tokens = parse_expr_inner(tokens, defs, env)
                 tokens[1] != ")" && error("expected closing paren")
-                return Abs(body, Symbol("_")), view(tokens, 2:length(tokens))
+                return Abs(Symbol("_"))(body), view(tokens, 2:length(tokens))
             end
 
             # Handle regular lambda cases
@@ -98,7 +95,7 @@ function parse_expr_inner(tokens, defs, env)
             end
             body, tokens = parse_expr_inner(tokens, defs, env)
             for i ∈ 1:num_args
-                body = Abs(body, Symbol(env[i]))
+                body = Abs(Symbol(env[i]))(body)
             end
             tokens[1] != ")" && error("expected closing paren")
             return body, view(tokens, 2:length(tokens))
@@ -111,16 +108,16 @@ function parse_expr_inner(tokens, defs, env)
             tokens[1] != ")" && error("expected closing paren")
             # Parse as a CaseOf expression.
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
-            return CaseOf(cond, [(:True, then_expr), (:False, else_expr)]), view(tokens, 2:length(tokens))
+            return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
         elseif token == "Y"
             # parse a Y
             tokens = view(tokens, 2:length(tokens))
             f, tokens = parse_expr_inner(tokens, defs, env)
-            e = PExpr(Y(), Any[f])
+            e = Y()(f)
             if tokens[1] != ")"
                 # parse (Y f x) into App(Y(f), x)
                 x, tokens = parse_expr_inner(tokens, defs, env)
-                e = App(e, x)
+                e = App()(e, x)
             end
             tokens[1] != ")" && error("expected closing paren")
             return e, view(tokens, 2:length(tokens))
@@ -130,36 +127,42 @@ function parse_expr_inner(tokens, defs, env)
             scrutinee, tokens = parse_expr_inner(tokens, defs, env)
             @assert tokens[1] == "of" || token == "match"
             tokens[1] == "of" && (tokens = view(tokens, 2:length(tokens)))
-            cases = Tuple{Symbol, PExpr}[]
+            guards = CaseOfGuard[]
+            branches = PExpr[]
             while tokens[1] != ")"
+                @assert tokens[1] != "(" "unnecessary parens around pattern match guard at $(detokenize(tokens))" # common mistake
                 constructor = Symbol(tokens[1])
                 tokens = view(tokens, 2:length(tokens))
-                # Allow for the syntax (Cons x xs => body) instead of (Cons => (λ x xs -> body))
+                args = Symbol[]
+                # Else branch of this allows for the syntax (Cons x xs => body) instead of (Cons => (λ x xs -> body))
                 if tokens[1] == "=>"
                     body, tokens = parse_expr_inner(view(tokens, 2:length(tokens)), defs, env)
+                    while body isa PExpr{Abs}
+                        push!(args, body.head.var)
+                        body = body.args[1]
+                    end
                 else
-                    # parse (Cons x xs => body)
-                    arguments = []
+                    # parse `Cons x xs => body`
                     new_env = env
                     while tokens[1] != "=>"
-                        push!(arguments, Symbol(tokens[1]))
+                        push!(args, Symbol(tokens[1]))
                         new_env = [tokens[1], new_env...]
                         tokens = view(tokens, 2:length(tokens))
                     end
                     tokens = view(tokens, 2:length(tokens))
                     body, tokens = parse_expr_inner(tokens, defs, new_env)
                     # Wrap body in Abs for each argument, in the proper order.
-                    for arg in reverse(arguments)
-                        body = Abs(body, arg)
-                    end
                 end
-                @assert !any(c -> c[1] == constructor, cases) "duplicate constructor $constructor in case..of"
-                push!(cases, (constructor, body))
+                @assert !any(g -> g.constructor == constructor, guards) "duplicate constructor $constructor in case..of"
+
+                guard = CaseOfGuard(constructor, args)
+                push!(guards, guard)
+                push!(branches, body)
                 if tokens[1] == "|"
                     tokens = view(tokens, 2:length(tokens))
                 end
             end
-            return CaseOf(scrutinee, cases), view(tokens, 2:length(tokens))
+            return CaseOf(guards)(scrutinee, branches...), view(tokens, 2:length(tokens))
         elseif token == "let"
             # Parse a let expression
             tokens = view(tokens, 2:length(tokens))
@@ -196,7 +199,7 @@ function parse_expr_inner(tokens, defs, env)
             # Desugar to nested lambdas and applications
             expr = body
             for (var, val) in reverse(bindings)
-                expr = App(Abs(expr, Symbol(var)), val)
+                expr = App()(Abs(Symbol(var))(expr), val)
             end
 
             return expr, view(tokens, 2:length(tokens))
@@ -214,19 +217,19 @@ function parse_expr_inner(tokens, defs, env)
             if length(args) != length(args_of_constructor[constructor])
                 error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(detokenize(tokens))")
             end
-            return Construct(constructor, args), view(tokens, 2:length(tokens))
+            return Construct(constructor)(args...), view(tokens, 2:length(tokens))
         elseif has_prim(token) && !haskey(defs, Symbol(token))
-            op_type = lookup_prim(token)
-            arity = prim_arity(op_type)
+            head_type = lookup_prim(token)
+            arity = prim_arity(head_type)
             tokens = view(tokens, 2:length(tokens))
-            op = op_type()
-            args = Any[]
+            head = head_type()
+            args = PExpr[]
             for i ∈ 1:arity
                 arg, tokens = parse_expr_inner(tokens, defs, env)
                 push!(args, arg)
             end
-            tokens[1] != ")" && error("expected closing paren")
-            return PExpr(op, args), view(tokens, 2:length(tokens))
+            tokens[1] != ")" && error("too few arguments for primitive $token, expected $arity, got $(length(args)) at: $(detokenize(tokens))")
+            return head(args...), view(tokens, 2:length(tokens))
         elseif token == "discrete"
             # Parse (discrete (e1 p1) (e2 p2) ...)
             tokens = view(tokens, 2:length(tokens))
@@ -288,54 +291,55 @@ function parse_expr_inner(tokens, defs, env)
 
             # If no arguments provided, insert Unit constructor
             if isempty(args)
-                args = [Construct(:Unit, PExpr[])]
+                args = [Construct(:Unit)()]
             end
 
             expr = f
             for arg in args
-                expr = App(expr, arg)
+                expr = App()(expr, arg)
             end
             return expr, view(tokens, 2:length(tokens))
         end
     elseif token[1] == '\''
         # parse a symbol
         sym = Symbol(token[2:end])
-        return ConstNative(sym), view(tokens, 2:length(tokens))
+        return ConstNative(sym)(), view(tokens, 2:length(tokens))
     elseif token == "`"
         # parse a quote expression
         tokens = view(tokens, 2:length(tokens))
         expr, tokens = parse_expr_inner(tokens, defs, env)
-        return Quote(expr), tokens
+        return Quote()(expr), tokens
     elseif token == "~"
         # parse a unquote expression
         tokens = view(tokens, 2:length(tokens))
         expr, tokens = parse_expr_inner(tokens, defs, env)
-        return Unquote(expr), tokens
+        return Unquote()(expr), tokens
     elseif token ∈ env
         # Parse a var by name like "foo"
         idx = findfirst(x -> x == token, env) # shadowing
-        return Var(idx, Symbol(token)), view(tokens, 2:length(tokens))
+        return Var(idx, Symbol(token))(), view(tokens, 2:length(tokens))
     elseif token[1] == '#'
         # parse debruijn index
         idx = parse(Int, token[2:end])
         @assert idx > 0 "need one-index debruijn"
-        return Var(idx), view(tokens, 2:length(tokens))
+        return Var(idx)(), view(tokens, 2:length(tokens))
     elseif '#' ∈ token
         # variable combining name and debruijn like x#4
         parts = split(token, "#")
         name = Symbol(parts[1])
         idx = parse(Int, parts[2])
         @assert parts[1] == env[idx] "debruijn index must match variable name"
-        return Var(idx, name), view(tokens, 2:length(tokens))
+        return Var(idx, name)(), view(tokens, 2:length(tokens))
     elseif '@' ∈ token
         idx = parse(Int, token[2:end])
-        return ConstNative(idx), view(tokens, 2:length(tokens))
+        return ConstNative(idx)(), view(tokens, 2:length(tokens))
     elseif all(isdigit, token)
         val = parse(Int, token)
         return const_to_expr(val), view(tokens, 2:length(tokens))
     elseif all(c -> isdigit(c) || c == '.', token)
         val = parse(Float64, token)
-        return const_to_expr(val), view(tokens, 2:length(tokens))
+        res = const_to_expr(val)
+        return res, view(tokens, 2:length(tokens))
     elseif token == "true" || token == "false"
         val = parse(Bool, token)
         return const_to_expr(val), view(tokens, 2:length(tokens))
@@ -343,7 +347,7 @@ function parse_expr_inner(tokens, defs, env)
     elseif haskey(defs, Symbol(token))
         # return defs[Symbol(token)], view(tokens,2:length(tokens))
         # TODO: do gensyms need to be regenerated?
-        return Defined(Symbol(token)), view(tokens, 2:length(tokens))
+        return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
         context = detokenize(tokens)
         context = context[1:min(length(context), 30)]

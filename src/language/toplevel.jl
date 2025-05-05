@@ -62,7 +62,8 @@ end
 
 function posterior_query(val, state)
     env = Any[val.args[1], val.args[2]]
-    given_expr = App(App(Defined(:given), Var(2, :b)), Var(1, :a))
+    given_expr = parse_expr("(given b#2 a#1)"; env=["a", "b"])
+    # App(App(Defined(:given), Var(2, :b)), Var(1, :a))
     # TODO: reconsider strict order index to use?
     ret, _ = traced_compile_inner(given_expr, env, state.manager.BDD_TRUE, state, 0)
     full_ret = infer_full_distribution(ret, state)
@@ -221,10 +222,10 @@ function parse_and_process_define_function(tokens, defs)
     # Construct lambda expression
     expr = body
     if isempty(args)
-        expr = Abs(expr, Symbol("_"))
+        expr = Abs(Symbol("_"))(expr)
     else
         for arg in reverse(args)
-            expr = Abs(expr, arg)
+            expr = Abs(arg)(expr)
         end
     end
 

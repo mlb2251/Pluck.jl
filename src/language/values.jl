@@ -16,6 +16,11 @@ Base.:(==)(x::NativeValue{T}, y::NativeValue{T}) where T = x.value == y.value
 Base.hash(x::NativeValue{T}, h::UInt) where T = hash(x.value, h)
 Base.show(io::IO, x::NativeValue{T}) where T = print(io, x.value)
 
+mutable struct PExprValue{H <: Head} <: AbstractValue
+    head::H
+    args::Vector{PExprValue}
+end
+
 mutable struct Value <: AbstractValue
     constructor::Symbol
     args::Vector{Any}

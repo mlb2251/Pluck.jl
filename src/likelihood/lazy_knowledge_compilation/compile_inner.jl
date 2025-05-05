@@ -7,6 +7,7 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     thunked_argument = make_thunk(expr.args[2], env, 1, state)
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
+        @assert f isa Closure "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)"
         new_env = copy(f.env)
         pushfirst!(new_env, thunked_argument)
         return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
@@ -22,14 +23,14 @@ function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
     # Constructors deterministically evaluate to a WHNF value, with their arguments thunked.
     # Create a thunk for each argument.
     # println("compile_inner Construct: $expr with args $(expr.args[2])")
-    thunked_arguments = [make_thunk(arg, env, i, state) for (i, arg) in enumerate(expr.args[2])]
+    thunked_arguments = [make_thunk(arg, env, i, state) for (i, arg) in enumerate(expr.args)]
     # Return the constructor and its arguments.
-    return pure_monad(Value(expr.args[1], thunked_arguments), path_condition, state)
+    return pure_monad(Value(expr.head.constructor, thunked_arguments), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
     # caseof_type = type_of_constructor[first(keys(expr.cases))]
-    bind_compile(expr.args[1], env, path_condition, state, 0) do scrutinee, path_condition
+    bind_compile(getscrutinee(expr), env, path_condition, state, 0) do scrutinee, path_condition
         # value_type = type_of_constructor[scrutinee.constructor]
         # if !isempty(expr.cases) && !(value_type == caseof_type)
             # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
@@ -37,23 +38,18 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
 
         @assert scrutinee isa Value "caseof must be applied to a Value, not: $scrutinee :: $(typeof(scrutinee)) in $expr"
 
-        idx = findfirst(c -> c[1] == scrutinee.constructor, expr.args[2])
+        idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         
         if isnothing(idx)
             # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return program_error_worlds(state)
         end
 
-        case_expr = expr.args[2][idx][2]
-        num_args = length(args_of_constructor[scrutinee.constructor])
-        @assert length(scrutinee.args) == num_args
+        case_expr = getbranch(expr, idx)
+        @assert length(scrutinee.args) == length(getguard(expr, idx).args)
 
-        for _ = 1:num_args
-            @assert case_expr isa PExpr{Abs} "case expression branch for constructor $(scrutinee.constructor) must have as many lambdas as the constructor has arguments ($(num_args) arguments)"
-            case_expr = case_expr.args[1]
-        end
         # In each of the scrutinee arguments, filter out options that contradict the available information.
-        new_env = num_args == 0 ? env : copy(env)
+        new_env = isempty(scrutinee.args) ? env : copy(env)
         for arg in scrutinee.args
             pushfirst!(new_env, arg)
         end
@@ -69,7 +65,7 @@ end
 
 function compile_inner(expr::PExpr{Var}, env, path_condition, state)
 
-    v = env[expr.args[1]]
+    v = env[expr.head.idx]
     if v isa Thunk
         return evaluate(v, path_condition, state)
     end
@@ -79,7 +75,7 @@ end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # Execute Defined with a blanked out environment.
-    return traced_compile_inner(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
+    return traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
 end
 
 
@@ -166,7 +162,7 @@ function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state
 end
 
 function compile_inner(expr::PExpr{ConstNative}, env, path_condition, state)
-    return pure_monad(NativeValue(expr.args[1]), path_condition, state)
+    return pure_monad(NativeValue(expr.head.val), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state)
@@ -206,9 +202,9 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state)
 
     logtotal = logaddexp(p_true, p_false)
 
-    p_true_thunk = make_thunk(ConstNative(exp(p_true - logtotal)), Pluck.EMPTY_ENV, 1, state)
-    true_thunk = make_thunk(Construct(:True, Symbol[]), Pluck.EMPTY_ENV, 2, state)
-    false_thunk = make_thunk(Construct(:False, Symbol[]), Pluck.EMPTY_ENV, 3, state)
+    p_true_thunk = make_thunk(ConstNative(exp(p_true - logtotal))(), Pluck.EMPTY_ENV, 1, state)
+    true_thunk = make_thunk(Construct(:True)(), Pluck.EMPTY_ENV, 2, state)
+    false_thunk = make_thunk(Construct(:False)(), Pluck.EMPTY_ENV, 3, state)
     bind_monad(cond, path_condition, state) do cond, path_condition
         if cond.constructor == :True
             return pure_monad(Value(:PBool, p_true_thunk, true_thunk), path_condition, state)
@@ -259,11 +255,11 @@ function compile_inner(expr::PExpr{Quote}, env, path_condition, state)
 
     # forcing a quote of a non-unquote just returns the underlying PExpr with all the args quoted (and thunked)
     quoted_args, _ = thunk_quote(e.args, env, 0, state)
-    return pure_monad(NativeValue(PExpr(e.op, quoted_args)), path_condition, state)
+    return pure_monad(NativeValue(PExpr(e.head, quoted_args)), path_condition, state)
 end
 
 function thunk_quote(e::PExpr, env, i::Int, state)
-    return make_thunk(Quote(e), env, i, state), i + 1
+    return make_thunk(Quote()(e), env, i, state), i + 1
 end
 
 function thunk_quote(xs::Vector, env, i::Int, state)

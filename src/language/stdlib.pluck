@@ -240,14 +240,14 @@
 (define-type int4 (Int4 bool bool bool bool))
 
 (define (int1=? a b) (match a
-                       (Int1 a) => (match b
-                                     (Int1 b) => (iff a b))))
+                       Int1 a => (match b
+                                     Int1 b => (iff a b))))
 (define (int2=? a b) (match a
-                       (Int2 a1 a2) => (match b
-                                         (Int2 b1 b2) => (and (iff a1 b1) (iff a2 b2)))))
+                       Int2 a1 a2 => (match b
+                                         Int2 b1 b2 => (and (iff a1 b1) (iff a2 b2)))))
 (define (int3=? a b) (match a
-                       (Int3 a1 a2 a3) => (match b
-                                            (Int3 b1 b2 b3) => (and (iff a1 b1) (and (iff a2 b2) (iff a3 b3))))))
+                       Int3 a1 a2 a3 => (match b
+                                            Int3 b1 b2 b3 => (and (iff a1 b1) (and (iff a2 b2) (iff a3 b3))))))
 (define (int4=? a b) (match a
-                       (Int4 a1 a2 a3 a4) => (match b
-                                               (Int4 b1 b2 b3 b4) => (and (iff a1 b1) (and (iff a2 b2) (and (iff a3 b3) (iff a4 b4)))))))
+                       Int4 a1 a2 a3 a4 => (match b
+                                               Int4 b1 b2 b3 b4 => (and (iff a1 b1) (and (iff a2 b2) (and (iff a3 b3) (iff a4 b4)))))))

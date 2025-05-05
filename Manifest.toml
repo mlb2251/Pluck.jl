@@ -1,12 +1,17 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.4"
+julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "f7bc64a72bc0599ae6fd3d175be566d1fb50e5b8"
+project_hash = "7258eea7edce4cb1be794e6515386d593c5558a0"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 version = "1.11.0"
+
+[[deps.AutoHashEquals]]
+git-tree-sha1 = "4ec6b48702dacc5994a835c1189831755e4e76ef"
+uuid = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
+version = "2.2.0"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
