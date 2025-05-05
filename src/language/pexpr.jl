@@ -16,14 +16,14 @@ An expression in the Pluck language.
 """
 @auto_hash_equals mutable struct PExpr{H <: Head}
     head::H
-    args::Vector{PExpr}
-    PExpr(head::H, args::Vector{PExpr}) where H <: Head = new{H}(head, args)
-    PExpr(head::H) where H <: Head = new{H}(head, PExpr[])
-    PExpr(head::H, args...) where H <: Head = new{H}(head, collect(PExpr, args))
+    args::Vector{Any}
+    PExpr(head::H, args) where H <: Head = new{H}(head, args)
+    PExpr(head::H) where H <: Head = new{H}(head, [])
+    # PExpr(head::H, args...) where H <: Head = new{H}(head, collect(Union{PExpr, Thunk}, args))
 end
 Base.copy(e::PExpr) = PExpr(copy(e.head), Any[copy(arg) for arg in e.args])
 
-(head::H where {H <: Head})(args...) = PExpr(head, collect(PExpr, args))
+(head::H where {H <: Head})(args...) = PExpr(head, collect(args))
 # (head::Type{H})(args...) where H <: Head = nothing
 
 
@@ -68,7 +68,7 @@ getx(e::PExpr{App}) = e.args[2]
 getfunc(e::PExpr{App}) = getfunc(getf(e))
 getfunc(e) = e
 
-num_apps(e::PExpr) = 0
+num_apps(e) = 0
 num_apps(e::PExpr{App}) = 1 + num_apps(getf(e))
 function getarg(e::PExpr{App}, i)
     # for an app chain (app (app f x) y) we want x to be the 1st arg and y to be

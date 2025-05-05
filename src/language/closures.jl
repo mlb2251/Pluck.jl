@@ -1,7 +1,7 @@
 
 # result of evaluating a lambda. Takes 1 argument.
 mutable struct Closure <: AbstractValue
-    expr::PExpr
+    expr::Union{PExpr, Thunk}
     env::Vector{Any}
 end
 

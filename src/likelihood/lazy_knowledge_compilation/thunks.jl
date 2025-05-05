@@ -1,22 +1,21 @@
 
 struct LazyKCThunk <: Thunk
-    expr::PExpr
+    expr::Union{PExpr, Thunk}
     env::Env
     cache::Vector{GuardedWorlds}
     callstack::Callstack
     strict_order_index::Int
 
-    function LazyKCThunk(expr::PExpr, env::Env, strict_order_index::Int, state)
-        if expr isa Var && env[expr.idx] isa LazyKCThunk
-            return env[expr.idx]
+    function LazyKCThunk(expr, env::Env, strict_order_index::Int, state)
+        if expr isa PExpr{Var} && env[expr.head.idx] isa LazyKCThunk
+            return env[expr.head.idx]
         end
 
-        key = (expr, env, state.callstack)
+        # key = (expr, env, state.callstack)
         # if state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
         #     return state.thunk_cache[key]
         # else
-        cache = []
-        thunk = new(expr, env, cache, copy(state.callstack), strict_order_index)
+        thunk = new(expr, env, [], copy(state.callstack), strict_order_index)
         # if state.cfg.use_thunk_cache
         #     state.thunk_cache[(expr, copy(env), copy(state.callstack))] = thunk
         # end
@@ -111,7 +110,18 @@ function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
     print_thunk_enter(thunk, state)
     old_callstack = state.callstack
     state.callstack = thunk.callstack
-    result = traced_compile_inner(thunk.expr, thunk.env, path_condition, state, thunk.strict_order_index)
+
+    expr = thunk.expr
+    if expr isa LazyKCThunk
+        # if the .expr is a Thunk, we need to evaluate it first to get a PExprValue
+        return bind_evaluate(expr, thunk.env, path_condition, state) do e, path_condition
+            # @assert e isa PExprValue "LazyKCThunk must be evaluated to a PExprValue, got $(e) :: $(typeof(e))"
+            @assert e isa NativeValue && e.value isa PExpr "LazyKCThunk must be evaluated to a NativeValue{PExpr{T}}, got $(e) :: $(typeof(e))"
+            return evaluate(e, path_condition, state)
+        end
+    end
+    result = traced_compile_inner(expr, thunk.env, path_condition, state, thunk.strict_order_index)
+
     state.callstack = old_callstack
     print_thunk_exit(thunk, result, state)
     return result

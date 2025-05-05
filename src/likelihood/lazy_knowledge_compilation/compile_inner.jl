@@ -227,6 +227,7 @@ end
 """
 compile_inner on a Quote always produces a PExprValue
 compile_inner(Quote(e)) -> PExprValue(e.head, thunk_quote(e.args)) where any args that are PExprs get replaced with thunks of quoted PExprs.
+compile_inner(Quote(e)) -> PExprValue(e.head, thunk_quote(e.args)) where any args that are PExprs get replaced with thunks of quoted PExprs.
 compile_inner(Quote(Unquote(e))) -> compile_inner(e) :: NativeValue{PExpr}
 """
 function compile_inner(expr::PExpr{Quote}, env, path_condition, state)
@@ -237,7 +238,8 @@ function compile_inner(expr::PExpr{Quote}, env, path_condition, state)
         quoted_unquoted_expr = quoted_expr.args[1]
         return bind_compile(quoted_unquoted_expr, env, path_condition, state, 0) do e, path_condition
             # this bind is unnecessary, I'm just doing it to check the type during debugging
-            @assert e isa PExprValue
+            # @assert e isa PExprValue
+            @assert e isa NativeValue && e.value isa PExpr
             return pure_monad(e, path_condition, state)
         end
     end
@@ -248,7 +250,8 @@ function compile_inner(expr::PExpr{Quote}, env, path_condition, state)
         push!(quoted_args, make_thunk(Quote()(arg), env, i, state))
     end
 
-    return pure_monad(PExprValue(quoted_expr.head, quoted_args), path_condition, state)
+    return pure_monad(NativeValue(PExpr(quoted_expr.head, quoted_args)), path_condition, state)
+    # return pure_monad(PExprValue(quoted_expr.head, quoted_args), path_condition, state)
 end
 
 
