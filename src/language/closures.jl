@@ -9,7 +9,7 @@ end
 function Base.:(==)(x::Closure, y::Closure)
     x.name == y.name || return false
     x.expr == y.expr || return false
-    is_self_loop(x) && is_self_loop(y) && return @views x.env[2:end] == y.env[2:end]
+    is_self_loop(x) && is_self_loop(y) && return tailenv(x.env) == tailenv(y.env)
     x.env == y.env
 end
 function Base.hash(x::Closure, h::UInt)

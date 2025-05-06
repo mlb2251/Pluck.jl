@@ -1,7 +1,7 @@
 
 
 
-function compile_inner(expr::PExpr{FlipOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState)
+function compile_inner(expr::PExpr{FlipOp}, env, trace, state::LazyEnumeratorEvalState)
     ps = traced_compile_inner(expr.args[1], env, trace, state, 0)
     bind_monad(ps, trace, state) do p, trace
         p = p.value
@@ -29,7 +29,7 @@ end
 #####################
 
 
-function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState{EagerMode})
+function compile_inner(expr::PExpr{App}, env, trace, state::LazyEnumeratorEvalState{EagerMode})
     # in strict semantics its safe to evaluate xs independently of f instead of nesting
     # it within the bind call.
     fs = traced_compile_inner(expr.args[1], env, trace, state, 0)
@@ -38,8 +38,7 @@ function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::
     for (f, ftrace) in fs
         for (x, xtrace) in xs
             state.hit_limit && return inference_error_worlds(state)
-            new_env = copy(f.env)
-            pushfirst!(new_env, x)
+            new_env = EnvCons(f.name, x, f.env)
             new_trace = cat_trace(ftrace, xtrace)
             for result in traced_compile_inner(f.expr, new_env, new_trace, state, 2)
                 push!(results, result)
@@ -49,10 +48,10 @@ function compile_inner(expr::PExpr{App}, env::Vector{Any}, trace::Trace, state::
     return results
 end
 
-function compile_inner(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState{EagerMode})
+function compile_inner(expr::PExpr{Construct}, env, trace, state::LazyEnumeratorEvalState{EagerMode})
     # in strict semantics its safe to evaluate all arguments independently of each other.
     options_of_arg = []
-    for (i, arg) in enumerate(expr.args[2])
+    for (i, arg) in enumerate(expr.args)
         push!(options_of_arg, traced_compile_inner(arg, env, Trace(), state, i))
     end
     results = []
@@ -67,12 +66,12 @@ function compile_inner(expr::PExpr{Construct}, env::Vector{Any}, trace::Trace, s
             new_trace = cat_trace(new_trace, arg_trace)
             push!(new_args, arg)
         end
-        push!(results, (Value(expr.args[1], new_args), new_trace))
+        push!(results, (Value(expr.head.constructor, new_args), new_trace))
     end
     return results
 end
 
-function compile_inner(expr::PExpr{NativeEqOp}, env::Vector{Any}, trace::Trace, state::LazyEnumeratorEvalState{EagerMode})
+function compile_inner(expr::PExpr{NativeEqOp}, env, trace, state::LazyEnumeratorEvalState{EagerMode})
     # in strict semantics its safe to evaluate second argument independently of first
     # instead of nesting it within the bind call.   
     first_arg_results = traced_compile_inner(expr.args[1], env, trace, state, 0)

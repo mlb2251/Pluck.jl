@@ -7,7 +7,6 @@ using AutoHashEquals
 abstract type Head end
 
 Base.show(io::IO, e::T) where T <: Head = print(io, prim_str(e))
-Base.:(==)(::T, ::U) where {T <: Head, U <: Head} = T === U
 
 
 """
@@ -57,10 +56,10 @@ Base.show(io::IO, e::App) = print(io, "App")
 function Base.show(io::IO, e::PExpr{App})
     # show (App (λ x -> e) arg) as (let [x e] arg)
     # and show (App (λ x -> (App (λ x -> e) ey)) ex) as (let [x ex y ey] e) 
-    if e.args[1].head isa Abs
+    if e.args[1] isa PExpr{Abs}
         bindings = Tuple{Symbol, PExpr}[(e.args[1].head.var, e.args[2])]
         body = e.args[1].args[1]
-        while body.head isa App && body.args[1].head isa Abs
+        while body isa PExpr{App} && body.args[1] isa PExpr{Abs}
             push!(bindings, (body.args[1].head.var, body.args[2]))
             body = body.args[1].args[1]
         end

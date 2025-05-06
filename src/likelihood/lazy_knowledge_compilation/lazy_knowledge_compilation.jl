@@ -35,9 +35,7 @@ Top-level compile function for lazy knowledge compilation.
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
 
-    # @show expr
     worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
-    # @show state.num_forward_calls
 
     # expand IntDists into their 2^N possible values
     if length(worlds) == 1 && worlds[1] isa IntDist
@@ -159,7 +157,6 @@ end
 get_config(state::LazyKCState) = state.cfg
 
 function traced_compile_inner(expr, env, path_condition, state::LazyKCState, strict_order_index)
-    # println(repeat(" ", state.depth) * "traced_compile_inner: $expr")
     # Check whether path_condition is false.
     if !state.cfg.disable_used_information && bdd_is_false(path_condition)
         return false_path_condition_worlds(state)
@@ -201,13 +198,6 @@ function compile_inner(thunk::Thunk, env, path_condition, state)
         return compile_inner(e.value, env, path_condition, state)
     end
 end
-# function traced_compile_inner(thunk::Thunk, env, path_condition, state, strict_order_index)
-#     bind_evaluate(thunk, env, path_condition, state) do e, path_condition
-#         @assert e isa NativeValue && e.value isa PExpr "Thunk must be evaluated to a NativeValue{PExpr}, got $(e) :: $(typeof(e))"
-#         return traced_compile_inner(e.value, env, path_condition, state, strict_order_index)
-#     end
-# end
-
 
 """
 Returns the single-variable BDD corresponding to the current callstack and probability, creating

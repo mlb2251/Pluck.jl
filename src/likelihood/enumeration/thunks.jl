@@ -1,11 +1,11 @@
 mutable struct LazyEnumeratorThunk <: Thunk
     expr::PExpr
-    env::Vector{Any}
+    env::Env
     callstack::Vector{Int}
     strict_order_index::Int
     id::Int
 
-    function LazyEnumeratorThunk(expr::PExpr, env::Vector{Any}, state::LazyEnumeratorEvalState, strict_order_index::Int)
+    function LazyEnumeratorThunk(expr::PExpr, env, state::LazyEnumeratorEvalState, strict_order_index::Int)
         @assert !state.cfg.strict
         if expr isa Var && getenv(env, expr.name) isa LazyEnumeratorThunk
             return getenv(env, expr.name)

@@ -58,7 +58,7 @@ end
 function compile_inner(expr::PExpr{Y}, env, path_condition, state)
     rec_lambda = expr.args[1] :: PExpr{Abs}
     arg_lambda = rec_lambda.args[1] :: PExpr{Abs}
-    closure = make_self_loop(arg_lambda.args[1], env, rec_lambda.head.name, arg_lambda.head.name)
+    closure = make_self_loop(arg_lambda.args[1], env, rec_lambda.head.var, arg_lambda.head.var)
 
     return pure_monad(closure, path_condition, state)
 end
