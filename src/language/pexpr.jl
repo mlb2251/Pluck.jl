@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, diff_vars_used
 
 import DataStructures: OrderedDict
 
@@ -223,3 +223,16 @@ var_is_free(e::PExpr{Var}, var) = e.args[1] == var
 var_is_free(e::PExpr{CaseOf}, var) =
     var_is_free(e.args[1], var) || any(case -> var_is_free(case[2], var), e.args[2])
 var_is_free(e::PExpr{Construct}, var) = any(var_is_free(arg, var) for arg in e.args[2])
+
+function diff_vars_used(e::PExpr, curr_vars = Set{Int}())
+    union(curr_vars, [diff_vars_used(arg, curr_vars) for arg in e.args if arg isa PExpr]...)
+end
+function diff_vars_used(e::PExpr{ConstNative}, curr_vars = Set{Int}())
+    union(curr_vars, e.args[1])
+end
+diff_vars_used(e::PExpr{Abs}, curr_vars = Set{Int}()) = union(curr_vars, diff_vars_used(e.args[1], curr_vars))
+diff_vars_used(e::PExpr{Var}, curr_vars = Set{Int}()) = curr_vars
+diff_vars_used(e::PExpr{CaseOf}, curr_vars = Set{Int}()) =
+    union(curr_vars, diff_vars_used(e.args[1], curr_vars)) ∪
+    union(curr_vars, diff_vars_used(e.args[2], curr_vars))
+diff_vars_used(e::PExpr{Construct}, curr_vars = Set{Int}()) = union(curr_vars, [diff_vars_used(arg, curr_vars) for arg in e.args[2]]...)
