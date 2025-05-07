@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, diff_vars_used
 
 import DataStructures: OrderedDict
 
@@ -335,3 +335,16 @@ var_is_free(e::PExpr{Var}, var) = e.head.name == var
 # CaseOf branches also bind variables – one for each arg to the guard
 var_is_free(e::PExpr{CaseOf}, var) = 
     var_is_free(getscrutinee(e), var) || any(case -> !any(arg -> arg == var, getguard(e, case).args) && var_is_free(getbranch(e, case), var), 1:numbranches(e))
+
+function diff_vars_used(e::PExpr, curr_vars = Set{Int}())
+    union(curr_vars, [diff_vars_used(arg, curr_vars) for arg in e.args if arg isa PExpr]...)
+end
+function diff_vars_used(e::PExpr{ConstNative}, curr_vars = Set{Int}())
+    union(curr_vars, e.args[1])
+end
+diff_vars_used(e::PExpr{Abs}, curr_vars = Set{Int}()) = union(curr_vars, diff_vars_used(e.args[1], curr_vars))
+diff_vars_used(e::PExpr{Var}, curr_vars = Set{Int}()) = curr_vars
+diff_vars_used(e::PExpr{CaseOf}, curr_vars = Set{Int}()) =
+    union(curr_vars, diff_vars_used(e.args[1], curr_vars)) ∪
+    union(curr_vars, diff_vars_used(e.args[2], curr_vars))
+diff_vars_used(e::PExpr{Construct}, curr_vars = Set{Int}()) = union(curr_vars, [diff_vars_used(arg, curr_vars) for arg in e.args[2]]...)

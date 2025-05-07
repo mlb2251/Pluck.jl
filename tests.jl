@@ -5,8 +5,6 @@ using Revise
 using Pluck
 using .RSDD
 
-compile("(flip 0.5)", LazyKCConfig())
-
 # Small number of steps
 prob, metaparam_vals = optimize(["(flip 0.5)"], 0.01, [], 1, max_depth=100)
 @assert isapprox(prob[1], 0.5)
@@ -105,4 +103,14 @@ prob, metaparam_vals = optimize(["(let (a (geom 0.5)
 @assert isapprox(prob[1], 0.5)
 @assert isapprox(metaparam_vals[1], 1.0)
 
+used_vars = diff_vars_used(parse_expr("@0"))
+println(used_vars)
+
+used_vars = diff_vars_used(parse_expr("(let (a (flipd @0)
+                            b (not (flipd @1)))
+                            (and a b))"))
+println(used_vars)
+
+used_vars = diff_vars_used(parse_expr("(flipd @0)"))
+println(used_vars)
 printstyled("passed all tests", color=:green)
