@@ -46,7 +46,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     if state.cfg.show_bdd_size
         summed_size = sum(Int(RSDD.bdd_size(bdd)) for (val, bdd) in worlds)
         num_vars = length(state.sorted_callstacks)
-        printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
+        printstyled("vars & nodes: $num_vars & $summed_size\n"; color=:blue)
         println("BDD sizes: $([(val, Int(RSDD.bdd_size(bdd))) for (val, bdd) in worlds])")
     end
 
