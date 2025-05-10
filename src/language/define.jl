@@ -17,7 +17,7 @@ end
 function define(name, str)
     name = Symbol(name)
     if haskey(DEFINITIONS, name)
-        @warn "definition for $name already exists, overwriting"
+        # @warn "definition for $name already exists, overwriting"
     end
     DEFINITIONS[name] = Definition(name, DUMMY_EXPRESSION)
     try
