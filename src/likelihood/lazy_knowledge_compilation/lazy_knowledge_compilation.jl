@@ -1,4 +1,4 @@
-export normalize, compile, LazyKCState, LazyKCConfig, LazyKCStateDual, get_time_limit, set_time_limit!
+export normalize, compile, LazyKCState, LazyKCConfig, LazyKCStateDual, get_time_limit, set_time_limit!, LazyKCStats, CompileResult
 
 const Callstack = Vector{Int}
 const WorldT{T} = Tuple{T, BDD}
@@ -22,12 +22,15 @@ Base.@kwdef mutable struct LazyKCConfig
     record_json::Bool = false
     free_manager::Bool = true
     results_file::Union{Nothing, String} = nothing
-    time_limit::Float64 = 0.0
+    time_limit::Union{Nothing, Float64} = nothing
     state_vars::StateVars = StateVars()
+    full_dist::Bool = false
+    detailed_results::Bool = false
 end
 
 set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
 get_time_limit(cfg::LazyKCConfig) = cfg.time_limit
+
 
 """
 Top-level compile function for lazy knowledge compilation.
@@ -35,7 +38,29 @@ Top-level compile function for lazy knowledge compilation.
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
 
-    worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
+    start!(get_timer(state), cfg.time_limit)
+    bdd_start_time_limit(state.manager, cfg.time_limit)
+
+    try 
+        worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
+    catch e
+        if e isa StackOverflowError
+            worlds = []
+            state.stats.hit_limit = true
+        else
+            rethrow(e)
+        end
+    end
+    stop!(get_timer(state))
+    bdd_stop_time_limit(state.manager)
+
+    if state.stats.hit_limit
+        worlds = []
+    end
+
+    if state.cfg.full_dist
+        worlds = infer_full_distribution(worlds, state)
+    end
 
     # expand IntDists into their 2^N possible values
     if length(worlds) == 1 && worlds[1] isa IntDist
@@ -70,6 +95,10 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
 
     state.cfg.free_manager && free_bdd_manager(state.manager)
 
+    if state.cfg.detailed_results
+        return CompileResult(weighted_results, state.stats)
+    end
+
     return weighted_results
 end
 
@@ -86,6 +115,16 @@ function set_outpath!()
     set_config!(results_file = timestamp_path("results.json"))
 end
 
+mutable struct LazyKCStats
+    time::Float64
+    num_forward_calls::Int
+    hit_limit::Bool
+end
+LazyKCStats() = LazyKCStats(0.0, 0, false)
+function Base.:+(a::LazyKCStats, b::LazyKCStats)
+    LazyKCStats(a.time + b.time, a.num_forward_calls + b.num_forward_calls, a.hit_limit || b.hit_limit)
+end
+
 mutable struct LazyKCState
     callstack::Callstack
     var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
@@ -94,11 +133,20 @@ mutable struct LazyKCState
     manager::RSDD.Manager
     depth::Int
     thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, Any}
-    num_forward_calls::Int
+    stats::LazyKCStats
     viz::Any # Union{Nothing, BDDJSONLogger}
     cfg::LazyKCConfig
     param2metaparam::Dict{Int, Int}
+    timer::Timer
 end
+
+struct CompileResult
+    worlds
+    stats
+end
+
+get_timer(state::LazyKCState) = state.timer
+
 
 function LazyKCState(;kwargs...)
     cfg = LazyKCConfig(;kwargs...)
@@ -115,10 +163,11 @@ function LazyKCState(cfg::LazyKCConfig)
         manager,
         0,
         Dict{Tuple{PExpr, Env, Callstack}, Any}(),
-        0,
+        LazyKCStats(),
         nothing,
         cfg,
-        Dict{Int, Int}()
+        Dict{Int, Int}(),
+        Timer()
     )
 
     if cfg.record_json
@@ -145,7 +194,8 @@ function LazyKCStateDual(vector_size::Integer, cfg::LazyKCConfig)
         0,
         nothing,
         cfg,
-        Dict{Int, Int}()
+        Dict{Int, Int}(),
+        Timer()
     )
 
     if cfg.record_json
@@ -163,6 +213,12 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
     end
 
     if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth
+        state.stats.hit_limit = true
+        return inference_error_worlds(state)
+    end
+
+    if check_time_limit(state.timer)
+        state.stats.hit_limit = true
         return inference_error_worlds(state)
     end
 
@@ -182,8 +238,14 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
     end
 
     pop!(state.callstack)
-    state.num_forward_calls += 1
+    state.stats.num_forward_calls += 1
     state.depth -= 1
+
+    if bdd_time_limit_exceeded(state.manager)
+        state.stats.hit_limit = true
+        return inference_error_worlds(state)
+    end
+
     return result, used_information
 end
 

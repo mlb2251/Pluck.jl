@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol
 
 import DataStructures: OrderedDict
 
@@ -20,7 +20,7 @@ An expression in the Pluck language.
     PExpr(head::H) where H <: Head = new{H}(head, [])
     # PExpr(head::H, args...) where H <: Head = new{H}(head, collect(Union{PExpr, Thunk}, args))
 end
-Base.copy(e::PExpr) = PExpr(copy(e.head), Any[copy(arg) for arg in e.args])
+Base.copy(e::PExpr) = PExpr(e.head, Any[copy(arg) for arg in e.args])
 
 (head::H where {H <: Head})(args...) = PExpr(head, collect(args))
 # (head::Type{H})(args...) where H <: Head = nothing
@@ -105,6 +105,7 @@ end
 @auto_hash_equals struct Abs <: Head
     var::Symbol
 end
+Base.copy(h::Abs) = h
 Base.show(io::IO, h::Abs) = print(io, "λ", h.var)
 function Base.show(io::IO, e::PExpr{Abs})
     print(io, "(λ", e.head.var)
@@ -118,7 +119,7 @@ end
 @auto_hash_equals struct Var <: Head
     name::Symbol
 end
-Base.show(io::IO, h::Var) = print(io, h.name)
+Base.show(io::IO, h::Var) = print(io, "\$", h.name)
 Base.show(io::IO, e::PExpr{Var}) = print(io, e.head)
 
 @auto_hash_equals struct Defined <: Head
@@ -134,6 +135,18 @@ Base.show(io::IO, e::PExpr{Unquote}) = print(io, "~", e.args[1])
 @auto_hash_equals struct Quote <: Head end
 Base.show(io::IO, h::Quote) = print(io, "`")
 Base.show(io::IO, e::PExpr{Quote}) = print(io, "`", e.args[1])
+
+@auto_hash_equals struct GSymbol <: Head
+    name::Symbol
+end
+Base.show(io::IO, h::GSymbol) = print(io, "?", h.name)
+Base.show(io::IO, e::PExpr{GSymbol}) = print(io, e.head)
+
+@auto_hash_equals struct GVarSymbol <: Head
+    name::Symbol
+end
+Base.show(io::IO, h::GVarSymbol) = print(io, "#", h.name)
+Base.show(io::IO, e::PExpr{GVarSymbol}) = print(io, e.head)
 
 @auto_hash_equals struct ConstNative <: Head
     val::Any
@@ -167,7 +180,6 @@ end
 @auto_hash_equals struct CaseOf <: Head
     branches::Vector{CaseOfGuard}
 end
-Base.copy(h::CaseOf) = CaseOf(Symbol[g for g in h.branches])
 
 numbranches(e::PExpr{CaseOf}) = length(e.head.branches)
 getguard(e::PExpr{CaseOf}, i::Int) = e.head.branches[i]

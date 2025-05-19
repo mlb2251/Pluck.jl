@@ -186,7 +186,7 @@ end
 end
 
 
-function compile(expr; show_length = false, kwargs...)
+function compile_enum(expr; show_length = false, kwargs...)
     s = LazyEnumeratorEvalState(; kwargs...)
     if expr isa String
         expr = parse_expr(expr)

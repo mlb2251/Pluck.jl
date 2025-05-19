@@ -131,7 +131,7 @@ end
 function viz_lower(state::LazyKCState, viz::BDDJSONLogger)
     return Dict(
         "callstack" => copy(state.callstack),
-        "num_forward_calls" => state.num_forward_calls,
+        "num_forward_calls" => state.stats.num_forward_calls,
         "depth" => state.depth,
     )
 end

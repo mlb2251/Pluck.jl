@@ -1,4 +1,4 @@
-export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path
+export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path, compile_deterministic
 
 using Dates
 using Printf
@@ -21,6 +21,13 @@ function compile(expr::String, cfg::T) where T
     compile(expr, cfg)
 end
 compile(expr::String) = compile(expr, LazyKCConfig())
+compile(expr; kwargs...) = compile(expr, LazyKCConfig(; kwargs...))
+
+function compile_deterministic(expr)
+    worlds = compile(expr; full_dist=true)
+    @assert length(worlds) == 1 "Deterministic compilation returned multiple worlds"
+    return worlds[1][1]
+end
 
 function normalize(results)
     probabilities = [res[2] for res in results]
@@ -41,7 +48,7 @@ end
 function get_true_result(results, default=nothing)
     res = nothing
     for (val, x) in results
-        if val == Pluck.TRUE_VALUE || val == true
+        if val == Pluck.TRUE_VALUE || (val isa Bool && val == true)
             @assert isnothing(res) "Multiple true results found"
             res = x
         end
@@ -176,4 +183,27 @@ function format_prob(p)
     str = replace(str, r"\.$" => ".0") # Ensure decimal point
     @assert !occursin("e", str)
     return str
+end
+
+mutable struct Timer
+    start_time::Float64
+    time_limit::Union{Nothing, Float64}
+    Timer() = new(0.0, nothing)
+end
+
+function start!(timer::Timer, time_limit)
+    timer.start_time = time()
+    timer.time_limit = time_limit
+end
+
+function stop!(timer::Timer)
+    timer.time_limit = nothing
+end
+
+function elapsed(timer::Timer)
+    return time() - timer.start_time
+end
+
+function check_time_limit(timer::Timer)
+    return !isnothing(timer.time_limit) && elapsed(timer) > timer.time_limit
 end
