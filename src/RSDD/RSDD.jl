@@ -100,6 +100,9 @@ let
     global bdd_var_position_ptr = C_NULL
     global dual_number_get_size_ptr = C_NULL
     global dual_number_create_ptr = C_NULL
+    global start_bdd_manager_time_limit_ptr = C_NULL
+    global stop_bdd_manager_time_limit_ptr = C_NULL
+    global bdd_manager_time_limit_exceeded_ptr = C_NULL
 end
 
 export get_rsdd_time, clear_rsdd_time!, rsdd_time!, rsdd_timed, @rsdd_time
@@ -273,6 +276,9 @@ function __init__()
     global robdd_top_k_paths_ptr = get_symbol("robdd_top_k_paths")
     global dual_number_get_size_ptr = get_symbol("dual_number_get_size")
     global dual_number_create_ptr = get_symbol("dual_number_create")
+    global start_bdd_manager_time_limit_ptr = get_symbol("start_bdd_manager_time_limit")
+    global stop_bdd_manager_time_limit_ptr = get_symbol("stop_bdd_manager_time_limit")
+    global bdd_manager_time_limit_exceeded_ptr = get_symbol("bdd_manager_time_limit_exceeded")
 end
 
 # Show method for BDD
@@ -743,6 +749,30 @@ function bdd_top_k_paths(bdd::BDD, k::Integer, wmc_params::WmcParams)
     BDD(bdd.manager, ptr)
 end
 
+"""
+Sets a time limit for the BDD manager and starts the clock.
+"""
+function bdd_start_time_limit(manager::Manager, time_limit)
+    if !isnothing(time_limit)
+        ccall(start_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr, Cdouble), manager.ptr, time_limit)
+    end
+end
+
+"""
+Stops the BDD manager time limit.
+"""
+function bdd_stop_time_limit(manager::Manager)
+    ccall(stop_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr,), manager.ptr)
+end
+
+"""
+Checks if the BDD manager time limit has been exceeded.
+Returns: Bool
+"""
+function bdd_time_limit_exceeded(manager::Manager)
+    ccall(bdd_manager_time_limit_exceeded_ptr, Bool, (ManagerPtr,), manager.ptr)
+end
+
 # Add these to the exports at the end of the file
 export free_bdd, 
 free_bdd_manager, 
@@ -755,6 +785,9 @@ free_wmc_dual_derivatives,
 dual_number_get_size,
 dual_number_create,
 bdd_var_position, 
-bdd_last_var
+bdd_last_var,
+bdd_start_time_limit,
+bdd_stop_time_limit,
+bdd_time_limit_exceeded
 
 end # module

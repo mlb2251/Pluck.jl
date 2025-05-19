@@ -1,3 +1,5 @@
+export type_of_constructor, constructors_of_type, args_of_constructor
+
 
 const type_of_constructor = Dict{Symbol,Symbol}()
 const constructors_of_type = Dict{Symbol,Vector{Symbol}}()

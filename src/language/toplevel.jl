@@ -1,4 +1,4 @@
-export load_pluck_file, parse_toplevel
+export load_pluck_file, parse_toplevel, sample_output
 
 # Parse a single constructor definition of form (Constructor arg1 arg2 ...)
 function parse_constructor(tokens)
@@ -71,10 +71,18 @@ function posterior_query(val, state)
     return results
 end
 
+function sample_output(expr::String; kwargs...)
+    worlds = process_query("(PosteriorSamples $expr true 1)"; silent=true, kwargs...)[1]
+end
+
+function process_query(expr::String, args...; env=EMPTY_ENV, kwargs...)
+    process_query(parse_expr(expr; env=parse_env(env)), args...; env=env, kwargs...)
+end
+
 # Add this helper function to process queries
-function process_query(expr::PExpr, query_str::AbstractString; kwargs...)
+function process_query(expr::PExpr, query_str::AbstractString=string(expr); silent=false, env=EMPTY_ENV, kwargs...)
     state = LazyKCState(; kwargs...)
-    ret, used_information = traced_compile_inner(expr, EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
+    ret, used_information = traced_compile_inner(expr, env, state.manager.BDD_TRUE, state, 0)
 
     if length(ret) != 1
         error("A query must either be a Marginal, Posterior, or PosteriorSample query, got $(expr).")
@@ -86,29 +94,30 @@ function process_query(expr::PExpr, query_str::AbstractString; kwargs...)
 
     if val.constructor == :Marginal
         results = marginal_query(val, state)
-        print_query_results(results, query_str; save = state.cfg.results_file)
-
+        silent || print_query_results(results, query_str; save = state.cfg.results_file)
     elseif val.constructor == :Posterior
         results = posterior_query(val, state)
-        print_query_results(results, query_str; save = state.cfg.results_file)
+        silent || print_query_results(results, query_str; save = state.cfg.results_file)
     elseif val.constructor == :PosteriorSamples
         # Get a single sample from the posterior
         results = posterior_sample(val, state)
         # Print the sample
-        printstyled("$query_str:\n", color=:yellow, bold=true)
-        for (i, result) in enumerate(results)
-            printstyled("  $result\n", bold=true)
+        if !silent
+            printstyled("$query_str:\n", color=:yellow, bold=true)
+            for (i, result) in enumerate(results)
+                printstyled("  $result\n", bold=true)
+            end
         end
     elseif val.constructor == :AdaptiveRejection
         results = adaptive_rejection_sampling(val, state)
         # Print the sample
-        printstyled("$query_str:\n", color=:yellow, bold=true)
-        printstyled("  $results\n", bold=true)
+        silent || printstyled("$query_str:\n", color=:yellow, bold=true)
+        silent || printstyled("  $results\n", bold=true)
     else
         error("Expected Marginal, Posterior, or PosteriorSample query, got $(val.constructor)")
     end
 
-    println()
+    silent || println()
 
     return results
 end
@@ -148,7 +157,7 @@ function detokenize(tokens)
     return result_str
 end
 
-function parse_and_process_query(tokens, defs)
+function parse_and_process_query(tokens, defs; silent=false)
     # Skip past "(" and "query"
     tokens = view(tokens, 3:length(tokens))
     
@@ -185,7 +194,7 @@ function parse_and_process_query(tokens, defs)
     @assert tokens[end_idx] == ")" "Expected closing paren"
 
     # Process the query and get result
-    result = process_query(query_expr, display_str)
+    result = process_query(query_expr, display_str; silent=silent)
 
     return (:query, query_expr, result), view(tokens, end_idx+1:length(tokens))
 
@@ -279,7 +288,7 @@ function parse_and_process_define_type(tokens, defs)
 end
 
 # Modify process_toplevel_form to handle queries
-function process_toplevel_form(tokens, defs)
+function process_toplevel_form(tokens, defs; silent=false)
     if length(tokens) == 0
         error("unexpected end of input")
     end
@@ -293,7 +302,7 @@ function process_toplevel_form(tokens, defs)
 
     # Peek at what follows the opening paren
     if tokens[2] == "query"
-        return parse_and_process_query(tokens, defs)
+        return parse_and_process_query(tokens, defs; silent=silent)
 
     elseif tokens[2] == "define-type"
         return parse_and_process_define_type(tokens, defs)
@@ -318,12 +327,12 @@ function process_toplevel_form(tokens, defs)
 end
 
 # Parse and process a sequence of top-level forms
-function parse_toplevel(s::String, defs=DEFINITIONS)
+function parse_toplevel(s::String, defs=DEFINITIONS; silent=false)
     tokens = tokenize(s)
     forms = []
 
     while !isempty(tokens)
-        form, tokens = process_toplevel_form(tokens, defs)
+        form, tokens = process_toplevel_form(tokens, defs; silent=silent)
         push!(forms, form)
     end
 
