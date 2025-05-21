@@ -25,7 +25,7 @@ compile(expr; kwargs...) = compile(expr, LazyKCConfig(; kwargs...))
 
 function compile_deterministic(expr)
     worlds = compile(expr; full_dist=true)
-    @assert length(worlds) == 1 "Deterministic compilation returned multiple worlds"
+    @assert length(worlds) == 1 "Deterministic compilation returned 0 or 2+ worlds"
     return worlds[1][1]
 end
 
