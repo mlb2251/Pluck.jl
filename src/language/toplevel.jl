@@ -1,4 +1,13 @@
-export load_pluck_file, parse_toplevel, sample_output
+export load_pluck_file, parse_toplevel, sample_output, @pluck_str
+
+"""
+pluck"..." is equivalent to parse_toplevel("...")
+"""
+macro pluck_str(str)
+    # Handle string interpolation
+    # interpolated_str = Meta.parse("\"$str\"")
+    :(parse_toplevel($(esc(str))))
+end
 
 # Parse a single constructor definition of form (Constructor arg1 arg2 ...)
 function parse_constructor(tokens)

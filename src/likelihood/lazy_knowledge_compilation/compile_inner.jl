@@ -27,6 +27,29 @@ function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
     return pure_monad(Value(expr.head.constructor, thunked_arguments), path_condition, state)
 end
 
+function pluck_error(state, msg)
+    printstyled("Pluck Error: ", color=:red)
+    println(msg)
+    println("\nDuring execution of $(state.query)\n")
+
+    if state.cfg.stacktrace
+        print_stacktrace(state)
+    else
+        println("Run with stacktrace=true to see the full Pluck stacktrace")
+    end
+
+    println()
+    throw(ErrorException("Pluck Error"))
+end
+
+function print_stacktrace(state)
+    println("Stacktrace:")
+    for (i, e) in enumerate(reverse(state.stacktrace))
+        println("  [$i] $e")
+    end
+end
+
+
 function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
     # caseof_type = type_of_constructor[first(keys(expr.cases))]
     bind_compile(getscrutinee(expr), env, path_condition, state, 0) do scrutinee, path_condition
@@ -35,7 +58,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
             # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
         # end
 
-        @assert scrutinee isa Value "caseof must be applied to a Value, not: $scrutinee :: $(typeof(scrutinee)) in $expr"
+        scrutinee isa Value || pluck_error(state, "caseof must be applied to a Value, not: $scrutinee :: $(typeof(scrutinee)) in $expr")
 
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         
@@ -75,7 +98,14 @@ end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # Execute Defined with a blanked out environment.
-    return traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
+    # if state.cfg.stacktrace
+    #     push!(state.stacktrace, expr)
+    # end
+    res = traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
+    # if state.cfg.stacktrace
+    #     pop!(state.stacktrace)
+    # end
+    return res
 end
 
 
@@ -200,6 +230,7 @@ end
 
 function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
+        @assert val isa Value "getconstructor must be applied to a Value, not: $val :: $(typeof(val)) in $expr during execution of $(state.query)"
         return pure_monad(NativeValue(val.constructor), path_condition, state)
     end
 end
@@ -250,9 +281,9 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state)
     false_thunk = make_thunk(Construct(:False)(), Pluck.EMPTY_ENV, 3, state)
     bind_monad(cond, path_condition, state) do cond, path_condition
         if cond.constructor == :True
-            return pure_monad(Value(:PBool, p_true_thunk, true_thunk), path_condition, state)
+            return pure_monad(Value(:PBool, Any[p_true_thunk, true_thunk]), path_condition, state)
         elseif cond.constructor == :False
-            return pure_monad(Value(:PBool, p_true_thunk, false_thunk), path_condition, state)
+            return pure_monad(Value(:PBool, Any[p_true_thunk, false_thunk]), path_condition, state)
         else
             error("PBoolOp: condition must be a boolean, got $(cond)")
         end

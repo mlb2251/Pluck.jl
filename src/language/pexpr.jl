@@ -76,8 +76,16 @@ function Base.show(io::IO, e::PExpr{App})
     end
 
     # show like (f x y)
+    argc = num_apps(e)
     print(io, "(", getfunc(e))
-    for i ∈ 1:num_apps(e)
+
+    # show (f (Unit)) as (f)
+    if argc == 1 && getarg(e, 1) isa PExpr{Construct} && getarg(e, 1).head.constructor === :Unit
+        print(io, ")")
+        return
+    end
+
+    for i ∈ 1:argc
         print(io, " ", getarg(e, i))
     end
     print(io, ")")
@@ -99,6 +107,13 @@ function getarg(e::PExpr{App}, i)
         e = getf(e)
     end
     getx(e)
+end
+
+function argpath(e::PExpr{App}, i)
+    which_app = num_apps(e) - i + 1
+    path = ones(Int, which_app-1) # index into `f` that many times
+    push!(path, 2) # index into `x`
+    path
 end
 
 # Function abstraction
@@ -187,6 +202,11 @@ getscrutinee(e::PExpr{CaseOf}) = e.args[1]
 getbranch(e::PExpr{CaseOf}, i::Int) = e.args[i+1]
 Base.show(io::IO, ::CaseOf) = print(io, "caseof")
 function Base.show(io::IO, e::PExpr{CaseOf})
+    if length(e.head.branches) == 2 && e.head.branches[1].constructor == :True && e.head.branches[2].constructor == :False
+        print(io, "(if ", getscrutinee(e), " ", getbranch(e, 1), " ", getbranch(e, 2), ")")
+        return
+    end
+
     print(io, "(case ", getscrutinee(e), " of ")
     for i in eachindex(e.head.branches)
         print(io, getguard(e, i), " => ", getbranch(e, i))

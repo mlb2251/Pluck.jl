@@ -1,5 +1,5 @@
 export DEFINITIONS,
-    @define, @lookup, reset_definitions, define
+    @define, @lookup, reset_definitions, define, isdef
 
 struct Definition
     name::Symbol
@@ -32,6 +32,10 @@ end
 
 function lookup(name::Symbol)::Definition
     DEFINITIONS[name]
+end
+
+function isdef(name::Symbol)
+    haskey(DEFINITIONS, name)
 end
 
 function reset_definitions()

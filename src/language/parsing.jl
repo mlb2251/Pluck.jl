@@ -1,4 +1,14 @@
-export parse_expr
+export parse_expr, @expr_str
+
+"""
+expr"..." is equivalent to parse_expr("...")
+No string interpolation is done - this simplifies \$var parsing to not require escaping.
+If you need string interpolation, just do parse_expr() directly.
+"""
+macro expr_str(str)
+    # interpolated_str = Meta.parse("\"$str\"")
+    :(parse_expr($(esc(str))))
+end
 
 function parse_expr(s::String; defs=DEFINITIONS, env=[])
     tokens = tokenize(s)
@@ -323,7 +333,7 @@ function parse_expr_inner(tokens, defs, env)
         vals = []
         while tokens[1] != "]"
             head, tokens = parse_expr_inner(tokens, defs, env)
-            @assert tokens[1] == "," || tokens[1] == "]" "expected comma or closing bracket in list at $(detokenize(tokens))"
+            # @assert tokens[1] == "," || tokens[1] == "]" "expected comma or closing bracket in list at $(detokenize(tokens))"
             if tokens[1] == ","
                 tokens = view(tokens, 2:length(tokens))
             end
