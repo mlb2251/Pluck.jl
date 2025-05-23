@@ -55,14 +55,23 @@
 ;; [3,7,2,6] → [4,8,1,5]
 ;; [1,8,6,5,7] → [2,7,5,6,8]
 
+;; (define (lafi-examples) ;; input-output list
+;;   (Cons (Pair ;; input-output pair
+;;       (Cons 3 (Cons 7 (Cons 2 (Cons 6 (Nil))))) ;; input
+;;       (Cons 4 (Cons 8 (Cons 1 (Cons 5 (Nil)))))) ;; output
+;;   (Cons (Pair
+;;       (Cons 1 (Cons 8 (Cons 6 (Cons 5 (Cons 7 (Nil))))))
+;;       (Cons 2 (Cons 7 (Cons 5 (Cons 6 (Cons 8 (Nil)))))))
+;;   (Nil))))
+
 (define (lafi-examples) ;; input-output list
-  (Cons (Pair ;; input-output pair
-      (Cons 3 (Cons 7 (Cons 2 (Cons 6 (Nil))))) ;; input
-      (Cons 4 (Cons 8 (Cons 1 (Cons 5 (Nil)))))) ;; output
-  (Cons (Pair
-      (Cons 1 (Cons 8 (Cons 6 (Cons 5 (Cons 7 (Nil))))))
-      (Cons 2 (Cons 7 (Cons 5 (Cons 6 (Cons 8 (Nil)))))))
-  (Nil))))
+  [(Pair ;; input-output pair
+      [3 7 2 6] ;; input
+      [4 8 1 5]) ;; output
+   (Pair
+      [1 8 6 5 7]
+      [2 7 5 6 8])])
+
 
 ;; λxs. randList(0.5, 0.3)
 ;; length ~ (geom 0.5) and values ~iid (geom 0.3)

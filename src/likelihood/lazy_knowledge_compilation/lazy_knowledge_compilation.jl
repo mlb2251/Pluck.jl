@@ -26,6 +26,7 @@ Base.@kwdef mutable struct LazyKCConfig
     state_vars::StateVars = StateVars()
     full_dist::Bool = false
     detailed_results::Bool = false
+    stacktrace::Bool = true
 end
 
 set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
@@ -37,6 +38,7 @@ Top-level compile function for lazy knowledge compilation.
 """
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
+    state.query = expr
 
     start!(get_timer(state), cfg.time_limit)
     bdd_start_time_limit(state.manager, cfg.time_limit)
@@ -138,6 +140,8 @@ mutable struct LazyKCState
     cfg::LazyKCConfig
     param2metaparam::Dict{Int, Int}
     timer::Timer
+    query::Union{Nothing, PExpr}
+    stacktrace::Vector{PExpr}
 end
 
 struct CompileResult
@@ -167,7 +171,9 @@ function LazyKCState(cfg::LazyKCConfig)
         nothing,
         cfg,
         Dict{Int, Int}(),
-        Timer()
+        Timer(),
+        nothing,
+        PExpr[]
     )
 
     if cfg.record_json
@@ -195,7 +201,9 @@ function LazyKCStateDual(vector_size::Integer, cfg::LazyKCConfig)
         nothing,
         cfg,
         Dict{Int, Int}(),
-        Timer()
+        Timer(),
+        nothing,
+        PExpr[]
     )
 
     if cfg.record_json
@@ -229,9 +237,17 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
         record_forward!(state.viz, expr, env, path_condition, strict_order_index)
     end
 
+    if state.cfg.stacktrace
+        push!(state.stacktrace, expr)
+    end
+
     print_enter(expr, env, state)
     result, used_information = compile_inner(expr, env, path_condition, state)
     print_exit(expr, result, env, state)
+
+    if state.cfg.stacktrace
+        pop!(state.stacktrace)
+    end
 
     if state.cfg.record_json
         record_result!(state.viz, result, used_information)
