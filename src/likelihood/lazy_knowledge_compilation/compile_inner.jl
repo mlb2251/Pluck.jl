@@ -7,7 +7,7 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     thunked_argument = make_thunk(expr.args[2], env, 1, state)
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
-        @assert f isa Closure "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)"
+        f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
         return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
     end

@@ -184,26 +184,3 @@ function format_prob(p)
     @assert !occursin("e", str)
     return str
 end
-
-mutable struct Timer
-    start_time::Float64
-    time_limit::Union{Nothing, Float64}
-    Timer() = new(0.0, nothing)
-end
-
-function start!(timer::Timer, time_limit)
-    timer.start_time = time()
-    timer.time_limit = time_limit
-end
-
-function stop!(timer::Timer)
-    timer.time_limit = nothing
-end
-
-function elapsed(timer::Timer)
-    return time() - timer.start_time
-end
-
-function check_time_limit(timer::Timer)
-    return !isnothing(timer.time_limit) && elapsed(timer) > timer.time_limit
-end
