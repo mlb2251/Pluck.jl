@@ -2,6 +2,13 @@
 # To use, first make sure to build rsdd with the ffi feature flag on.
 export RSDD
 module RSDD
+
+include("../util/timing.jl")
+using .Timing
+export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound
+
+
+
 using Libdl
 
 export WmcParams, 
@@ -128,6 +135,15 @@ function clear_rsdd_time!()
     bdd_stats.rsdd_time = 0.0
 end
 
+macro bdd_time_limit(manager, expr)
+    quote
+        bdd_start_time_limit($(esc(manager)))
+        res = $(esc(expr))
+        bdd_stop_time_limit($(esc(manager)))
+        res
+    end
+end
+
 macro rsdd_time(expr)
     quote
         clear_rsdd_time!()
@@ -194,12 +210,14 @@ mutable struct Manager
     BDD_FALSE::Any
     weights::AbstractWmcParams
     vector_size::UInt
+    active_time_limit
+    hit_time_limit::Bool
 end
 
 function Manager(; num_vars::Int=0)
     manager_ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
     weights = new_weights()
-    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, 0)
+    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, 0, nothing, false)
     manager.BDD_TRUE = bdd_true(manager)
     manager.BDD_FALSE = bdd_false(manager)
     return manager
@@ -208,7 +226,7 @@ end
 function ManagerDual(vector_size::Integer; num_vars::Int=0) # = DEFAULT_VECTOR_SIZE)
     manager_ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
     weights = new_weights_dual(vector_size)
-    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, vector_size)
+    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, vector_size, nothing, false)
     manager.BDD_TRUE = bdd_true(manager)
     manager.BDD_FALSE = bdd_false(manager)
     return manager
@@ -301,7 +319,7 @@ Returns: BDD
 function bdd_and(a::BDD, b::BDD)
     # tstart = time()
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_and_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    ptr = @bdd_time_limit a.manager @rsdd_timed ccall(bdd_and_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
     # tstop = time()
     # bdd_time.bdd_and += (tstop - tstart)
     return BDD(a.manager, ptr)
@@ -314,7 +332,7 @@ Returns: BDD
 function bdd_or(a::BDD, b::BDD)
     # tstart = time()
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_or_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    ptr = @bdd_time_limit a.manager @rsdd_timed ccall(bdd_or_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
     # tstop = time()
     # bdd_time.bdd_or += (tstop - tstart)
     return BDD(a.manager, ptr)
@@ -326,7 +344,7 @@ Returns: BDD
 """
 function bdd_iff(a::BDD, b::BDD)
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_iff_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    ptr = @bdd_time_limit a.manager @rsdd_timed ccall(bdd_iff_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
     BDD(a.manager, ptr)
 end
 
@@ -384,7 +402,7 @@ Returns: BDD
 """
 function bdd_ite(f::BDD, g::BDD, h::BDD)
     @assert f.manager == g.manager == h.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_ite_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Csize_t), f.manager.ptr, f.ptr, g.ptr, h.ptr)
+    ptr = @bdd_time_limit f.manager @rsdd_timed ccall(bdd_ite_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Csize_t), f.manager.ptr, f.ptr, g.ptr, h.ptr)
     BDD(f.manager, ptr)
 end
 
@@ -752,9 +770,21 @@ end
 """
 Sets a time limit for the BDD manager and starts the clock.
 """
-function bdd_start_time_limit(manager::Manager, time_limit)
+function bdd_set_time_limit(manager::Manager, time_limit)
     if !isnothing(time_limit)
-        ccall(start_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr, Cdouble), manager.ptr, time_limit)
+        manager.active_time_limit = time_limit
+        manager.hit_time_limit = false
+    end
+    nothing
+end
+
+"""
+Sets a time limit for the BDD manager and starts the clock.
+"""
+function bdd_start_time_limit(manager::Manager)
+    if !isnothing(manager.active_time_limit)
+        remaining_time = remaining_time_lower_bound(manager.active_time_limit)
+        ccall(start_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr, Cdouble), manager.ptr, remaining_time)
     end
 end
 
@@ -762,7 +792,11 @@ end
 Stops the BDD manager time limit.
 """
 function bdd_stop_time_limit(manager::Manager)
-    ccall(stop_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr,), manager.ptr)
+    if !isnothing(manager.active_time_limit)
+        hit_limit = ccall(bdd_manager_time_limit_exceeded_ptr, Bool, (ManagerPtr,), manager.ptr)
+        manager.hit_time_limit |= hit_limit    
+        ccall(stop_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr,), manager.ptr)
+    end
 end
 
 """
@@ -770,7 +804,7 @@ Checks if the BDD manager time limit has been exceeded.
 Returns: Bool
 """
 function bdd_time_limit_exceeded(manager::Manager)
-    ccall(bdd_manager_time_limit_exceeded_ptr, Bool, (ManagerPtr,), manager.ptr)
+    manager.hit_time_limit
 end
 
 # Add these to the exports at the end of the file
@@ -786,7 +820,7 @@ dual_number_get_size,
 dual_number_create,
 bdd_var_position, 
 bdd_last_var,
-bdd_start_time_limit,
+bdd_set_time_limit,
 bdd_stop_time_limit,
 bdd_time_limit_exceeded
 

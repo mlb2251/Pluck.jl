@@ -41,7 +41,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     state.query = expr
 
     start!(get_timer(state), cfg.time_limit)
-    bdd_start_time_limit(state.manager, cfg.time_limit)
+    bdd_set_time_limit(state.manager, get_timer(state))
 
     try 
         worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
@@ -139,7 +139,7 @@ mutable struct LazyKCState
     viz::Any # Union{Nothing, BDDJSONLogger}
     cfg::LazyKCConfig
     param2metaparam::Dict{Int, Int}
-    timer::Timer
+    timer::Ttimer
     query::Union{Nothing, PExpr}
     stacktrace::Vector{PExpr}
 end
@@ -171,7 +171,7 @@ function LazyKCState(cfg::LazyKCConfig)
         nothing,
         cfg,
         Dict{Int, Int}(),
-        Timer(),
+        Ttimer(),
         nothing,
         PExpr[]
     )
@@ -201,7 +201,7 @@ function LazyKCStateDual(vector_size::Integer, cfg::LazyKCConfig)
         nothing,
         cfg,
         Dict{Int, Int}(),
-        Timer(),
+        Ttimer(),
         nothing,
         PExpr[]
     )
@@ -225,7 +225,7 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
         return inference_error_worlds(state)
     end
 
-    if check_time_limit(state.timer)
+    if check_time_limit_lower_bound(state.timer)
         state.stats.hit_limit = true
         return inference_error_worlds(state)
     end
