@@ -128,7 +128,7 @@ Open `programs/fig1.pluck`. It defines the `perturb` function from Figure 1 of t
 
 ;; Code from Figure 1
 (define (maybe_insert s)
-  (if (flip 0.99) s (Cons (random_char) s)))
+  (if (flip 0.99) s (Cons (random_char) (maybe_insert s))))
 
 (define (maybe_cons c cs)
   (if (flip 0.99) (Cons c cs) cs))
