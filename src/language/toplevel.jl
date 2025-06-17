@@ -61,7 +61,7 @@ function marginal_query(val, state)
 end
 
 function posterior_query(val, state)
-    env = Any[val.args[1], val.args[2]]
+    env = EnvCons(:a, val.args[1], EnvCons(:b, val.args[2], EnvNil()))
     given_expr = parse_expr("(given b a)"; env=["a", "b"])
     # App(App(Defined(:given), Var(2, :b)), Var(1, :a))
     # TODO: reconsider strict order index to use?
