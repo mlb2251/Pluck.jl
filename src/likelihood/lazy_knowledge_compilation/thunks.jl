@@ -323,7 +323,7 @@ function pretty_thunk(thunk::LazyKCThunk)
 end
 
 function print_thunk_enter(thunk::LazyKCThunk, state)
-    get_verbose() || return
+    getlog() || return
     cs = pretty_callstack(state.callstack)
     thunk_cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
     printstyled("$cs $(pretty_thunk(thunk)) ", color=:yellow)
@@ -331,7 +331,7 @@ function print_thunk_enter(thunk::LazyKCThunk, state)
 end
 
 function print_thunk_exit(thunk::LazyKCThunk, result, state)
-    get_verbose() || return
+    getlog() || return
     cs = pretty_callstack(state.callstack)
     thunk_cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
     printstyled("$thunk_cs $(pretty_thunk(thunk)) ", color=:green)
@@ -341,7 +341,7 @@ function print_thunk_exit(thunk::LazyKCThunk, result, state)
 end
 
 function print_make_thunk(thunk::LazyKCThunk, state)
-    get_verbose() || return
+    getlog() || return
     cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
     printstyled("$cs Make $(pretty_thunk(thunk))\n", color=:cyan)
 end
