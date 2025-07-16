@@ -315,11 +315,11 @@ function pretty_callstack(callstack, strict_order_index=nothing)
 end
 
 const VERBOSE = Ref{Bool}(false)
-set_verbose!(verbose::Bool) = (VERBOSE[] = verbose)
-get_verbose()::Bool = VERBOSE[]
+setlog!(verbose::Bool) = (VERBOSE[] = verbose)
+getlog()::Bool = VERBOSE[]
 
 function print_enter(expr, env, state)
-    get_verbose() || expr isa PExpr{PrintOp} || return
+    getlog() || expr isa PExpr{PrintOp} || return
     cs = pretty_callstack(state.callstack)
     printstyled("$cs $expr :: $(typeof(expr))\n", color=:yellow)
 end
@@ -343,7 +343,7 @@ function pretty_result(result; weights=false)
 end
 
 function print_exit(expr, result, env, state)
-    get_verbose() || expr isa PExpr{PrintOp} || return
+    getlog() || expr isa PExpr{PrintOp} || return
     cs = pretty_callstack(state.callstack)
     green = "$cs $expr :: $(typeof(expr)) "
     blue = pretty_result(result; weights=true)
