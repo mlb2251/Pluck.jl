@@ -8,9 +8,6 @@ using .Timing
 export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound
 
 
-
-using Libdl
-
 export WmcParams, 
     WmcParamsDual, 
     getWmcDual,
@@ -60,57 +57,7 @@ export BDD,
 
 # Declare global variables
 const librsdd_path = joinpath(@__DIR__, "rsdd", "target", "release", "librsdd")
-let
-    global librsdd = C_NULL
-    global mk_bdd_manager_default_order_ptr = C_NULL
-    global bdd_new_var_ptr = C_NULL
-    global bdd_and_ptr = C_NULL
-    global bdd_or_ptr = C_NULL
-    global bdd_iff_ptr = C_NULL
-    global bdd_negate_ptr = C_NULL
-    global bdd_is_true_ptr = C_NULL
-    global bdd_is_false_ptr = C_NULL
-    global bdd_true_ptr = C_NULL
-    global bdd_false_ptr = C_NULL
-    global bdd_ite_ptr = C_NULL
-    global bdd_eq_ptr = C_NULL
-    global bdd_high_ptr = C_NULL
-    global bdd_low_ptr = C_NULL
-    global bdd_topvar_ptr = C_NULL
-    global bdd_num_recursive_calls_ptr = C_NULL
-    global print_bdd_ptr = C_NULL
-    global bdd_exists_ptr = C_NULL
-    global bdd_condition_ptr = C_NULL
-    global bdd_compose_ptr = C_NULL
-    global bdd_size_ptr = C_NULL
-    global bdd_has_variable_ptr = C_NULL
-    global bdd_is_var_ptr = C_NULL
-    global man_print_stats_ptr = C_NULL
-    global bdd_is_const_ptr = C_NULL
-    global bdd_hash_ptr = C_NULL
-    global new_wmc_params_f64_ptr = C_NULL
-    global wmc_param_f64_set_weight_ptr = C_NULL
-    global wmc_param_f64_set_weight_deriv_dual_ptr = C_NULL
-    global wmc_param_f64_set_weight_dual_ptr = C_NULL
-    global wmc_param_f64_var_partial_ptr = C_NULL
-    global bdd_wmc_ptr = C_NULL
-    global bdd_wmc_dual_ptr = C_NULL
-    global free_bdd_ptr = C_NULL
-    global free_bdd_manager_ptr = C_NULL
-    global free_wmc_params_ptr = C_NULL
-    global free_wmc_params_dual_ptr = C_NULL
-    global free_wmc_dual_derivatives_ptr = C_NULL
-    global bdd_new_var_at_position_ptr = C_NULL
-    global robdd_weighted_sample_ptr = C_NULL
-    global robdd_top_k_paths_ptr = C_NULL
-    global bdd_last_var_ptr = C_NULL
-    global bdd_var_position_ptr = C_NULL
-    global dual_number_get_size_ptr = C_NULL
-    global dual_number_create_ptr = C_NULL
-    global start_bdd_manager_time_limit_ptr = C_NULL
-    global stop_bdd_manager_time_limit_ptr = C_NULL
-    global bdd_manager_time_limit_exceeded_ptr = C_NULL
-end
+
 
 export get_rsdd_time, clear_rsdd_time!, rsdd_time!, rsdd_timed, @rsdd_time
 
@@ -217,7 +164,7 @@ mutable struct Manager
 end
 
 function Manager(; num_vars::Int=0)
-    manager_ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    manager_ptr = @rsdd_timed @ccall librsdd_path.mk_bdd_manager_default_order(num_vars::Cint)::ManagerPtr
     weights = new_weights()
     manager = Manager(manager_ptr, [], false, nothing, nothing, weights, 0, nothing, false)
     manager.BDD_TRUE = bdd_true(manager)
@@ -226,7 +173,7 @@ function Manager(; num_vars::Int=0)
 end
 
 function ManagerDual(vector_size::Integer; num_vars::Int=0) # = DEFAULT_VECTOR_SIZE)
-    manager_ptr = @rsdd_timed ccall(mk_bdd_manager_default_order_ptr, ManagerPtr, (Cint,), num_vars)
+    manager_ptr = @rsdd_timed @ccall librsdd_path.mk_bdd_manager_default_order(num_vars::Cint)::ManagerPtr
     weights = new_weights_dual(vector_size)
     manager = Manager(manager_ptr, [], false, nothing, nothing, weights, vector_size, nothing, false)
     manager.BDD_TRUE = bdd_true(manager)
@@ -244,63 +191,6 @@ struct BDD
     end
 end
 
-# Helper function to look up symbols
-function get_symbol(name::String)
-    sym = Libdl.dlsym(librsdd, Symbol(name))
-    if sym == C_NULL
-        error("Symbol $name not found in the library")
-    end
-    return sym
-end
-
-function __init__()
-    global librsdd = Libdl.dlopen(librsdd_path * "." * Libdl.dlext)
-    global mk_bdd_manager_default_order_ptr = get_symbol("mk_bdd_manager_default_order")
-    global bdd_new_var_ptr = get_symbol("bdd_new_var")
-    global bdd_and_ptr = get_symbol("bdd_and")
-    global bdd_or_ptr = get_symbol("bdd_or")
-    global bdd_iff_ptr = get_symbol("bdd_iff")
-    global bdd_negate_ptr = get_symbol("bdd_negate")
-    global bdd_is_true_ptr = get_symbol("bdd_is_true")
-    global bdd_is_false_ptr = get_symbol("bdd_is_false")
-    global bdd_true_ptr = get_symbol("bdd_true")
-    global bdd_false_ptr = get_symbol("bdd_false")
-    global bdd_ite_ptr = get_symbol("bdd_ite")
-    global bdd_eq_ptr = get_symbol("bdd_eq")
-    global bdd_high_ptr = get_symbol("bdd_high")
-    global bdd_low_ptr = get_symbol("bdd_low")
-    global bdd_topvar_ptr = get_symbol("bdd_topvar")
-    global bdd_num_recursive_calls_ptr = get_symbol("bdd_num_recursive_calls")
-    global print_bdd_ptr = get_symbol("print_bdd")
-    global bdd_json_ptr = get_symbol("bdd_json")
-    global bdd_exists_ptr = get_symbol("bdd_exists")
-    global bdd_condition_ptr = get_symbol("bdd_condition")
-    global bdd_compose_ptr = get_symbol("bdd_compose")
-    global bdd_size_ptr = get_symbol("bdd_size")
-    global bdd_has_variable_ptr = get_symbol("bdd_has_variable")
-    global new_wmc_params_f64_ptr = get_symbol("new_wmc_params_f64")
-    global new_wmc_params_f64_dual_ptr = get_symbol("new_wmc_params_f64_dual")
-    global wmc_param_f64_set_weight_ptr = get_symbol("wmc_param_f64_set_weight")
-    global wmc_param_f64_set_weight_deriv_dual_ptr = get_symbol("wmc_param_f64_set_weight_deriv_dual")
-    global wmc_param_f64_set_weight_dual_ptr = get_symbol("wmc_param_f64_set_weight_dual")
-    global wmc_param_f64_var_partial_ptr = get_symbol("wmc_param_f64_var_partial")
-    global bdd_wmc_ptr = get_symbol("bdd_wmc")
-    global bdd_wmc_dual_ptr = get_symbol("bdd_wmc_dual")
-    global free_bdd_ptr = get_symbol("free_bdd")
-    global free_bdd_manager_ptr = get_symbol("free_bdd_manager")
-    global free_wmc_params_ptr = get_symbol("free_wmc_params")
-    global free_wmc_params_dual_ptr = get_symbol("free_wmc_params_dual")
-    global free_wmc_dual_derivatives_ptr = get_symbol("free_wmc_dual_derivatives")
-    global bdd_new_var_at_position_ptr = get_symbol("bdd_new_var_at_position")
-    global robdd_weighted_sample_ptr = get_symbol("robdd_weighted_sample")
-    global robdd_top_k_paths_ptr = get_symbol("robdd_top_k_paths")
-    global dual_number_get_size_ptr = get_symbol("dual_number_get_size")
-    global dual_number_create_ptr = get_symbol("dual_number_create")
-    global start_bdd_manager_time_limit_ptr = get_symbol("start_bdd_manager_time_limit")
-    global stop_bdd_manager_time_limit_ptr = get_symbol("stop_bdd_manager_time_limit")
-    global bdd_manager_time_limit_exceeded_ptr = get_symbol("bdd_manager_time_limit_exceeded")
-end
-
 # Show method for BDD
 Base.show(io::IO, bdd::BDD) = print(io, print_bdd_string(bdd))
 
@@ -310,7 +200,7 @@ Creates a new BDD variable.
 Returns: BDD
 """
 function bdd_new_var(manager::Manager, polarity::Bool)
-    ptr = @rsdd_timed ccall(bdd_new_var_ptr, Csize_t, (ManagerPtr, Bool), manager.ptr, polarity)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_new_var(manager.ptr::ManagerPtr, polarity::Bool)::Csize_t
     BDD(manager, ptr)
 end
 
@@ -321,7 +211,7 @@ Returns: BDD
 function bdd_and(a::BDD, b::BDD)
     # tstart = time()
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @bdd_time_limit a.manager @rsdd_timed ccall(bdd_and_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    ptr = @bdd_time_limit a.manager @rsdd_timed @ccall librsdd_path.bdd_and(a.manager.ptr::ManagerPtr, a.ptr::Csize_t, b.ptr::Csize_t)::Csize_t
     # tstop = time()
     # bdd_time.bdd_and += (tstop - tstart)
     return BDD(a.manager, ptr)
@@ -334,7 +224,7 @@ Returns: BDD
 function bdd_or(a::BDD, b::BDD)
     # tstart = time()
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @bdd_time_limit a.manager @rsdd_timed ccall(bdd_or_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    ptr = @bdd_time_limit a.manager @rsdd_timed @ccall librsdd_path.bdd_or(a.manager.ptr::ManagerPtr, a.ptr::Csize_t, b.ptr::Csize_t)::Csize_t
     # tstop = time()
     # bdd_time.bdd_or += (tstop - tstart)
     return BDD(a.manager, ptr)
@@ -346,7 +236,7 @@ Returns: BDD
 """
 function bdd_iff(a::BDD, b::BDD)
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    ptr = @bdd_time_limit a.manager @rsdd_timed ccall(bdd_iff_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    ptr = @bdd_time_limit a.manager @rsdd_timed @ccall librsdd_path.bdd_iff(a.manager.ptr::ManagerPtr, a.ptr::Csize_t, b.ptr::Csize_t)::Csize_t
     BDD(a.manager, ptr)
 end
 
@@ -364,7 +254,7 @@ Negates a BDD.
 Returns: BDD
 """
 function bdd_negate(bdd::BDD)
-    ptr = @rsdd_timed ccall(bdd_negate_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_negate(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Csize_t
     BDD(bdd.manager, ptr)
 end
 
@@ -372,20 +262,20 @@ end
 Checks if a BDD represents the constant true.
 Returns: Bool
 """
-bdd_is_true(bdd::BDD) = @rsdd_timed ccall(bdd_is_true_ptr, Bool, (Csize_t,), bdd.ptr)
+bdd_is_true(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_is_true(bdd.ptr::Csize_t)::Bool
 
 """
 Checks if a BDD represents the constant false.
 Returns: Bool
 """
-bdd_is_false(bdd::BDD) = @rsdd_timed ccall(bdd_is_false_ptr, Bool, (Csize_t,), bdd.ptr)
+bdd_is_false(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_is_false(bdd.ptr::Csize_t)::Bool
 
 """
 Creates a BDD representing the constant true.
 Returns: BDD
 """
 function bdd_true(manager::Manager)
-    ptr = @rsdd_timed ccall(bdd_true_ptr, Csize_t, (Manager,), manager)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_true(manager::Manager)::Csize_t
     BDD(manager, ptr)
 end
 
@@ -394,7 +284,7 @@ Creates a BDD representing the constant false.
 Returns: BDD
 """
 function bdd_false(manager::Manager)
-    ptr = @rsdd_timed ccall(bdd_false_ptr, Csize_t, (Manager,), manager)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_false(manager::Manager)::Csize_t
     BDD(manager, ptr)
 end
 
@@ -404,7 +294,7 @@ Returns: BDD
 """
 function bdd_ite(f::BDD, g::BDD, h::BDD)
     @assert f.manager == g.manager == h.manager "BDDs must belong to the same manager"
-    ptr = @bdd_time_limit f.manager @rsdd_timed ccall(bdd_ite_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Csize_t), f.manager.ptr, f.ptr, g.ptr, h.ptr)
+    ptr = @bdd_time_limit f.manager @rsdd_timed @ccall librsdd_path.bdd_ite(f.manager.ptr::ManagerPtr, f.ptr::Csize_t, g.ptr::Csize_t, h.ptr::Csize_t)::Csize_t
     BDD(f.manager, ptr)
 end
 
@@ -414,7 +304,7 @@ Returns: Bool
 """
 function bdd_eq(a::BDD, b::BDD)
     @assert a.manager == b.manager "BDDs must belong to the same manager"
-    @rsdd_timed ccall(bdd_eq_ptr, Bool, (ManagerPtr, Csize_t, Csize_t), a.manager.ptr, a.ptr, b.ptr)
+    @rsdd_timed @ccall librsdd_path.bdd_eq(a.manager.ptr::ManagerPtr, a.ptr::Csize_t, b.ptr::Csize_t)::Bool
 end
 
 """
@@ -422,7 +312,7 @@ Gets the high child of a BDD node.
 Returns: BDD
 """
 function bdd_high(bdd::BDD)
-    ptr = @rsdd_timed ccall(bdd_high_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_high(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Csize_t
     BDD(bdd.manager, ptr)
 end
 
@@ -431,7 +321,7 @@ Gets the low child of a BDD node.
 Returns: BDD
 """
 function bdd_low(bdd::BDD)
-    ptr = @rsdd_timed ccall(bdd_low_ptr, Csize_t, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_low(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Csize_t
     BDD(bdd.manager, ptr)
 end
 
@@ -439,20 +329,20 @@ end
 Gets the top variable of a BDD.
 Returns: Label (Csize_t)
 """
-bdd_topvar(bdd::BDD) = @rsdd_timed ccall(bdd_topvar_ptr, Label, (Csize_t,), bdd.ptr)
+bdd_topvar(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_topvar(bdd.ptr::Csize_t)::Label
 
 """
 Gets the number of recursive calls made by the BDD manager.
 Returns: UInt64
 """
-bdd_num_recursive_calls(manager::Manager) = @rsdd_timed ccall(bdd_num_recursive_calls_ptr, UInt64, (ManagerPtr,), manager.ptr)
+bdd_num_recursive_calls(manager::Manager) = @rsdd_timed @ccall librsdd_path.bdd_num_recursive_calls(manager.ptr::ManagerPtr)::UInt64
 
 """
 Prints a BDD to a string.
 Returns: String
 """
 function print_bdd_string(bdd::BDD)
-    cstr = @rsdd_timed ccall(print_bdd_ptr, Ptr{Cchar}, (Csize_t,), bdd.ptr)
+    cstr = @rsdd_timed @ccall librsdd_path.print_bdd(bdd.ptr::Csize_t)::Ptr{Cchar}
     return unsafe_string(cstr)
 end
 
@@ -461,7 +351,7 @@ Prints a BDD to a JSON string.
 Returns: String
 """
 function bdd_json(bdd::BDD)
-    cstr = @rsdd_timed ccall(bdd_json_ptr, Ptr{Cchar}, (Csize_t,), bdd.ptr)
+    cstr = @rsdd_timed @ccall librsdd_path.bdd_json(bdd.ptr::Csize_t)::Ptr{Cchar}
     return unsafe_string(cstr)
 end
 
@@ -470,7 +360,7 @@ Existentially quantifies a variable in a BDD.
 Returns: BDD
 """
 function bdd_exists(bdd::BDD, var::Label)
-    ptr = @rsdd_timed ccall(bdd_exists_ptr, Csize_t, (ManagerPtr, Csize_t, Label), bdd.manager.ptr, bdd.ptr, var)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_exists(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, var::Label)::Csize_t
     BDD(bdd.manager, ptr)
 end
 
@@ -479,7 +369,7 @@ Conditions a BDD on a variable.
 Returns: BDD
 """
 function bdd_condition(bdd::BDD, var::Label, value::Bool)
-    ptr = @rsdd_timed ccall(bdd_condition_ptr, Csize_t, (ManagerPtr, Csize_t, Label, Bool), bdd.manager.ptr, bdd.ptr, var, value)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_condition(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, var::Label, value::Bool)::Csize_t
     BDD(bdd.manager, ptr)
 end
 
@@ -489,7 +379,7 @@ Returns: BDD
 """
 function bdd_compose(f::BDD, var::Label, g::BDD)
     @assert f.manager == g.manager "BDDs must belong to the same manager"
-    ptr = @rsdd_timed ccall(bdd_compose_ptr, Csize_t, (ManagerPtr, Csize_t, Label, Csize_t), f.manager.ptr, f.ptr, var, g.ptr)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_compose(f.manager.ptr::ManagerPtr, f.ptr::Csize_t, var::Label, g.ptr::Csize_t)::Csize_t
     BDD(f.manager, ptr)
 end
 
@@ -503,18 +393,18 @@ bdd_implies(a::BDD, b::BDD) = b | !a
 Gets the size of a BDD.
 Returns: UInt64
 """
-bdd_size(bdd::BDD) = @rsdd_timed ccall(bdd_size_ptr, UInt64, (Csize_t,), bdd.ptr)
+bdd_size(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_size(bdd.ptr::Csize_t)::UInt64
 
 """
 Checks if a BDD represents a variable.
 Returns: Bool
 """
-bdd_is_var(bdd::BDD) = @rsdd_timed ccall(bdd_is_var_ptr, Bool, (ManagerPtr, Csize_t), bdd.manager.ptr, bdd.ptr)
+bdd_is_var(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_is_var(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Bool
 
 """
 Prints statistics about the BDD manager.
 """
-man_print_stats(manager::Manager) = @rsdd_timed ccall(man_print_stats_ptr, Cvoid, (ManagerPtr,), manager.ptr)
+man_print_stats(manager::Manager) = @rsdd_timed @ccall librsdd_path.man_print_stats(manager.ptr::ManagerPtr)::Cvoid
 
 """
 Checks if a BDD represents a constant (true or false).
@@ -544,7 +434,7 @@ end
 Checks if a BDD has a variable.
 Returns: Bool
 """
-bdd_has_variable(bdd::BDD, var::Label) = @rsdd_timed ccall(bdd_has_variable_ptr, Bool, (ManagerPtr, Csize_t, Label), bdd.manager.ptr, bdd.ptr, var)
+bdd_has_variable(bdd::BDD, var::Label) = @rsdd_timed @ccall librsdd_path.bdd_has_variable(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, var::Label)::Bool
 
 # Convenience operators
 Base.:&(a::BDD, b::BDD) = bdd_and(a, b)
@@ -561,7 +451,7 @@ Creates a new WmcParams object for floating-point weights.
 Returns: WmcParams
 """
 function new_weights()
-    ptr = @rsdd_timed ccall(new_wmc_params_f64_ptr, Ptr{Cvoid}, ())
+    ptr = @rsdd_timed @ccall librsdd_path.new_wmc_params_f64()::Ptr{Cvoid}
     WmcParams(ptr, false)
 end
 
@@ -570,7 +460,7 @@ Creates a new WmcParams object for dual floating-point weights.
 Returns: WmcParams
 """
 function new_weights_dual(vector_size::Integer)
-    ptr = @rsdd_timed ccall(new_wmc_params_f64_dual_ptr, Ptr{Cvoid}, ())
+    ptr = @rsdd_timed @ccall librsdd_path.new_wmc_params_f64_dual()::Ptr{Cvoid}
     WmcParamsDual(ptr, false, vector_size)
 end
 
@@ -585,7 +475,7 @@ end
 Sets the weight for a variable in the WmcParams object. 
 """
 function set_weight(params::WmcParams, var::Label, low::Float64, high::Float64)
-    @rsdd_timed ccall(wmc_param_f64_set_weight_ptr, Cvoid, (Ptr{Cvoid}, Label, Float64, Float64), params.ptr, var, low, high)
+    @rsdd_timed @ccall librsdd_path.wmc_param_f64_set_weight(params.ptr::Ptr{Cvoid}, var::Label, low::Float64, high::Float64)::Cvoid
 end
 
 """
@@ -597,9 +487,7 @@ function set_weight(params::WmcParamsDual, var::Label, low::Float64, high::Float
     high_dual = zeros(Float64, params.vector_size)
     
     # Call the updated function with size parameters
-    @rsdd_timed ccall(wmc_param_f64_set_weight_deriv_dual_ptr, Cvoid, 
-        (Ptr{Cvoid}, Label, Float64, Ptr{Float64}, Csize_t, Float64, Ptr{Float64}, Csize_t), 
-        params.ptr, var, low, low_dual, params.vector_size, high, high_dual, params.vector_size)
+    @rsdd_timed @ccall librsdd_path.wmc_param_f64_set_weight_deriv_dual(params.ptr::Ptr{Cvoid}, var::Label, low::Float64, low_dual::Ptr{Float64}, params.vector_size::Csize_t, high::Float64, high_dual::Ptr{Float64}, params.vector_size::Csize_t)::Cvoid
 end
 
 """
@@ -614,9 +502,7 @@ Sets the weight for a variable in the WmcParamsDual object with metaparam.
 """
 function set_weight_dual(params::WmcParamsDual, var::Label, metaparam::UInt, low::Float64, high::Float64)
     # Added vector_size parameter
-    @rsdd_timed ccall(wmc_param_f64_set_weight_dual_ptr, Cvoid, 
-        (Ptr{Cvoid}, Label, Csize_t, Csize_t, Float64, Float64), 
-        params.ptr, var, metaparam, params.vector_size, low, high)
+    @rsdd_timed @ccall librsdd_path.wmc_param_f64_set_weight_dual(params.ptr::Ptr{Cvoid}, var::Label, metaparam::Csize_t, params.vector_size::Csize_t, low::Float64, high::Float64)::Cvoid
 end
 
 """
@@ -627,9 +513,7 @@ function set_weight_deriv(params::WmcParamsDual, var::Label, low::Float64, low_d
     low_size = length(low_dual)
     high_size = length(high_dual)
     
-    @rsdd_timed ccall(wmc_param_f64_set_weight_deriv_dual_ptr, Cvoid, 
-        (Ptr{Cvoid}, Label, Float64, Ptr{Float64}, Csize_t, Float64, Ptr{Float64}, Csize_t), 
-        params.ptr, var, low, low_dual, low_size, high, high_dual, high_size)
+    @rsdd_timed @ccall librsdd_path.wmc_param_f64_set_weight_deriv_dual(params.ptr::Ptr{Cvoid}, var::Label, low::Float64, low_dual::Ptr{Float64}, low_size::Csize_t, high::Float64, high_dual::Ptr{Float64}, high_size::Csize_t)::Cvoid
 end
 
 """
@@ -637,9 +521,7 @@ Get a partial derivative from a vector pointer.
 """
 function var_partial(partials::Ptr{Float64}, metaparam::UInt, size::UInt)
     # Added size parameter
-    @rsdd_timed ccall(wmc_param_f64_var_partial_ptr, Float64, 
-        (Ptr{Float64}, Csize_t, Csize_t), 
-        partials, metaparam, size)
+    @rsdd_timed @ccall librsdd_path.wmc_param_f64_var_partial(partials::Ptr{Float64}, metaparam::Csize_t, size::Csize_t)::Float64
 end
 
 """
@@ -651,18 +533,18 @@ function bdd_wmc(bdd::BDD)
 end
 
 function bdd_wmc_manual(bdd::BDD, params::WmcParams)
-    @rsdd_timed ccall(bdd_wmc_ptr, Float64, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
+    @rsdd_timed @ccall librsdd_path.bdd_wmc(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::Float64
 end
 
 function bdd_wmc_manual(bdd::BDD, params::WmcParamsDual)
     # Updated to handle size
-    @rsdd_timed result = ccall(bdd_wmc_dual_ptr, WmcDual, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
+    @rsdd_timed result = @ccall librsdd_path.bdd_wmc_dual(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
     (result._0, result._1, result._size)
 end
 
 function bdd_wmc_dual(bdd::BDD, params::WmcParamsDual)
     # Updated to handle size
-    result = ccall(bdd_wmc_dual_ptr, WmcDual, (Csize_t, Ptr{Cvoid}), bdd.ptr, params.ptr)
+    result = @ccall librsdd_path.bdd_wmc_dual(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
     (result._0, result._1, result._size)
 end
 
@@ -670,7 +552,7 @@ end
 # Frees the memory associated with a BDD.
 # """
 function free_bdd(bdd::BDD)
-    @rsdd_timed ccall(free_bdd_ptr, Cvoid, (Csize_t,), bdd.ptr)
+    @rsdd_timed @ccall librsdd_path.free_bdd(bdd.ptr::Csize_t)::Cvoid
 end
 
 """
@@ -684,7 +566,7 @@ function free_bdd_manager(manager::Manager)
     end
     manager.bdds = []
     manager.freed = true
-    @rsdd_timed ccall(free_bdd_manager_ptr, Cvoid, (ManagerPtr,), manager.ptr)
+    @rsdd_timed @ccall librsdd_path.free_bdd_manager(manager.ptr::ManagerPtr)::Cvoid
 end
 
 """
@@ -692,7 +574,7 @@ Frees the memory associated with a WmcParams object.
 """
 function free_wmc_params(params::WmcParams)
     params.freed && return
-    @rsdd_timed ccall(free_wmc_params_ptr, Cvoid, (Ptr{Cvoid},), params.ptr)
+    @rsdd_timed @ccall librsdd_path.free_wmc_params(params.ptr::Ptr{Cvoid})::Cvoid
     params.freed = true
     return
 end
@@ -702,7 +584,7 @@ Frees the memory associated with a WmcParams object.
 """
 function free_wmc_params(params::WmcParamsDual)
     params.freed && return
-    @rsdd_timed ccall(free_wmc_params_dual_ptr, Cvoid, (Ptr{Cvoid},), params.ptr)
+    @rsdd_timed @ccall librsdd_path.free_wmc_params_dual(params.ptr::Ptr{Cvoid})::Cvoid
     params.freed = true
     return
 end
@@ -711,7 +593,7 @@ end
 Frees the memory associated with derivative vectors.
 """
 function free_wmc_dual_derivatives(ptr::Ptr{Float64}, size::Integer)
-    @rsdd_timed ccall(free_wmc_dual_derivatives_ptr, Cvoid, (Ptr{Float64}, Csize_t), ptr, size)
+    @rsdd_timed @ccall librsdd_path.free_wmc_dual_derivatives(ptr::Ptr{Float64}, size::Csize_t)::Cvoid
 end
 
 """
@@ -726,7 +608,7 @@ Creates a new variable at a specified position in the BDD manager's variable ord
 A new BDD representing the variable.
 """
 function bdd_new_var_at_position(manager::Manager, position::Integer, polarity::Bool)
-    ptr = @rsdd_timed ccall(bdd_new_var_at_position_ptr, Csize_t, (ManagerPtr, Csize_t, Bool), manager.ptr, position, polarity)
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_new_var_at_position(manager.ptr::ManagerPtr, position::Csize_t, polarity::Bool)::Csize_t
     BDD(manager, ptr)
 end
 
@@ -734,14 +616,14 @@ end
 Gets the size of a DualNumber vector.
 """
 function dual_number_get_size(dual_ptr::Ptr{Cvoid})
-    @rsdd_timed ccall(dual_number_get_size_ptr, Csize_t, (Ptr{Cvoid},), dual_ptr)
+    @rsdd_timed @ccall librsdd_path.dual_number_get_size(dual_ptr::Ptr{Cvoid})::Csize_t
 end
 
 """
 Creates a DualNumber with a specified size.
 """
 function dual_number_create(value::Float64, size::Integer)
-    @rsdd_timed ccall(dual_number_create_ptr, Ptr{Cvoid}, (Float64, Csize_t), value, size)
+    @rsdd_timed @ccall librsdd_path.dual_number_create(value::Float64, size::Csize_t)::Ptr{Cvoid}
 end
 
 struct WeightedSampleResult
@@ -754,9 +636,7 @@ Performs weighted sampling on a BDD.
 Returns: Tuple of (BDD, Float64) representing the sampled BDD and its probability
 """
 function weighted_sample(bdd::BDD, wmc_params::WmcParams)
-    result = @rsdd_timed ccall(robdd_weighted_sample_ptr, WeightedSampleResult,
-        (ManagerPtr, Csize_t, Ptr{Cvoid}),
-        bdd.manager.ptr, bdd.ptr, wmc_params.ptr)
+    result = @rsdd_timed @ccall librsdd_path.robdd_weighted_sample(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, wmc_params.ptr::Ptr{Cvoid})::WeightedSampleResult
 
     sample_bdd = BDD(bdd.manager, result.sample)
     probability = result.probability
@@ -765,7 +645,7 @@ function weighted_sample(bdd::BDD, wmc_params::WmcParams)
 end
 
 function bdd_top_k_paths(bdd::BDD, k::Integer, wmc_params::WmcParams)
-    ptr = @rsdd_timed ccall(robdd_top_k_paths_ptr, Csize_t, (ManagerPtr, Csize_t, Csize_t, Ptr{Cvoid}), bdd.manager.ptr, bdd.ptr, k, wmc_params.ptr)
+    ptr = @rsdd_timed @ccall librsdd_path.robdd_top_k_paths(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, k::Csize_t, wmc_params.ptr::Ptr{Cvoid})::Csize_t
     BDD(bdd.manager, ptr)
 end
 
@@ -786,7 +666,7 @@ Sets a time limit for the BDD manager and starts the clock.
 function bdd_start_time_limit(manager::Manager)
     if !isnothing(manager.active_time_limit) && !isnothing(manager.active_time_limit.time_limit)
         remaining_time = remaining_time_lower_bound(manager.active_time_limit)
-        ccall(start_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr, Cdouble), manager.ptr, remaining_time)
+        @ccall librsdd_path.start_bdd_manager_time_limit(manager.ptr::ManagerPtr, remaining_time::Cdouble)::Cvoid
     end
 end
 
@@ -795,9 +675,9 @@ Stops the BDD manager time limit.
 """
 function bdd_stop_time_limit(manager::Manager)
     if !isnothing(manager.active_time_limit)
-        hit_limit = ccall(bdd_manager_time_limit_exceeded_ptr, Bool, (ManagerPtr,), manager.ptr)
+        hit_limit = @ccall librsdd_path.bdd_manager_time_limit_exceeded(manager.ptr::ManagerPtr)::Bool
         manager.hit_time_limit |= hit_limit    
-        ccall(stop_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr,), manager.ptr)
+        @ccall librsdd_path.stop_bdd_manager_time_limit(manager.ptr::ManagerPtr)::Cvoid
     end
 end
 
