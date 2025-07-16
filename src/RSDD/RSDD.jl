@@ -782,7 +782,7 @@ end
 Sets a time limit for the BDD manager and starts the clock.
 """
 function bdd_start_time_limit(manager::Manager)
-    if !isnothing(manager.active_time_limit)
+    if !isnothing(manager.active_time_limit) && !isnothing(manager.active_time_limit.time_limit)
         remaining_time = remaining_time_lower_bound(manager.active_time_limit)
         ccall(start_bdd_manager_time_limit_ptr, Cvoid, (ManagerPtr, Cdouble), manager.ptr, remaining_time)
     end
