@@ -45,7 +45,8 @@ end
 function print_stacktrace(state)
     println("Stacktrace:")
     for (i, e) in enumerate(reverse(state.stacktrace))
-        println("  [$i] $e")
+        ty = typeof(e).parameters[1]
+        println("  [$i] $e :: $ty")
     end
 end
 
