@@ -138,9 +138,11 @@ end
 macro bdd_time_limit(manager, expr)
     quote
         bdd_start_time_limit($(esc(manager)))
-        res = $(esc(expr))
-        bdd_stop_time_limit($(esc(manager)))
-        res
+        try
+            $(esc(expr))
+        finally
+            bdd_stop_time_limit($(esc(manager)))
+        end
     end
 end
 
