@@ -56,12 +56,12 @@ function get_true_result(results, default=nothing)
     return isnothing(res) ? default : res
 end
 
-function timestamp_path(file; base = "out/results")
+function timestamp_path(file; base = "out/res")
     dir = timestamp_dir(;base)
     joinpath(dir, file)
 end
 
-function timestamp_dir(;base = "out/results")
+function timestamp_dir(;base = "out/res")
     date = Dates.format(Dates.now(), "yyyy-mm-dd")
     time = Dates.format(Dates.now(), "HH-MM-SS")
     i = 0
