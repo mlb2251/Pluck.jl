@@ -40,6 +40,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     state = LazyKCState(cfg)
     state.query = expr
 
+    tstart = ttime()
     start!(get_timer(state), cfg.time_limit)
     bdd_set_time_limit(state.manager, get_timer(state))
 
@@ -95,6 +96,9 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     # weighted model count to get the actual probabilities
     weighted_results = [(val, RSDD.bdd_wmc(bdd)) for (val, bdd) in worlds]
 
+    state.stats.num_recursive_calls = bdd_num_recursive_calls(state.manager)
+    state.stats.time = ttime() - tstart
+
     state.cfg.free_manager && free_bdd_manager(state.manager)
 
     if state.cfg.detailed_results
@@ -118,13 +122,14 @@ function set_outpath!()
 end
 
 mutable struct LazyKCStats
-    time::Float64
+    time::Union{TimeState, Nothing}
     num_forward_calls::Int
     hit_limit::Bool
+    num_recursive_calls::Int
 end
-LazyKCStats() = LazyKCStats(0.0, 0, false)
+LazyKCStats() = LazyKCStats(nothing, 0, false, 0)
 function Base.:+(a::LazyKCStats, b::LazyKCStats)
-    LazyKCStats(a.time + b.time, a.num_forward_calls + b.num_forward_calls, a.hit_limit || b.hit_limit)
+    LazyKCStats(a.time + b.time, a.num_forward_calls + b.num_forward_calls, a.hit_limit || b.hit_limit, a.num_recursive_calls + b.num_recursive_calls)
 end
 
 mutable struct LazyKCState
