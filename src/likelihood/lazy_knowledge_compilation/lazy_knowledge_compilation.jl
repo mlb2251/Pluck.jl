@@ -23,6 +23,7 @@ Base.@kwdef mutable struct LazyKCConfig
     free_manager::Bool = true
     results_file::Union{Nothing, String} = nothing
     time_limit::Union{Nothing, Float64} = nothing
+    ite_limit::Union{Nothing, Int} = nothing
     state_vars::StateVars = StateVars()
     full_dist::Bool = false
     detailed_results::Bool = false
@@ -43,6 +44,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     tstart = ttime()
     start!(get_timer(state), cfg.time_limit)
     bdd_set_time_limit(state.manager, get_timer(state))
+    bdd_start_ite_limit(state.manager, cfg.ite_limit)
 
     try 
         worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
@@ -55,7 +57,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
         end
     end
     stop!(get_timer(state))
-    bdd_stop_time_limit(state.manager)
+    bdd_stop_ite_limit(state.manager)
 
     if state.stats.hit_limit
         worlds = []
@@ -225,12 +227,19 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
         return false_path_condition_worlds(state)
     end
 
+    state.stats.hit_limit && return inference_error_worlds(state)
+
     if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth
         state.stats.hit_limit = true
         return inference_error_worlds(state)
     end
 
     if check_time_limit_lower_bound(state.timer)
+        state.stats.hit_limit = true
+        return inference_error_worlds(state)
+    end
+
+    if bdd_ite_limit_exceeded(state.manager)
         state.stats.hit_limit = true
         return inference_error_worlds(state)
     end
@@ -262,7 +271,14 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
     state.stats.num_forward_calls += 1
     state.depth -= 1
 
+    state.stats.hit_limit && return inference_error_worlds(state)
+
     if bdd_time_limit_exceeded(state.manager)
+        state.stats.hit_limit = true
+        return inference_error_worlds(state)
+    end
+
+    if bdd_ite_limit_exceeded(state.manager)
         state.stats.hit_limit = true
         return inference_error_worlds(state)
     end

@@ -57,6 +57,8 @@ function bind_monad(cont::F, pre_worlds, path_condition, state::LazyKCState; con
     pre_worlds, pre_used_info = pre_worlds
     nested_worlds = Vector{Tuple{GuardedWorlds, BDD}}()
     for (pre_val, pre_guard) in pre_worlds
+        state.stats.hit_limit && return inference_error_worlds(state)
+
         inner_path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : path_condition & pre_guard
         if !state.cfg.disable_used_information && bdd_is_false(inner_path_condition)
             # you can reuse this part of the result if you can prove false with your path condition + pre_guard

@@ -5,7 +5,7 @@ module RSDD
 
 include("../util/timing.jl")
 using .Timing
-export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound
+export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded
 
 
 export WmcParams, 
@@ -160,13 +160,15 @@ mutable struct Manager
     weights::AbstractWmcParams
     vector_size::UInt
     active_time_limit
+    active_ite_limit::Union{Nothing, Int}
     hit_time_limit::Bool
+    hit_ite_limit::Bool
 end
 
 function Manager(; num_vars::Int=0)
     manager_ptr = @rsdd_timed @ccall gc_safe=true librsdd_path.mk_bdd_manager_default_order(num_vars::Cint)::ManagerPtr
     weights = new_weights()
-    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, 0, nothing, false)
+    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, 0, nothing, nothing, false, false)
     manager.BDD_TRUE = bdd_true(manager)
     manager.BDD_FALSE = bdd_false(manager)
     return manager
@@ -660,6 +662,15 @@ function bdd_set_time_limit(manager::Manager, time_limit)
     nothing
 end
 
+function bdd_start_ite_limit(manager::Manager, ite_limit)
+    isnothing(ite_limit) && return
+    @ccall gc_safe=true librsdd_path.start_bdd_manager_ite_limit(manager.ptr::ManagerPtr, ite_limit::Csize_t)::Cvoid
+end
+
+function bdd_stop_ite_limit(manager::Manager)
+    @ccall gc_safe=true librsdd_path.stop_bdd_manager_ite_limit(manager.ptr::ManagerPtr)::Cvoid
+end
+
 """
 Sets a time limit for the BDD manager and starts the clock.
 """
@@ -687,6 +698,10 @@ Returns: Bool
 """
 function bdd_time_limit_exceeded(manager::Manager)
     manager.hit_time_limit
+end
+
+function bdd_ite_limit_exceeded(manager::Manager)
+    manager.hit_ite_limit
 end
 
 # Add these to the exports at the end of the file
