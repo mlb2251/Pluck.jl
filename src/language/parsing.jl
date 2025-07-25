@@ -352,7 +352,7 @@ function parse_expr_inner(tokens, defs, env)
         # parse CFG symbol variable like "#int"
         type = Symbol(token[2:end])
         return GVarSymbol(type)(), view(tokens, 2:length(tokens))
-    elseif '@' ∈ token
+    elseif token[1] == '@'
         idx = parse(Int, token[2:end])
         return ConstNative(idx)(), view(tokens, 2:length(tokens))
     elseif all(isdigit, token)

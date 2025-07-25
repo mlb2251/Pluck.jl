@@ -281,9 +281,6 @@ define_parser!("Y", Y, 1)
 struct FlipOp <: Head end
 define_parser!("flip", FlipOp, 1)
 
-struct FlipOpDual <: Head end
-define_parser!("flipd", FlipOpDual, 1)
-
 struct NativeEqOp <: Head end
 define_parser!("native_eq", NativeEqOp, 2)
 

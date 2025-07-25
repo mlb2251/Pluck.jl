@@ -115,11 +115,32 @@ end
 ################################
 
 function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
+    npartials = state.manager.vector_size
 
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
         p = p.value
+
+        if p isa Int
+            @assert state.cfg.dual "FlipOp must be applied to a Float unless in dual mode. Got $(p) :: $(typeof(p)) in $expr"
+            metaparam = p
+            p = 0.5 # default value used in dual mode, can swap out for another later
+
+            push!(state.callstack, 1)
+            addr = current_address(state, p)    
+            topvar = bdd_topvar(addr)
+            state.param2metaparam[topvar] = metaparam
+            partials_hi = zeros(Float64, npartials)
+            partials_hi[metaparam+1] = 1.0
+            partials_lo = zeros(Float64, npartials)
+            partials_lo[metaparam+1] = -1.0
+            set_weight_deriv(state.manager.weights, topvar, 1 - p, partials_lo, p, partials_hi)
+            pop!(state.callstack)
+            return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
+        end
+
         isapprox(p, 0.0) && return pure_monad(Pluck.FALSE_VALUE, path_condition, state)
         isapprox(p, 1.0) && return pure_monad(Pluck.TRUE_VALUE, path_condition, state)
+
         # If we are past the max depth, AND we are sampling after the max depth, AND 
         # this flip is new (not previously instantiated), THEN sample a value.
         if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
@@ -132,34 +153,10 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
         # different probability `p`, we need to create a new variable in the BDD.
         push!(state.callstack, 1)
         addr = current_address(state, p)
+
         RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
         pop!(state.callstack)
         return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
-    end
-end
-
-function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state)
-    npartials = state.manager.vector_size
-
-    p_init = 0.5
-    # All we want to do is update a dictionary in BDDEvalState saying that bdd_topvar(addr) is associated with args[1].metaparam
-    bind_compile(expr.args[1], env, path_condition, state, 0) do metaparam, path_condition
-        metaparam = metaparam.value
-        if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
-            sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-            return [(sampled_value, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
-        end
-        push!(state.callstack, 1)
-        addr = current_address(state, p_init)
-        topvar = bdd_topvar(addr)
-        state.param2metaparam[topvar] = metaparam
-        partials_hi = zeros(Float64, npartials)
-        partials_hi[metaparam+1] = 1.0
-        partials_lo = zeros(Float64, npartials)
-        partials_lo[metaparam+1] = -1.0
-        set_weight_deriv(state.manager.weights, topvar, p_init, partials_lo, p_init, partials_hi)
-        pop!(state.callstack)
-        return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)], state.manager.BDD_TRUE
     end
 end
 
