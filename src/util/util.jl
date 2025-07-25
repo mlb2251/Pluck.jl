@@ -113,20 +113,20 @@ function write_out(json_data, path; verbose = true)
     verbose && println("wrote $path [$kb KB]")
 end
 
-function logDual(param)
+function log_dual(param)
     primal, deriv = param  
     log_primal = log(primal)
     log_deriv = x -> x / primal
     return (log_primal, log_deriv.(deriv))
 end
 
-function expDual(param)
+function exp_dual(param)
     primal, deriv = param
     exp_deriv = x -> x * exp(primal)
     return (exp(primal), exp_deriv.(deriv))
 end
 
-function sumDual(params::Vector)
+function sum_dual(params::Vector)
     primal_sum = sum(p for (p, _) in params)
     dual_sum = sum(d for (_, d) in params)
     return (primal_sum, dual_sum)

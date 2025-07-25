@@ -21,9 +21,9 @@ function optimize(exprs, η, init, n_steps; kwargs...)
         # get gradients
         all_normalized_results = [normalize_dual([(v, RSDD.getWmcDual(RSDD.bdd_wmc(bdd))) for (v, bdd) in ret]) for ret in rets]
         all_true_prob_duals = [[res for res ∈ normalized_results if res[1].constructor == :True][1][2] for normalized_results in all_normalized_results]
-        log_all_true_prob_duals = logDual.(all_true_prob_duals)
-        log_true_prob_dual = sumDual(log_all_true_prob_duals)
-        true_prob_dual = expDual(log_true_prob_dual)
+        log_all_true_prob_duals = log_dual.(all_true_prob_duals)
+        log_true_prob_dual = sum_dual(log_all_true_prob_duals)
+        true_prob_dual = exp_dual(log_true_prob_dual)
         # update metaparams
         metaparam_vals = clamp.(metaparam_vals + η * true_prob_dual[2], 0.0, 1.0)
         # update bdd weights
@@ -34,9 +34,9 @@ function optimize(exprs, η, init, n_steps; kwargs...)
     # get prob given metaparams
     all_normalized_results = [normalize_dual([(v, RSDD.getWmcDual(RSDD.bdd_wmc(bdd))) for (v, bdd) in ret]) for ret in rets]
     all_true_prob_duals = [[res for res ∈ normalized_results if res[1].constructor == :True][1][2] for normalized_results in all_normalized_results]
-    log_all_true_prob_duals = logDual.(all_true_prob_duals)
-    log_true_prob_dual = sumDual(log_all_true_prob_duals)
-    true_prob_dual = expDual(log_true_prob_dual)
+    log_all_true_prob_duals = log_dual.(all_true_prob_duals)
+    log_true_prob_dual = sum_dual(log_all_true_prob_duals)
+    true_prob_dual = exp_dual(log_true_prob_dual)
 
     free_bdd_manager(state.manager)
     return true_prob_dual, metaparam_vals
