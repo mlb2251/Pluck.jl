@@ -1,9 +1,8 @@
-using Pkg
-Pkg.activate("/Users/mauriciobarba/repos/PluckArtifactDependency.jl")
-
-using Revise
+# using Pkg
+# Pkg.activate("/Users/mauriciobarba/repos/PluckArtifactDependency.jl")
+# using Revise
 using Pluck
-using .RSDD
+# using .RSDD
 
 # Small number of steps
 prob, metaparam_vals = optimize(["(flip 0.5)"], 0.01, [], 1, max_depth=100)
