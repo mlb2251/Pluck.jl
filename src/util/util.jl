@@ -115,9 +115,8 @@ end
 
 function log_dual(param)
     primal, deriv = param  
-    log_primal = log(primal)
     log_deriv = x -> x / primal
-    return (log_primal, log_deriv.(deriv))
+    return (log(primal), log_deriv.(deriv))
 end
 
 function exp_dual(param)
@@ -127,8 +126,8 @@ function exp_dual(param)
 end
 
 function sum_dual(params::Vector)
-    primal_sum = sum(p for (p, _) in params)
-    dual_sum = sum(d for (_, d) in params)
+    primal_sum = sum(p for (p, _) in params; init=0.0)
+    dual_sum = sum(d for (_, d) in params; init=0.0)
     return (primal_sum, dual_sum)
 end
 
