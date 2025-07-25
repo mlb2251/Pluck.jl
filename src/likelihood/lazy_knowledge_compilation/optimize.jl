@@ -1,7 +1,5 @@
 export optimize
 
-using .RSDD
-
 function optimize(exprs, η, init, n_steps; kwargs...)
     npartials = length(init)
     cfg = LazyKCConfig(; kwargs..., vector_size=npartials, detailed_results=true, free_manager=false, dual=true)

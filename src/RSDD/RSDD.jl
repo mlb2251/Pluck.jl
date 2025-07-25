@@ -9,7 +9,6 @@ export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_tas
 
 
 export WmcParams, 
-    WmcParamsDual, 
     getWmcDual,
     new_weights,
     new_wmc_params_f64, 
@@ -113,21 +112,12 @@ macro rsdd_timed(expr)
     end
 end
 
-abstract type AbstractWmcParams end
 
-mutable struct WmcParams <: AbstractWmcParams
-    ptr::Ptr{Cvoid}
-    freed::Bool
-end
-
-mutable struct WmcParamsDual <: AbstractWmcParams
+mutable struct WmcParams
     ptr::Ptr{Cvoid}
     freed::Bool
     vector_size::UInt
-    
-    function WmcParamsDual(ptr::Ptr{Cvoid}, freed::Bool, vector_size::Integer)
-        new(ptr, freed, UInt(vector_size))
-    end
+    dual::Bool
 end
 
 # Updated to include size field
@@ -156,7 +146,7 @@ mutable struct Manager
     freed::Bool
     BDD_TRUE::Any
     BDD_FALSE::Any
-    weights::AbstractWmcParams
+    weights::WmcParams
     vector_size::UInt
     active_time_limit
     active_ite_limit::Union{Nothing, Int}
@@ -444,7 +434,7 @@ Returns: WmcParams
 """
 function new_weights()
     ptr = @rsdd_timed @ccall gc_safe=true librsdd_path.new_wmc_params_f64()::Ptr{Cvoid}
-    WmcParams(ptr, false)
+    WmcParams(ptr, false, 0, false)
 end
 
 """
@@ -453,7 +443,7 @@ Returns: WmcParams
 """
 function new_weights_dual(vector_size::Integer)
     ptr = @rsdd_timed @ccall gc_safe=true librsdd_path.new_wmc_params_f64_dual()::Ptr{Cvoid}
-    WmcParamsDual(ptr, false, vector_size)
+    WmcParams(ptr, false, vector_size, true)
 end
 
 """
@@ -467,25 +457,19 @@ end
 Sets the weight for a variable in the WmcParams object. 
 """
 function set_weight(params::WmcParams, var::Label, low::Float64, high::Float64)
-    @rsdd_timed @ccall gc_safe=true librsdd_path.wmc_param_f64_set_weight(params.ptr::Ptr{Cvoid}, var::Label, low::Float64, high::Float64)::Cvoid
+    if params.dual
+        low_dual = zeros(Float64, params.vector_size)
+        high_dual = zeros(Float64, params.vector_size)    
+        set_weight_deriv(params, var, low, low_dual, high, high_dual)
+    else
+        @rsdd_timed @ccall gc_safe=true librsdd_path.wmc_param_f64_set_weight(params.ptr::Ptr{Cvoid}, var::Label, low::Float64, high::Float64)::Cvoid
+    end
 end
 
 """
-Sets the weight for a variable in the WmcParamsDual object.
+Sets the weight and derivative for a variable in the WmcParams object. 
 """
-function set_weight(params::WmcParamsDual, var::Label, low::Float64, high::Float64)
-    # Create empty vectors of the right size
-    low_dual = zeros(Float64, params.vector_size)
-    high_dual = zeros(Float64, params.vector_size)
-    
-    # Call the updated function with size parameters
-    @rsdd_timed @ccall gc_safe=true librsdd_path.wmc_param_f64_set_weight_deriv_dual(params.ptr::Ptr{Cvoid}, var::Label, low::Float64, low_dual::Ptr{Float64}, params.vector_size::Csize_t, high::Float64, high_dual::Ptr{Float64}, params.vector_size::Csize_t)::Cvoid
-end
-
-"""
-Sets the weight and derivative for a variable in the WmcParamsDual object. 
-"""
-function set_weight_deriv(params::WmcParamsDual, var::Label, low::Float64, low_dual::Vector{Float64}, high::Float64, high_dual::Vector{Float64})
+function set_weight_deriv(params::WmcParams, var::Label, low::Float64, low_dual::Vector{Float64}, high::Float64, high_dual::Vector{Float64})
     # Get sizes of vectors
     low_size = length(low_dual)
     high_size = length(high_dual)
@@ -506,23 +490,16 @@ Performs weighted model counting on a BDD.
 Returns: Float64
 """
 function bdd_wmc(bdd::BDD)
-    bdd_wmc_manual(bdd, bdd.manager.weights)
+    bdd_wmc_inner(bdd, bdd.manager.weights)
 end
 
-function bdd_wmc_manual(bdd::BDD, params::WmcParams)
-    @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_wmc(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::Float64
-end
-
-function bdd_wmc_manual(bdd::BDD, params::WmcParamsDual)
-    # Updated to handle size
-    @rsdd_timed result = @ccall gc_safe=true librsdd_path.bdd_wmc_dual(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
-    (result._0, result._1, result._size)
-end
-
-function bdd_wmc_dual(bdd::BDD, params::WmcParamsDual)
-    # Updated to handle size
-    result = @ccall gc_safe=true librsdd_path.bdd_wmc_dual(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
-    (result._0, result._1, result._size)
+function bdd_wmc_inner(bdd::BDD, params::WmcParams)
+    if params.dual
+        @rsdd_timed result = @ccall gc_safe=true librsdd_path.bdd_wmc_dual(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
+        (result._0, result._1, result._size)
+    else
+        @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_wmc(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::Float64
+    end
 end
 
 # """
@@ -551,17 +528,11 @@ Frees the memory associated with a WmcParams object.
 """
 function free_wmc_params(params::WmcParams)
     params.freed && return
-    @rsdd_timed @ccall gc_safe=true librsdd_path.free_wmc_params(params.ptr::Ptr{Cvoid})::Cvoid
-    params.freed = true
-    return
-end
-
-"""
-Frees the memory associated with a WmcParams object.
-"""
-function free_wmc_params(params::WmcParamsDual)
-    params.freed && return
-    @rsdd_timed @ccall gc_safe=true librsdd_path.free_wmc_params_dual(params.ptr::Ptr{Cvoid})::Cvoid
+    if params.dual
+        @rsdd_timed @ccall gc_safe=true librsdd_path.free_wmc_params_dual(params.ptr::Ptr{Cvoid})::Cvoid
+    else
+        @rsdd_timed @ccall gc_safe=true librsdd_path.free_wmc_params(params.ptr::Ptr{Cvoid})::Cvoid
+    end
     params.freed = true
     return
 end
