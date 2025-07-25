@@ -16,7 +16,6 @@ export WmcParams,
     new_wmc_params_f64_dual, 
     set_weight, 
     set_weight_deriv, 
-    set_weight_dual,
     var_partial,
     bdd_wmc, 
     bdd_wmc_dual,
@@ -481,21 +480,6 @@ function set_weight(params::WmcParamsDual, var::Label, low::Float64, high::Float
     
     # Call the updated function with size parameters
     @rsdd_timed @ccall gc_safe=true librsdd_path.wmc_param_f64_set_weight_deriv_dual(params.ptr::Ptr{Cvoid}, var::Label, low::Float64, low_dual::Ptr{Float64}, params.vector_size::Csize_t, high::Float64, high_dual::Ptr{Float64}, params.vector_size::Csize_t)::Cvoid
-end
-
-"""
-Sets the weight for a variable in the WmcParamsDual object with metaparam.
-"""
-function set_weight_dual(mgr::Manager, var::Label, metaparam::UInt, low::Float64, high::Float64)
-    set_weight_dual(mgr.weights, var, metaparam, low, high)
-end
-
-"""
-Sets the weight for a variable in the WmcParamsDual object with metaparam.
-"""
-function set_weight_dual(params::WmcParamsDual, var::Label, metaparam::UInt, low::Float64, high::Float64)
-    # Added vector_size parameter
-    @rsdd_timed @ccall gc_safe=true librsdd_path.wmc_param_f64_set_weight_dual(params.ptr::Ptr{Cvoid}, var::Label, metaparam::Csize_t, params.vector_size::Csize_t, low::Float64, high::Float64)::Cvoid
 end
 
 """

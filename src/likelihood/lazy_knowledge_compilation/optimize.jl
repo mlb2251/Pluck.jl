@@ -45,12 +45,18 @@ function optimize(exprs, η, init, n_steps; kwargs...)
 end
 
 function set_metaparams!(state, metaparam_vals)
-    for (param, metaparam) in state.var2metaparam
-        set_weight_dual(
-            state.manager, 
-            unsigned(param), 
-            unsigned(metaparam), 
-            1.0 - metaparam_vals[metaparam+1], 
-            metaparam_vals[metaparam+1])
+    for (var, metaparam) in state.var2metaparam
+        p = metaparam_vals[metaparam+1]
+        partials_hi = zeros(Float64, state.manager.vector_size)
+        partials_lo = zeros(Float64, state.manager.vector_size)
+        partials_hi[metaparam+1] = 1.0
+        partials_lo[metaparam+1] = -1.0
+        set_weight_deriv(
+            state.manager.weights, 
+            unsigned(var), 
+            1.0 - p,
+            partials_lo,
+            p,
+            partials_hi)
     end
 end
