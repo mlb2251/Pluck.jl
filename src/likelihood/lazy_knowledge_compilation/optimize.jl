@@ -20,12 +20,13 @@ function optimize(exprs, η, init, n_steps; kwargs...)
     for i=1:n_steps
         # get gradients
         all_normalized_results = [normalize_dual([(v, RSDD.getWmcDual(RSDD.bdd_wmc(bdd))) for (v, bdd) in ret.raw_worlds]) for ret in rets]
-        all_true_prob_duals = [[res for res ∈ normalized_results if res[1].constructor == :True][1][2] for normalized_results in all_normalized_results]
-        log_all_true_prob_duals = log_dual.(all_true_prob_duals)
-        log_true_prob_dual = sum_dual(log_all_true_prob_duals)
-        true_prob_dual = exp_dual(log_true_prob_dual)
+        all_true_duals = [get_true_result(result) for result in all_normalized_results]
+        # logsumexp over all expressions, so we're maximizing the product of the likelihoods
+        log_all_true_duals = log_dual.(all_true_duals)
+        log_true_dual = sum_dual(log_all_true_duals)
+        true_dual = exp_dual(log_true_dual)
         # update metaparams
-        metaparam_vals = clamp.(metaparam_vals + η * true_prob_dual[2], 0.0, 1.0)
+        metaparam_vals = clamp.(metaparam_vals + η * true_dual[2], 0.0, 1.0)
         # update bdd weights
         for ret in rets
             set_metaparams!(ret.state, metaparam_vals)
