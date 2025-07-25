@@ -128,7 +128,7 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
             push!(state.callstack, 1)
             addr = current_address(state, p)    
             topvar = bdd_topvar(addr)
-            state.param2metaparam[topvar] = metaparam
+            state.var2metaparam[topvar] = metaparam
             partials_hi = zeros(Float64, npartials)
             partials_hi[metaparam+1] = 1.0
             partials_lo = zeros(Float64, npartials)

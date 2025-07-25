@@ -45,7 +45,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
 end
 
 function set_metaparams!(state, metaparam_vals)
-    for (param, metaparam) in state.param2metaparam
+    for (param, metaparam) in state.var2metaparam
         set_weight_dual(
             state.manager, 
             unsigned(param), 

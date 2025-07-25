@@ -148,7 +148,7 @@ mutable struct LazyKCState
     stats::LazyKCStats
     viz::Any # Union{Nothing, BDDJSONLogger}
     cfg::LazyKCConfig
-    param2metaparam::Dict{Int, Int}
+    var2metaparam::Dict{Int, Int}
     timer::Ttimer
     query::Union{Nothing, PExpr}
     stacktrace::Vector{PExpr}
