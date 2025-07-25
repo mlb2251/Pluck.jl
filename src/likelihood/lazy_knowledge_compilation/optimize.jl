@@ -3,26 +3,18 @@ export optimize
 using .RSDD
 
 function optimize(exprs, η, init, n_steps; kwargs...)
-    cfg = LazyKCConfig(; kwargs...)
     npartials = length(init)
-    state  = LazyKCStateDual(npartials, cfg)
-
-
-    rets = [compile_inner(parse_expr(expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state)[1] for expr in exprs]
+    cfg = LazyKCConfig(; kwargs..., vector_size=npartials, detailed_results=true, free_manager=false)
+    rets = [compile(e, cfg) for e in exprs]
 
     # initialize results
     normalized_results = Vector{Tuple{Any, Tuple{Float64, Vector{Float64}}}}()
     log_true_prob_dual = (0, [0 for _ ∈ 1:npartials])
     # initialize metaparameters
     metaparam_vals = init
-    # update bdd weights
-    for (param, metaparam) in state.param2metaparam
-        set_weight_dual(
-            state.manager, 
-            unsigned(param), 
-            unsigned(metaparam), 
-            1.0 - metaparam_vals[metaparam+1], 
-            metaparam_vals[metaparam+1])
+    # initialize bdd weights
+    for ret in rets
+        set_metaparams!(ret.state, metaparam_vals)
     end
 
     for i=1:n_steps
@@ -35,13 +27,8 @@ function optimize(exprs, η, init, n_steps; kwargs...)
         # update metaparams
         metaparam_vals = clamp.(metaparam_vals + η * true_prob_dual[2], 0.0, 1.0)
         # update bdd weights
-        for (param, metaparam) in state.param2metaparam
-            set_weight_dual(
-                state.manager, 
-                unsigned(param), 
-                unsigned(metaparam), 
-                1.0 - metaparam_vals[metaparam+1], 
-                metaparam_vals[metaparam+1])
+        for ret in rets
+            set_metaparams!(ret.state, metaparam_vals)
         end
     end
     # get prob given metaparams
@@ -53,4 +40,15 @@ function optimize(exprs, η, init, n_steps; kwargs...)
 
     free_bdd_manager(state.manager)
     return true_prob_dual, metaparam_vals
+end
+
+function set_metaparams!(state, metaparam_vals)
+    for (param, metaparam) in state.param2metaparam
+        set_weight_dual(
+            state.manager, 
+            unsigned(param), 
+            unsigned(metaparam), 
+            1.0 - metaparam_vals[metaparam+1], 
+            metaparam_vals[metaparam+1])
+    end
 end

@@ -1,4 +1,4 @@
-export normalize, compile, LazyKCState, LazyKCConfig, LazyKCStateDual, get_time_limit, set_time_limit!, LazyKCStats, CompileResult
+export normalize, compile, LazyKCState, LazyKCConfig, get_time_limit, set_time_limit!, LazyKCStats, CompileResult
 
 const Callstack = Vector{Int}
 const WorldT{T} = Tuple{T, BDD}
@@ -28,6 +28,7 @@ Base.@kwdef mutable struct LazyKCConfig
     full_dist::Bool = false
     detailed_results::Bool = false
     stacktrace::Bool = true
+    vector_size::Int = 0
 end
 
 set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
@@ -104,7 +105,8 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     state.cfg.free_manager && free_bdd_manager(state.manager)
 
     if state.cfg.detailed_results
-        return CompileResult(weighted_results, state.stats)
+        worlds = state.cfg.free_manager ? nothing : worlds # they'd be invalid otherwise
+        return CompileResult(weighted_results, state.stats, worlds, state)
     end
 
     return weighted_results
@@ -154,6 +156,8 @@ end
 struct CompileResult
     worlds
     stats
+    raw_worlds
+    state
 end
 
 get_timer(state::LazyKCState) = state.timer
@@ -165,37 +169,7 @@ function LazyKCState(;kwargs...)
 end
 
 function LazyKCState(cfg::LazyKCConfig)
-    manager = RSDD.Manager()
-    state = LazyKCState(
-        Callstack(),
-        Dict{Tuple{Callstack, Float64}, BDD}(),
-        Tuple{Callstack, Float64}[],
-        Int[],
-        manager,
-        0,
-        Dict{Tuple{PExpr, Env, Callstack}, Any}(),
-        LazyKCStats(),
-        nothing,
-        cfg,
-        Dict{Int, Int}(),
-        Ttimer(),
-        nothing,
-        PExpr[]
-    )
-
-    if cfg.record_json
-        state.viz = BDDJSONLogger(state)
-    end
-    return state
-end
-
-function LazyKCStateDual(vector_size::Integer; kwargs...)
-    cfg = LazyKCConfig(;kwargs...)
-    LazyKCStateDual(vector_size, cfg)
-end
-
-function LazyKCStateDual(vector_size::Integer, cfg::LazyKCConfig)
-    manager = RSDD.ManagerDual(vector_size)
+    manager = RSDD.Manager(; vector_size=cfg.vector_size)
     state = LazyKCState(
         Callstack(),
         Dict{Tuple{Callstack, Float64}, BDD}(),
