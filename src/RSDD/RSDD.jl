@@ -9,7 +9,6 @@ export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_tas
 
 
 export WmcParams, 
-    getWmcDual,
     new_weights,
     new_wmc_params_f64, 
     new_wmc_params_f64_dual, 
@@ -122,18 +121,9 @@ end
 
 # Updated to include size field
 struct WmcDual
-    _0::Float64
-    _1::Ptr{Float64}
+    _0::Float64 # primal
+    _1::Ptr{Float64} # dual
     _size::UInt
-end
-
-function getWmcDual(wmc::Tuple{Float64, Ptr{Float64}, UInt})
-    size = wmc[3]
-    if size == 0
-        return wmc[1], []
-    end
-    partials = [var_partial(wmc[2], unsigned(i), size) for i=0:size-1]
-    return wmc[1], partials
 end
 
 # Define types
@@ -495,8 +485,10 @@ end
 
 function bdd_wmc_inner(bdd::BDD, params::WmcParams)
     if params.dual
-        @rsdd_timed result = @ccall gc_safe=true librsdd_path.bdd_wmc_dual(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
-        (result._0, result._1, result._size)
+        result = @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_wmc_dual(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
+        # this is a bit of a jank way to get the floats over one by one, there must be a better way
+        partials = [var_partial(result._1, unsigned(i), result._size) for i=0:signed(result._size)-1]
+        return result._0, partials
     else
         @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_wmc(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::Float64
     end

@@ -13,7 +13,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
 
     for i=1:n_steps
         # get gradients
-        all_normalized_results = [normalize_dual([(v, RSDD.getWmcDual(RSDD.bdd_wmc(bdd))) for (v, bdd) in ret.raw_worlds]) for ret in rets]
+        all_normalized_results = [normalize_dual([(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret.raw_worlds]) for ret in rets]
         all_true_duals = [get_true_result(result) for result in all_normalized_results]
         # logsumexp over all expressions, so we're maximizing the product of the likelihoods
         true_dual = logsumexp_dual(all_true_duals)
@@ -25,7 +25,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
         end
     end
     # get prob given metaparams
-    all_normalized_results = [normalize_dual([(v, RSDD.getWmcDual(RSDD.bdd_wmc(bdd))) for (v, bdd) in ret.raw_worlds]) for ret in rets]
+    all_normalized_results = [normalize_dual([(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret.raw_worlds]) for ret in rets]
     all_true_duals = [get_true_result(result) for result in all_normalized_results]
     true_dual = logsumexp_dual(all_true_duals)
 
