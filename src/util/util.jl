@@ -30,12 +30,14 @@ function compile_deterministic(expr)
 end
 
 function normalize(results)
+    isempty(results) && return results
     probabilities = [res[2] for res in results]
     total = sum(probabilities)
     return [(res[1], res[2] / total) for res in results]
 end
 
 function normalize_dual(results)
+    isempty(results) && return results
     dual_numbers = [res[2] for res in results]
     probabilities = [d[1] for d in dual_numbers]
     derivs = [d[2] for d in dual_numbers]

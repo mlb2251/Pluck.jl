@@ -177,7 +177,7 @@ end
 function ManagerDual(vector_size::Integer; num_vars::Int=0) # = DEFAULT_VECTOR_SIZE)
     manager_ptr = @rsdd_timed @ccall gc_safe=true librsdd_path.mk_bdd_manager_default_order(num_vars::Cint)::ManagerPtr
     weights = new_weights_dual(vector_size)
-    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, vector_size, nothing, false)
+    manager = Manager(manager_ptr, [], false, nothing, nothing, weights, vector_size, nothing, nothing, false, false)
     manager.BDD_TRUE = bdd_true(manager)
     manager.BDD_FALSE = bdd_false(manager)
     return manager

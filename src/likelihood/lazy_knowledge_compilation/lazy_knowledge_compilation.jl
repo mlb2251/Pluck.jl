@@ -204,7 +204,7 @@ function LazyKCStateDual(vector_size::Integer, cfg::LazyKCConfig)
         manager,
         0,
         Dict{Tuple{PExpr, Env, Callstack}, Any}(),
-        0,
+        LazyKCStats(),
         nothing,
         cfg,
         Dict{Int, Int}(),
