@@ -5,7 +5,7 @@ using Pluck
 # using .RSDD
 
 # Small number of steps
-prob, metaparam_vals = optimize(["(flip 0.5)"], 0.01, [], 1, max_depth=100)
+prob, metaparam_vals = optimize(["(flip 0.5)"], 0.01, [], 1)
 @assert isapprox(prob[1], 0.5)
 
 prob, metaparam_vals = optimize(["(let (a (flipd @0)
@@ -86,19 +86,19 @@ prob, metaparam_vals = optimize(["(== (geomd @0) 2)",
 
 prob, metaparam_vals = optimize(["(let (a (geomd @0)
                                     b (geomd @1))
-                                    (== a b))"], 0.01, [0.9 for _ ∈ 1:3], 1000, max_depth=100)
+                                    (and (and (< a 10) (< b 10)) (== a b)))"], 0.01, [0.9 for _ ∈ 1:3], 1000)
 @assert isapprox(prob[1], 1.0)
 @assert isapprox(metaparam_vals[1], 1.0)
 
 prob, metaparam_vals = optimize(["(let (a (geom 0.5)
                                     b (geomd @0))
-                                    (== a b))"], 0.01, [0.5 for _ ∈ 1:3], 1000, max_depth=100)
+                                    (and (and (< a 10) (< b 10)) (== a b)))"], 0.01, [0.5 for _ ∈ 1:3], 1000)
 @assert isapprox(prob[1], 0.5)
 @assert isapprox(metaparam_vals[1], 1.0)
 
 prob, metaparam_vals = optimize(["(let (a (geom 0.5)
                                     b (geomd @0))
-                                    (== a b))"], 0.01, [0.5 for _ ∈ 1:4], 1000, max_depth=100)
+                                    (and (and (< a 10) (< b 10)) (== a b)))"], 0.01, [0.5 for _ ∈ 1:4], 1000)
 @assert isapprox(prob[1], 0.5)
 @assert isapprox(metaparam_vals[1], 1.0)
 

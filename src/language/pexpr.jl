@@ -340,7 +340,7 @@ function diff_vars_used(e::PExpr, curr_vars = Set{Int}())
     union(curr_vars, [diff_vars_used(arg, curr_vars) for arg in e.args if arg isa PExpr]...)
 end
 function diff_vars_used(e::PExpr{ConstNative}, curr_vars = Set{Int}())
-    union(curr_vars, e.args[1])
+    union(curr_vars, e.head.val)
 end
 diff_vars_used(e::PExpr{Abs}, curr_vars = Set{Int}()) = union(curr_vars, diff_vars_used(e.args[1], curr_vars))
 diff_vars_used(e::PExpr{Var}, curr_vars = Set{Int}()) = curr_vars

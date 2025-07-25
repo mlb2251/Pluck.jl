@@ -29,6 +29,7 @@ Base.@kwdef mutable struct LazyKCConfig
     detailed_results::Bool = false
     stacktrace::Bool = true
     vector_size::Int = 0
+    dual::Bool = false
 end
 
 set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
@@ -169,7 +170,7 @@ function LazyKCState(;kwargs...)
 end
 
 function LazyKCState(cfg::LazyKCConfig)
-    manager = RSDD.Manager(; vector_size=cfg.vector_size)
+    manager = RSDD.Manager(; vector_size=cfg.vector_size, dual=cfg.dual)
     state = LazyKCState(
         Callstack(),
         Dict{Tuple{Callstack, Float64}, BDD}(),
