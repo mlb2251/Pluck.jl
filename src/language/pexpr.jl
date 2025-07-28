@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, diff_vars_used
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, native_ints_used
 
 import DataStructures: OrderedDict
 
@@ -26,6 +26,18 @@ Base.copy(e::PExpr) = PExpr(e.head, Any[copy(arg) for arg in e.args])
 # (head::Type{H})(args...) where H <: Head = nothing
 
 
+function bottomup_descendants(e::PExpr)
+    worklist = Vector{PExpr}(e)
+    result = Vector{PExpr}(e)
+    while !isempty(worklist)
+        e = popfirst!(worklist)
+        push!(result, e)
+        for arg in e.args
+            push!(worklist, arg)
+        end
+    end
+    result
+end
 
 # (::Type{H})(args...) where H <: Head = PExpr{H}(H(), collect(PExpr, args))
 
@@ -327,21 +339,24 @@ define_parser!("error", ErrorOp, 1)
 
 # by default we just look in subexpressions for free variables
 var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args)
+# abs binds a new variable
 var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
+# vars are free if they are the same as the variable we're checking for
 var_is_free(e::PExpr{Var}, var) = e.head.name == var
 # CaseOf branches also bind variables – one for each arg to the guard
 var_is_free(e::PExpr{CaseOf}, var) = 
     var_is_free(getscrutinee(e), var) || any(case -> !any(arg -> arg == var, getguard(e, case).args) && var_is_free(getbranch(e, case), var), 1:numbranches(e))
 
-function diff_vars_used(e::PExpr, curr_vars = Set{Int}())
-    union(curr_vars, [diff_vars_used(arg, curr_vars) for arg in e.args if arg isa PExpr]...)
+native_ints_used(e::PExpr) = native_ints_used(e, Set{Int}())
+function native_ints_used(e::PExpr, curr_vars::Set{Int})
+    for arg in e.args
+        native_ints_used(arg, curr_vars)
+    end
+    curr_vars
 end
-function diff_vars_used(e::PExpr{ConstNative}, curr_vars = Set{Int}())
-    union(curr_vars, e.head.val)
+function native_ints_used(e::PExpr{ConstNative}, curr_vars::Set{Int})
+    if e.head.val isa Int
+        push!(curr_vars, e.head.val)
+    end
+    curr_vars
 end
-diff_vars_used(e::PExpr{Abs}, curr_vars = Set{Int}()) = union(curr_vars, diff_vars_used(e.args[1], curr_vars))
-diff_vars_used(e::PExpr{Var}, curr_vars = Set{Int}()) = curr_vars
-diff_vars_used(e::PExpr{CaseOf}, curr_vars = Set{Int}()) =
-    union(curr_vars, diff_vars_used(e.args[1], curr_vars)) ∪
-    union(curr_vars, diff_vars_used(e.args[2], curr_vars))
-diff_vars_used(e::PExpr{Construct}, curr_vars = Set{Int}()) = union(curr_vars, [diff_vars_used(arg, curr_vars) for arg in e.args[2]]...)

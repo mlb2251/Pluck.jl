@@ -98,15 +98,15 @@ function deriv_tests()
     @assert isapprox(prob[1], 0.5)
     @assert isapprox(metaparam_vals[1], 1.0)
 
-    used_vars = diff_vars_used(parse_expr("@0"))
+    used_vars = native_ints_used(parse_expr("@0"))
     @assert used_vars == Set([0])
 
-    used_vars = diff_vars_used(parse_expr("(let (a (flip @0)
+    used_vars = native_ints_used(parse_expr("(let (a (flip @0)
                                 b (not (flip @1)))
                                 (and a b))"))
     @assert used_vars == Set([0, 1])
 
-    used_vars = diff_vars_used(parse_expr("(flip @0)"))
+    used_vars = native_ints_used(parse_expr("(flip @0)"))
     @assert used_vars == Set([0])
     printstyled("passed all tests", color=:green)
 end
