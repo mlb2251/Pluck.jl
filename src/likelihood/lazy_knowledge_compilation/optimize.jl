@@ -8,7 +8,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
     # initialize metaparameters
     metaparam_vals = init
     for ret in rets
-        set_metaparams!(ret.state, metaparam_vals)
+        set_metaparams!(ret.state.manager.weights, ret.state.var2metaparam, metaparam_vals)
     end
 
     for i=1:n_steps
@@ -21,7 +21,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
         metaparam_vals = clamp.(metaparam_vals + η * true_dual[2], 0.0, 1.0)
         # update bdd weights
         for ret in rets
-            set_metaparams!(ret.state, metaparam_vals)
+            set_metaparams!(ret.state.manager.weights, ret.state.var2metaparam, metaparam_vals)
         end
     end
     # get prob given metaparams
@@ -36,15 +36,15 @@ function optimize(exprs, η, init, n_steps; kwargs...)
     return true_dual, metaparam_vals
 end
 
-function set_metaparams!(state, metaparam_vals)
-    for (var, metaparam) in state.var2metaparam
+function set_metaparams!(weights, var2metaparam, metaparam_vals)
+    for (var, metaparam) in var2metaparam
         p = metaparam_vals[metaparam+1]
-        partials_hi = zeros(Float64, state.manager.vector_size)
-        partials_lo = zeros(Float64, state.manager.vector_size)
+        partials_hi = zeros(Float64, length(metaparam_vals))
+        partials_lo = zeros(Float64, length(metaparam_vals))
         partials_hi[metaparam+1] = 1.0
         partials_lo[metaparam+1] = -1.0
         set_weight_deriv(
-            state.manager.weights, 
+            weights, 
             unsigned(var), 
             1.0 - p,
             partials_lo,
