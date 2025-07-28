@@ -31,6 +31,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
 
     for ret in rets
         free_bdd_manager(ret.state.manager)
+        free_wmc_params(ret.state.manager.weights)
     end
     return true_dual, metaparam_vals
 end

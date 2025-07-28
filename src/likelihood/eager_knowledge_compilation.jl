@@ -322,5 +322,6 @@ function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, recor
     results = [(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret]
 
     free_bdd_manager(state.manager)
+    free_wmc_params(state.manager.weights)
     return results
 end

@@ -21,6 +21,7 @@ Base.@kwdef mutable struct LazyKCConfig
     record_bdd_json::Bool = false
     record_json::Bool = false
     free_manager::Bool = true
+    free_weights::Bool = true
     results_file::Union{Nothing, String} = nothing
     time_limit::Union{Nothing, Float64} = nothing
     ite_limit::Union{Nothing, Int} = nothing
@@ -104,6 +105,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     state.stats.time = ttime() - tstart
 
     state.cfg.free_manager && free_bdd_manager(state.manager)
+    state.cfg.free_weights && free_wmc_params(state.manager.weights)
 
     if state.cfg.detailed_results
         worlds = state.cfg.free_manager ? nothing : worlds # they'd be invalid otherwise

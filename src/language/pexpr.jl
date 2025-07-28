@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, native_ints_used
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
 
 import DataStructures: OrderedDict
 
@@ -347,16 +347,14 @@ var_is_free(e::PExpr{Var}, var) = e.head.name == var
 var_is_free(e::PExpr{CaseOf}, var) = 
     var_is_free(getscrutinee(e), var) || any(case -> !any(arg -> arg == var, getguard(e, case).args) && var_is_free(getbranch(e, case), var), 1:numbranches(e))
 
-native_ints_used(e::PExpr) = native_ints_used(e, Set{Int}())
-function native_ints_used(e::PExpr, curr_vars::Set{Int})
+function max_native_int_used(e::PExpr)
+    max_used = -1 # -1 means no native ints used
     for arg in e.args
-        native_ints_used(arg, curr_vars)
+        max_used = max(max_used, max_native_int_used(arg))
     end
-    curr_vars
+    max_used
 end
-function native_ints_used(e::PExpr{ConstNative}, curr_vars::Set{Int})
-    if e.head.val isa Int
-        push!(curr_vars, e.head.val)
-    end
-    curr_vars
+function max_native_int_used(e::PExpr{ConstNative})
+    e.head.val isa Int && return e.head.val
+    return -1
 end

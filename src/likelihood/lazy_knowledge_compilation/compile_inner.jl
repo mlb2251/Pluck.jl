@@ -142,6 +142,8 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
 
         p = p.value
 
+        @assert p isa Float64 "p is not a Float64, got $(typeof(p))"
+
         isapprox(p, 0.0) && return pure_monad(Pluck.FALSE_VALUE, path_condition, state)
         isapprox(p, 1.0) && return pure_monad(Pluck.TRUE_VALUE, path_condition, state)
 

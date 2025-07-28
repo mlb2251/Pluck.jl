@@ -5,7 +5,7 @@ module RSDD
 
 include("../util/timing.jl")
 using .Timing
-export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded
+export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded, free_wmc_params, bdd_deep_copy, bdd_wmc_raw
 
 
 export WmcParams, 
@@ -105,7 +105,7 @@ end
 macro rsdd_timed(expr)
     quote
         tstart = time()
-        res = $(esc(expr))
+;        res = $(esc(expr))
         rsdd_time!(time() - tstart)
         res
     end
@@ -161,6 +161,10 @@ struct BDD
         push!(manager.bdds, bdd)
         return bdd
     end
+end
+
+struct BDDRawPtr
+    ptr::Csize_t
 end
 
 # Show method for BDD
@@ -480,17 +484,17 @@ Performs weighted model counting on a BDD.
 Returns: Float64
 """
 function bdd_wmc(bdd::BDD)
-    bdd_wmc_inner(bdd, bdd.manager.weights)
+    bdd_wmc_raw(bdd.ptr, bdd.manager.weights)
 end
 
-function bdd_wmc_inner(bdd::BDD, params::WmcParams)
+function bdd_wmc_raw(bdd_ptr::Csize_t, params::WmcParams)
     if params.dual
-        result = @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_wmc_dual(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
+        result = @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_wmc_dual(bdd_ptr::Csize_t, params.ptr::Ptr{Cvoid})::WmcDual
         # this is a bit of a jank way to get the floats over one by one, there must be a better way
         partials = [var_partial(result._1, unsigned(i), result._size) for i=0:signed(result._size)-1]
         return result._0, partials
     else
-        @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_wmc(bdd.ptr::Csize_t, params.ptr::Ptr{Cvoid})::Float64
+        @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_wmc(bdd_ptr::Csize_t, params.ptr::Ptr{Cvoid})::Float64
     end
 end
 
@@ -505,7 +509,6 @@ end
 Frees the memory associated with a BDD manager.
 """
 function free_bdd_manager(manager::Manager)
-    free_wmc_params(manager.weights)
     manager.freed && return
     for bdd in manager.bdds
         free_bdd(bdd)
@@ -640,6 +643,15 @@ end
 
 function bdd_ite_limit_exceeded(manager::Manager)
     manager.hit_ite_limit
+end
+
+function bdd_deep_copy(bdd::BDD)
+    ptr = @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_deep_copy(bdd.ptr::Csize_t)::Csize_t
+    BDDRawPtr(ptr)
+end
+
+function bdd_free_deep_copy(bdd::BDDRawPtr)
+    @rsdd_timed @ccall gc_safe=true librsdd_path.bdd_free_deep_copy(bdd.ptr::Csize_t)::Cvoid
 end
 
 # Add these to the exports at the end of the file
