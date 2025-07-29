@@ -105,7 +105,7 @@ end
 macro rsdd_timed(expr)
     quote
         tstart = time()
-;        res = $(esc(expr))
+        res = $(esc(expr))
         rsdd_time!(time() - tstart)
         res
     end

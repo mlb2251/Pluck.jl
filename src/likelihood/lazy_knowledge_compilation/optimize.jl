@@ -2,7 +2,7 @@ export optimize
 
 function optimize(exprs, η, init, n_steps; kwargs...)
     npartials = length(init)
-    cfg = LazyKCConfig(; kwargs..., vector_size=npartials, detailed_results=true, free_manager=false, dual=true)
+    cfg = LazyKCConfig(; kwargs..., vector_size=npartials, detailed_results=true, free_manager=false, free_weights=false, dual=true)
     rets = [compile(e, cfg) for e in exprs]
 
     # initialize metaparameters
