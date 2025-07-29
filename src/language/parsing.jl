@@ -317,16 +317,6 @@ function parse_expr_inner(tokens, defs, env)
         # parse a symbol
         sym = Symbol(token[2:end])
         return ConstNative(sym)(), view(tokens, 2:length(tokens))
-    elseif token == "`"
-        # parse a quote expression
-        tokens = view(tokens, 2:length(tokens))
-        expr, tokens = parse_expr_inner(tokens, defs, env)
-        return Quote()(expr), tokens
-    elseif token == "~"
-        # parse a unquote expression
-        tokens = view(tokens, 2:length(tokens))
-        expr, tokens = parse_expr_inner(tokens, defs, env)
-        return Unquote()(expr), tokens
     elseif token == "["
         # parse a list: parse expressions until ]
         tokens = view(tokens, 2:length(tokens))
