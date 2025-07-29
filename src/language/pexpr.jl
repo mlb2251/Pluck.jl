@@ -322,15 +322,3 @@ var_is_free(e::PExpr{Var}, var) = e.head.name == var
 # CaseOf branches also bind variables – one for each arg to the guard
 var_is_free(e::PExpr{CaseOf}, var) = 
     var_is_free(getscrutinee(e), var) || any(case -> !any(arg -> arg == var, getguard(e, case).args) && var_is_free(getbranch(e, case), var), 1:numbranches(e))
-
-function max_native_int_used(e::PExpr)
-    max_used = -1 # -1 means no native ints used
-    for arg in e.args
-        max_used = max(max_used, max_native_int_used(arg))
-    end
-    max_used
-end
-function max_native_int_used(e::PExpr{ConstNative})
-    e.head.val isa Int && return e.head.val
-    return -1
-end

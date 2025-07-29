@@ -52,3 +52,15 @@ function set_metaparams!(weights, var2metaparam, metaparam_vals)
             partials_hi)
     end
 end
+
+function max_native_int_used(e::PExpr)
+    max_used = -1 # -1 means no native ints used
+    for arg in e.args
+        max_used = max(max_used, max_native_int_used(arg))
+    end
+    max_used
+end
+function max_native_int_used(e::PExpr{ConstNative})
+    e.head.val isa Int && return e.head.val
+    return -1
+end
