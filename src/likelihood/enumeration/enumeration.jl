@@ -186,11 +186,8 @@ end
 end
 
 
-function compile_enum(expr; show_length = false, kwargs...)
-    s = LazyEnumeratorEvalState(; kwargs...)
-    if expr isa String
-        expr = parse_expr(expr)
-    end
+function compile(expr, cfg::LazyEnumeratorConfig)
+    s = LazyEnumeratorEvalState(cfg)
     @assert !s.hit_limit
     s.start_time = time()
     
@@ -215,9 +212,9 @@ function compile_enum(expr; show_length = false, kwargs...)
 
     # Trying a model count of each possibility.
     results = [(ret, weight(trace)) for (ret, trace) in ret]
-    if show_length
-        @show length(results)
-    end
+    # if show_length
+    #     @show length(results)
+    # end
 
     # @show results
     values = Dict{Any, Float64}()
