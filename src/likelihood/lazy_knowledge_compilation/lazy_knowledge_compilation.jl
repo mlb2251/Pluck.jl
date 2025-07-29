@@ -112,6 +112,8 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
         return CompileResult(weighted_results, state.stats, worlds, state)
     end
 
+    @show state.stats.num_recursive_calls
+
     return weighted_results
 end
 
