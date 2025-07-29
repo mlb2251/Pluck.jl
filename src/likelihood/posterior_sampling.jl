@@ -209,29 +209,6 @@ function force_value(v::NativeValue{PExpr{T}}, env, state::SampleValueState) whe
 end
 
 
-# function force_value(v::PExprValue, env, state::SampleValueState)
-#     v.args = [traced_force_value(arg, env, state) for arg in v.args]
-#     return v
-# end
-
-# function force_value(v::PExprValue{Quote}, env, state::SampleValueState)
-#     v.args = [traced_force_value(arg, env, state) for arg in v.args]
-#     return v
-# end
-
-# function force_value(v::PExprValue{Unquote}, env, state::SampleValueState)
-#     error("unquote outside of a quote context")
-# end
-
-# This is for the inner PExpr of a NativeValue{PExpr} as well as for nested PExprs. We force all the args,
-#     just like how compile_inner(Quote) creates thunks for all the args.
-# Note some of these args might be vectors/tuples/etc which force will handle recursively.
-# """
-# function force_value(v::PExpr, env, state::SampleValueState)
-#     v.args = [traced_force_value(arg, env, state) for arg in v.args]
-#     return v
-# end
-
 """
 Force is a no-op for all other values
 """

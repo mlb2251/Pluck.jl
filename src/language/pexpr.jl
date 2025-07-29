@@ -18,12 +18,10 @@ An expression in the Pluck language.
     args::Vector{Any}
     PExpr(head::H, args) where H <: Head = new{H}(head, args)
     PExpr(head::H) where H <: Head = new{H}(head, [])
-    # PExpr(head::H, args...) where H <: Head = new{H}(head, collect(Union{PExpr, Thunk}, args))
 end
 Base.copy(e::PExpr) = PExpr(e.head, Any[copy(arg) for arg in e.args])
 
 (head::H where {H <: Head})(args...) = PExpr(head, collect(args))
-# (head::Type{H})(args...) where H <: Head = nothing
 
 
 function bottomup_descendants(e::PExpr)
@@ -39,9 +37,6 @@ function bottomup_descendants(e::PExpr)
     result
 end
 
-# (::Type{H})(args...) where H <: Head = PExpr{H}(H(), collect(PExpr, args))
-
-
 # default PExpr methods
 JSON.lower(e::PExpr) = string(e)
 shortname(e::PExpr) = string(e.head)
@@ -52,11 +47,6 @@ function Base.show(io::IO, e::PExpr)
     end
     print(io, ")")
 end
-
-# copy_data(x) = copy(x)
-# copy_data(xs::T) where T <: AbstractVector = map(copy_data, xs)
-# copy_data(xs::T) where T <: AbstractDict = T(copy_data(k) => copy_data(v) for (k, v) in xs)
-# copy_data(x::T) where T <: Tuple = map(copy_data, x)
 
 ##############
 # Operations #
@@ -155,14 +145,6 @@ end
 Base.show(io::IO, h::Defined) = print(io, h.name)
 Base.show(io::IO, e::PExpr{Defined}) = print(io, e.head)
 
-@auto_hash_equals struct Unquote <: Head end
-Base.show(io::IO, h::Unquote) = print(io, "~")
-Base.show(io::IO, e::PExpr{Unquote}) = print(io, "~", e.args[1])
-
-@auto_hash_equals struct Quote <: Head end
-Base.show(io::IO, h::Quote) = print(io, "`")
-Base.show(io::IO, e::PExpr{Quote}) = print(io, "`", e.args[1])
-
 @auto_hash_equals struct GSymbol <: Head
     name::Symbol
 end
@@ -190,9 +172,6 @@ function Base.show(io::IO, e::ConstNative)
     print(io, e.val)
 end
 Base.show(io::IO, e::PExpr{ConstNative}) = show(io, e.head)
-
-
-
 @auto_hash_equals struct CaseOfGuard
     constructor::Symbol
     args::Vector{Symbol}
@@ -313,9 +292,6 @@ define_parser!("mk_int", MkIntOp, 2)
 
 struct IntDistEqOp <: Head end
 define_parser!("int_dist_eq", IntDistEqOp, 2)
-
-struct EvalOp <: Head end
-define_parser!("eval", EvalOp, 1)
 
 struct PrintOp <: Head end
 define_parser!("print", PrintOp, 1)
