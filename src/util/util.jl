@@ -1,4 +1,4 @@
-export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path
+export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path, compile_deterministic
 
 using Dates
 using Printf
@@ -21,27 +21,36 @@ function compile(expr::String, cfg::T) where T
     compile(expr, cfg)
 end
 compile(expr::String) = compile(expr, LazyKCConfig())
+compile(expr; kwargs...) = compile(expr, LazyKCConfig(; kwargs...))
+
+function compile_deterministic(expr)
+    worlds = compile(expr; full_dist=true)
+    @assert length(worlds) == 1 "Deterministic compilation returned 0 or 2+ worlds"
+    return worlds[1][1]
+end
 
 function normalize(results)
-    probabilities = [res[2] for res in results]
-    total = sum(probabilities)
-    return [(res[1], res[2] / total) for res in results]
+    isempty(results) && return results
+    weights = [weight for (_, weight) in results]
+    total = sum(weights)
+    return [(world, weight / total) for (world, weight) in results]
 end
 
 function normalize_dual(results)
-    dual_numbers = [res[2] for res in results]
-    probabilities = [d[1] for d in dual_numbers]
-    derivs = [d[2] for d in dual_numbers]
-    total = sum(probabilities)
+    isempty(results) && return results
+    duals = [dual for (_, dual) in results]
+    primals = [primal for (primal, _) in duals]
+    derivs = [deriv for (_, deriv) in duals]
+    total_primal = sum(primals)
     total_deriv = sum(derivs)
 
-    return [(res[1], (res[2][1] / total, (total*res[2][2] - res[2][1]*total_deriv)/(total^2))) for res in results]
+    return [(world, (primal / total_primal, (total_primal*deriv - primal*total_deriv)/(total_primal^2))) for (world, (primal, deriv)) in results]
 end
 
 function get_true_result(results, default=nothing)
     res = nothing
     for (val, x) in results
-        if val == Pluck.TRUE_VALUE || val == true
+        if val == Pluck.TRUE_VALUE || (val isa Bool && val == true)
             @assert isnothing(res) "Multiple true results found"
             res = x
         end
@@ -49,12 +58,12 @@ function get_true_result(results, default=nothing)
     return isnothing(res) ? default : res
 end
 
-function timestamp_path(file; base = "out/results")
+function timestamp_path(file; base = "out/res")
     dir = timestamp_dir(;base)
     joinpath(dir, file)
 end
 
-function timestamp_dir(;base = "out/results")
+function timestamp_dir(;base = "out/res")
     date = Dates.format(Dates.now(), "yyyy-mm-dd")
     time = Dates.format(Dates.now(), "HH-MM-SS")
     i = 0
@@ -104,23 +113,26 @@ function write_out(json_data, path; verbose = true)
     verbose && println("wrote $path [$kb KB]")
 end
 
-function logDual(param)
+function log_dual(param)
     primal, deriv = param  
-    log_primal = log(primal)
     log_deriv = x -> x / primal
-    return (log_primal, log_deriv.(deriv))
+    return (log(primal), log_deriv.(deriv))
 end
 
-function expDual(param)
+function exp_dual(param)
     primal, deriv = param
     exp_deriv = x -> x * exp(primal)
     return (exp(primal), exp_deriv.(deriv))
 end
 
-function sumDual(params::Vector)
+function sum_dual(params::Vector)
     primal_sum = sum(p for (p, _) in params)
     dual_sum = sum(d for (_, d) in params)
     return (primal_sum, dual_sum)
+end
+
+function logsumexp_dual(params::Vector)
+    return exp_dual(sum_dual(log_dual.(params)))
 end
 
 

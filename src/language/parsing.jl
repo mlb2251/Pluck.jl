@@ -1,4 +1,14 @@
-export parse_expr
+export parse_expr, @expr_str
+
+"""
+expr"..." is equivalent to parse_expr("...")
+No string interpolation is done - this simplifies \$var parsing to not require escaping.
+If you need string interpolation, just do parse_expr() directly.
+"""
+macro expr_str(str)
+    # interpolated_str = Meta.parse("\"$str\"")
+    :(parse_expr($(esc(str))))
+end
 
 function parse_expr(s::String; defs=DEFINITIONS, env=[])
     tokens = tokenize(s)
@@ -323,7 +333,7 @@ function parse_expr_inner(tokens, defs, env)
         vals = []
         while tokens[1] != "]"
             head, tokens = parse_expr_inner(tokens, defs, env)
-            @assert tokens[1] == "," || tokens[1] == "]" "expected comma or closing bracket in list at $(detokenize(tokens))"
+            # @assert tokens[1] == "," || tokens[1] == "]" "expected comma or closing bracket in list at $(detokenize(tokens))"
             if tokens[1] == ","
                 tokens = view(tokens, 2:length(tokens))
             end
@@ -335,7 +345,14 @@ function parse_expr_inner(tokens, defs, env)
             expr = Construct(:Cons)(val, expr)
         end
         return expr, tokens
-    elseif '@' ∈ token
+    elseif token[1] == '?'
+        name = Symbol(token[2:end])
+        return GSymbol(name)(), view(tokens, 2:length(tokens))
+    elseif token[1] == '#'
+        # parse CFG symbol variable like "#int"
+        type = Symbol(token[2:end])
+        return GVarSymbol(type)(), view(tokens, 2:length(tokens))
+    elseif token[1] == '@'
         idx = parse(Int, token[2:end])
         return ConstNative(idx)(), view(tokens, 2:length(tokens))
     elseif all(isdigit, token)
@@ -348,14 +365,20 @@ function parse_expr_inner(tokens, defs, env)
     elseif token == "true" || token == "false"
         val = parse(Bool, token)
         return const_to_expr(val), view(tokens, 2:length(tokens))
-    elseif token ∈ env || token[1] == '#' # leading with a hash forces variable parsing even if it isn't statically present in the environment
+    elseif token == "nothing"
+        return Construct(:Unit)(), view(tokens, 2:length(tokens))
+    elseif token ∈ env || token[1] == '$' # leading with a $ forces variable parsing even if it isn't statically present in the environment
         # Parse a var by name like "foo"
+        if token[1] == '$'
+            @assert length(token) > 1 "expected variable name after \$ around $(detokenize(tokens))"
+            token = token[2:end]
+        end
         return Var(Symbol(token))(), view(tokens, 2:length(tokens))
     elseif haskey(defs, Symbol(token))
         return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
         context = detokenize(tokens)
         context = context[1:min(length(context), 30)]
-        error("unknown token: $token at \"$context\"")
+        error("unknown token: $token at \"$context\" with env $env")
     end
 end

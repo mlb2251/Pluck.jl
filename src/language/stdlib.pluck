@@ -80,11 +80,6 @@
   (if (flip p)
     (O)
     (S (geom p))))
-
-(define (geomd p)
-  (if (flipd p)
-    (O)
-    (S (geomd p))))
  
 (define (randnat) (geom 0.5))
 (define (randnatlist) (if (flip 0.5) (Nil) (Cons (randnat) (randnatlist))))

@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
 
 import DataStructures: OrderedDict
 
@@ -20,12 +20,24 @@ An expression in the Pluck language.
     PExpr(head::H) where H <: Head = new{H}(head, [])
     # PExpr(head::H, args...) where H <: Head = new{H}(head, collect(Union{PExpr, Thunk}, args))
 end
-Base.copy(e::PExpr) = PExpr(copy(e.head), Any[copy(arg) for arg in e.args])
+Base.copy(e::PExpr) = PExpr(e.head, Any[copy(arg) for arg in e.args])
 
 (head::H where {H <: Head})(args...) = PExpr(head, collect(args))
 # (head::Type{H})(args...) where H <: Head = nothing
 
 
+function bottomup_descendants(e::PExpr)
+    worklist = Vector{PExpr}(e)
+    result = Vector{PExpr}(e)
+    while !isempty(worklist)
+        e = popfirst!(worklist)
+        push!(result, e)
+        for arg in e.args
+            push!(worklist, arg)
+        end
+    end
+    result
+end
 
 # (::Type{H})(args...) where H <: Head = PExpr{H}(H(), collect(PExpr, args))
 
@@ -76,8 +88,16 @@ function Base.show(io::IO, e::PExpr{App})
     end
 
     # show like (f x y)
+    argc = num_apps(e)
     print(io, "(", getfunc(e))
-    for i ∈ 1:num_apps(e)
+
+    # show (f (Unit)) as (f)
+    if argc == 1 && getarg(e, 1) isa PExpr{Construct} && getarg(e, 1).head.constructor === :Unit
+        print(io, ")")
+        return
+    end
+
+    for i ∈ 1:argc
         print(io, " ", getarg(e, i))
     end
     print(io, ")")
@@ -101,10 +121,18 @@ function getarg(e::PExpr{App}, i)
     getx(e)
 end
 
+function argpath(e::PExpr{App}, i)
+    which_app = num_apps(e) - i + 1
+    path = ones(Int, which_app-1) # index into `f` that many times
+    push!(path, 2) # index into `x`
+    path
+end
+
 # Function abstraction
 @auto_hash_equals struct Abs <: Head
     var::Symbol
 end
+Base.copy(h::Abs) = h
 Base.show(io::IO, h::Abs) = print(io, "λ", h.var)
 function Base.show(io::IO, e::PExpr{Abs})
     print(io, "(λ", e.head.var)
@@ -118,7 +146,7 @@ end
 @auto_hash_equals struct Var <: Head
     name::Symbol
 end
-Base.show(io::IO, h::Var) = print(io, h.name)
+Base.show(io::IO, h::Var) = print(io, "\$", h.name)
 Base.show(io::IO, e::PExpr{Var}) = print(io, e.head)
 
 @auto_hash_equals struct Defined <: Head
@@ -134,6 +162,18 @@ Base.show(io::IO, e::PExpr{Unquote}) = print(io, "~", e.args[1])
 @auto_hash_equals struct Quote <: Head end
 Base.show(io::IO, h::Quote) = print(io, "`")
 Base.show(io::IO, e::PExpr{Quote}) = print(io, "`", e.args[1])
+
+@auto_hash_equals struct GSymbol <: Head
+    name::Symbol
+end
+Base.show(io::IO, h::GSymbol) = print(io, "?", h.name)
+Base.show(io::IO, e::PExpr{GSymbol}) = print(io, e.head)
+
+@auto_hash_equals struct GVarSymbol <: Head
+    name::Symbol
+end
+Base.show(io::IO, h::GVarSymbol) = print(io, "#", h.name)
+Base.show(io::IO, e::PExpr{GVarSymbol}) = print(io, e.head)
 
 @auto_hash_equals struct ConstNative <: Head
     val::Any
@@ -167,7 +207,6 @@ end
 @auto_hash_equals struct CaseOf <: Head
     branches::Vector{CaseOfGuard}
 end
-Base.copy(h::CaseOf) = CaseOf(Symbol[g for g in h.branches])
 
 numbranches(e::PExpr{CaseOf}) = length(e.head.branches)
 getguard(e::PExpr{CaseOf}, i::Int) = e.head.branches[i]
@@ -175,6 +214,11 @@ getscrutinee(e::PExpr{CaseOf}) = e.args[1]
 getbranch(e::PExpr{CaseOf}, i::Int) = e.args[i+1]
 Base.show(io::IO, ::CaseOf) = print(io, "caseof")
 function Base.show(io::IO, e::PExpr{CaseOf})
+    if length(e.head.branches) == 2 && e.head.branches[1].constructor == :True && e.head.branches[2].constructor == :False
+        print(io, "(if ", getscrutinee(e), " ", getbranch(e, 1), " ", getbranch(e, 2), ")")
+        return
+    end
+
     print(io, "(case ", getscrutinee(e), " of ")
     for i in eachindex(e.head.branches)
         print(io, getguard(e, i), " => ", getbranch(e, i))
@@ -249,9 +293,6 @@ define_parser!("Y", Y, 1)
 struct FlipOp <: Head end
 define_parser!("flip", FlipOp, 1)
 
-struct FlipOpDual <: Head end
-define_parser!("flipd", FlipOpDual, 1)
-
 struct NativeEqOp <: Head end
 define_parser!("native_eq", NativeEqOp, 2)
 
@@ -298,8 +339,22 @@ define_parser!("error", ErrorOp, 1)
 
 # by default we just look in subexpressions for free variables
 var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args)
+# abs binds a new variable
 var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
+# vars are free if they are the same as the variable we're checking for
 var_is_free(e::PExpr{Var}, var) = e.head.name == var
 # CaseOf branches also bind variables – one for each arg to the guard
 var_is_free(e::PExpr{CaseOf}, var) = 
     var_is_free(getscrutinee(e), var) || any(case -> !any(arg -> arg == var, getguard(e, case).args) && var_is_free(getbranch(e, case), var), 1:numbranches(e))
+
+function max_native_int_used(e::PExpr)
+    max_used = -1 # -1 means no native ints used
+    for arg in e.args
+        max_used = max(max_used, max_native_int_used(arg))
+    end
+    max_used
+end
+function max_native_int_used(e::PExpr{ConstNative})
+    e.head.val isa Int && return e.head.val
+    return -1
+end

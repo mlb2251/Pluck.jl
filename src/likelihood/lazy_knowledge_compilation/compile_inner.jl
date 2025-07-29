@@ -7,7 +7,7 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     thunked_argument = make_thunk(expr.args[2], env, 1, state)
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
-        @assert f isa Closure "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)"
+        f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
         return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
     end
@@ -27,6 +27,30 @@ function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
     return pure_monad(Value(expr.head.constructor, thunked_arguments), path_condition, state)
 end
 
+function pluck_error(state, msg)
+    printstyled("Pluck Error: ", color=:red)
+    println(msg)
+    println("\nDuring execution of $(state.query)\n")
+
+    if state.cfg.stacktrace
+        print_stacktrace(state)
+    else
+        println("Run with stacktrace=true to see the full Pluck stacktrace")
+    end
+
+    println()
+    throw(ErrorException("Pluck Error"))
+end
+
+function print_stacktrace(state)
+    println("Stacktrace:")
+    for (i, e) in enumerate(reverse(state.stacktrace))
+        ty = typeof(e).parameters[1]
+        println("  [$i] $e :: $ty")
+    end
+end
+
+
 function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
     # caseof_type = type_of_constructor[first(keys(expr.cases))]
     bind_compile(getscrutinee(expr), env, path_condition, state, 0) do scrutinee, path_condition
@@ -35,7 +59,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
             # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
         # end
 
-        @assert scrutinee isa Value "caseof must be applied to a Value, not: $scrutinee :: $(typeof(scrutinee)) in $expr"
+        scrutinee isa Value || pluck_error(state, "caseof must be applied to a Value, not: $scrutinee :: $(typeof(scrutinee)) in $expr")
 
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         
@@ -75,7 +99,14 @@ end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # Execute Defined with a blanked out environment.
-    return traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
+    # if state.cfg.stacktrace
+    #     push!(state.stacktrace, expr)
+    # end
+    res = traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
+    # if state.cfg.stacktrace
+    #     pop!(state.stacktrace)
+    # end
+    return res
 end
 
 
@@ -84,11 +115,38 @@ end
 ################################
 
 function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
+    npartials = state.manager.vector_size
 
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
+        # handle dual number mode
+        if state.cfg.dual
+            metaparam = p.value isa Int ? p.value : nothing
+            p = isnothing(metaparam) ? p.value : 0.5 # default value used in dual mode, can swap out for another later
+
+            push!(state.callstack, 1)
+            addr = current_address(state, p)
+
+            topvar = bdd_topvar(addr)
+            partials_hi = zeros(Float64, npartials)
+            partials_lo = zeros(Float64, npartials)
+
+            if !isnothing(metaparam)
+                state.var2metaparam[topvar] = metaparam
+                partials_hi[metaparam+1] = 1.0
+                partials_lo[metaparam+1] = -1.0
+            end
+            set_weight_deriv(state.manager.weights, topvar, 1.0 - p, partials_lo, p, partials_hi)
+            pop!(state.callstack)
+            return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
+        end
+
         p = p.value
+
+        @assert p isa Float64 "p is not a Float64, got $(typeof(p))"
+
         isapprox(p, 0.0) && return pure_monad(Pluck.FALSE_VALUE, path_condition, state)
         isapprox(p, 1.0) && return pure_monad(Pluck.TRUE_VALUE, path_condition, state)
+
         # If we are past the max depth, AND we are sampling after the max depth, AND 
         # this flip is new (not previously instantiated), THEN sample a value.
         if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
@@ -101,34 +159,10 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
         # different probability `p`, we need to create a new variable in the BDD.
         push!(state.callstack, 1)
         addr = current_address(state, p)
+
         RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
         pop!(state.callstack)
         return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
-    end
-end
-
-function compile_inner(expr::PExpr{FlipOpDual}, env, path_condition, state)
-    npartials = state.manager.vector_size
-
-    p_init = 0.5
-    # All we want to do is update a dictionary in BDDEvalState saying that bdd_topvar(addr) is associated with args[1].metaparam
-    bind_compile(expr.args[1], env, path_condition, state, 0) do metaparam, path_condition
-        metaparam = metaparam.value
-        if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && state.cfg.sample_after_max_depth && !haskey(state.var_of_callstack, (state.callstack, p))
-            sampled_value = rand() < p ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
-            return [(sampled_value, state.manager.BDD_TRUE)], state.manager.BDD_TRUE
-        end
-        push!(state.callstack, 1)
-        addr = current_address(state, p_init)
-        topvar = bdd_topvar(addr)
-        state.param2metaparam[topvar] = metaparam
-        partials_hi = zeros(Float64, npartials)
-        partials_hi[metaparam+1] = 1.0
-        partials_lo = zeros(Float64, npartials)
-        partials_lo[metaparam+1] = -1.0
-        set_weight_deriv(state.manager.weights, topvar, p_init, partials_lo, p_init, partials_hi)
-        pop!(state.callstack)
-        return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)], state.manager.BDD_TRUE
     end
 end
 
@@ -200,6 +234,7 @@ end
 
 function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
+        @assert val isa Value "getconstructor must be applied to a Value, not: $val :: $(typeof(val)) in $expr during execution of $(state.query)"
         return pure_monad(NativeValue(val.constructor), path_condition, state)
     end
 end
@@ -250,9 +285,9 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state)
     false_thunk = make_thunk(Construct(:False)(), Pluck.EMPTY_ENV, 3, state)
     bind_monad(cond, path_condition, state) do cond, path_condition
         if cond.constructor == :True
-            return pure_monad(Value(:PBool, p_true_thunk, true_thunk), path_condition, state)
+            return pure_monad(Value(:PBool, Any[p_true_thunk, true_thunk]), path_condition, state)
         elseif cond.constructor == :False
-            return pure_monad(Value(:PBool, p_true_thunk, false_thunk), path_condition, state)
+            return pure_monad(Value(:PBool, Any[p_true_thunk, false_thunk]), path_condition, state)
         else
             error("PBoolOp: condition must be a boolean, got $(cond)")
         end

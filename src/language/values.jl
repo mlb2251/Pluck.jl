@@ -1,4 +1,4 @@
-export pluck_list, StateVars, Value, get_true_result, Thunk
+export pluck_list, StateVars, Value, get_true_result, Thunk, EnvCons, EnvNil, from_value
 using Printf
 
 abstract type Env end
@@ -24,6 +24,16 @@ fst(env::EnvNil) = error("Empty environment has no first variable")
 Base.length(env::EnvNil) = 0
 Base.length(env::EnvCons) = 1 + length(env.tail)
 
+parse_env(env::EnvNil) = []
+parse_env(env::EnvCons) = [string(env.var); parse_env(env.tail)]
+
+# function env_of_list(xs)
+#     env = EnvNil()
+#     for x in reverse(xs)
+#         env = EnvCons(x, env)
+#     end
+#     return env
+# end
 
 
 
@@ -39,23 +49,12 @@ end
 Base.:(==)(x::NativeValue{T}, y::NativeValue{U}) where {T, U} = T == U && x.value == y.value
 Base.hash(x::NativeValue{T}, h::UInt) where T = hash(T, hash(x.value, h))
 Base.show(io::IO, x::NativeValue{T}) where T = print(io, x.value)
-# Base.show(io::IO, x::NativeValue{PExpr{T}}) where T = print(io, "`", x.value)
-
-
-# mutable struct PExprValue{H <: Head} <: AbstractValue
-#     head::H
-#     args::Vector{Any} # thunks that produce other PExprValues
-# end
-# Base.show(io::IO, x::PExprValue{T}) where T = print(io, PExpr(x.head, x.args))
-# Base.:(==)(x::PExprValue, y::PExprValue) = x.head === y.head && x.args == y.args
-# Base.hash(x::PExprValue, h::UInt) = hash(x.head, hash(x.args, h))
 
 mutable struct Value <: AbstractValue
     constructor::Symbol
     args::Vector{Any}
 end
-Value(constructor) = Value(constructor, [])
-Value(constructor, args...) = Value(constructor, collect(args))
+Value(constructor::Symbol) = Value(constructor, [])
 
 Base.:(==)(x::Value, y::Value) = x.constructor === y.constructor && x.args == y.args
 Base.hash(x::Value, h::UInt) = hash(x.constructor, hash(x.args, h))
@@ -99,7 +98,7 @@ function from_value(x::Value)
     elseif x.constructor === :False
         false
     elseif x.constructor === :Unit
-        ()
+        nothing
     elseif x.constructor == :O
         0
     elseif x.constructor == :S
