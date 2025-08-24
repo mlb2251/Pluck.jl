@@ -1,4 +1,29 @@
-export optimize
+export optimize, unnormalized_gradient
+
+function unnormalized_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
+    set_metaparams!(weights, var2param, params)
+    wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
+    val, grad = wmc_result
+    println("prelog: ", wmc_result)
+    
+    # Compute log, then make safe
+    log_val = val > 0 ? log(val) : -1e10  # Large negative instead of -Inf
+    safe_grad = val > 0 ? grad ./ val : zeros(length(grad))  # Zero gradient when val=0
+    
+    return log_val, safe_grad
+end
+
+function max_native_int_used(e::PExpr)
+    max_used = -1 # -1 means no native ints used
+    for arg in e.args
+        max_used = max(max_used, max_native_int_used(arg))
+    end
+    max_used
+end
+function max_native_int_used(e::PExpr{ConstNative})
+    e.head.val isa Int && return e.head.val
+    return -1
+end
 
 function optimize(exprs, η, init, n_steps; kwargs...)
     npartials = length(init)
@@ -11,12 +36,13 @@ function optimize(exprs, η, init, n_steps; kwargs...)
         set_metaparams!(ret.state.manager.weights, ret.state.var2metaparam, metaparam_vals)
     end
 
-    for i=1:n_steps
+    for _=1:n_steps
         # get gradients
-        all_normalized_results = [normalize_dual([(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret.raw_worlds]) for ret in rets]
-        all_true_duals = [get_true_result(result) for result in all_normalized_results]
+	# TODO: REPLACE BDD_FALSE WITH SOMETHING REAL
+	all_normalized_results = [get_true_result(ret.raw_worlds) for ret in rets]
+	all_true_duals = [isnothing(bdd) ? (0.0, zeros(npartials)) : RSDD.bdd_wmc(bdd) for bdd in all_normalized_results]
         # logsumexp over all expressions, so we're maximizing the product of the likelihoods
-        true_dual = logsumexp_dual(all_true_duals)
+        true_dual = expsumlog_dual(all_true_duals)
         # update metaparams
         metaparam_vals = clamp.(metaparam_vals + η * true_dual[2], 0.0, 1.0)
         # update bdd weights
@@ -25,9 +51,9 @@ function optimize(exprs, η, init, n_steps; kwargs...)
         end
     end
     # get prob given metaparams
-    all_normalized_results = [normalize_dual([(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret.raw_worlds]) for ret in rets]
-    all_true_duals = [get_true_result(result) for result in all_normalized_results]
-    true_dual = logsumexp_dual(all_true_duals)
+    all_normalized_results = [get_true_result(ret.raw_worlds, ret.state.manager.BDD_FALSE) for ret in rets]
+    all_true_duals = [RSDD.bdd_wmc(bdd) for bdd in all_normalized_results]
+    true_dual = expsumlog_dual(all_true_duals)
 
     for ret in rets
         free_bdd_manager(ret.state.manager)
@@ -51,16 +77,4 @@ function set_metaparams!(weights, var2metaparam, metaparam_vals)
             p,
             partials_hi)
     end
-end
-
-function max_native_int_used(e::PExpr)
-    max_used = -1 # -1 means no native ints used
-    for arg in e.args
-        max_used = max(max_used, max_native_int_used(arg))
-    end
-    max_used
-end
-function max_native_int_used(e::PExpr{ConstNative})
-    e.head.val isa Int && return e.head.val
-    return -1
 end
