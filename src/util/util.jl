@@ -131,7 +131,7 @@ function sum_dual(params::Vector)
     return (primal_sum, dual_sum)
 end
 
-function logsumexp_dual(params::Vector)
+function expsumlog_dual(params::Vector)
     return exp_dual(sum_dual(log_dual.(params)))
 end
 
