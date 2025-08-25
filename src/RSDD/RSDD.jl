@@ -251,7 +251,7 @@ Creates a BDD representing the constant true.
 Returns: BDD
 """
 function bdd_true(manager::Manager)
-    ptr = @rsdd_timed @ccall librsdd_path.bdd_true(manager::Manager)::Csize_t
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_true(manager.ptr::ManagerPtr)::Csize_t
     BDD(manager, ptr)
 end
 
@@ -260,7 +260,7 @@ Creates a BDD representing the constant false.
 Returns: BDD
 """
 function bdd_false(manager::Manager)
-    ptr = @rsdd_timed @ccall librsdd_path.bdd_false(manager::Manager)::Csize_t
+    ptr = @rsdd_timed @ccall librsdd_path.bdd_false(manager.ptr::ManagerPtr)::Csize_t
     BDD(manager, ptr)
 end
 
