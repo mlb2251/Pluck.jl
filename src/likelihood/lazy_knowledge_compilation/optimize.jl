@@ -1,16 +1,34 @@
-export optimize, unnormalized_gradient
+export optimize, unnormalized_gradient, logit_gradient, logit_gradient_update
 
 function unnormalized_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
     set_metaparams!(weights, var2param, params)
     wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
     val, grad = wmc_result
-    println("prelog: ", wmc_result)
     
     # Compute log, then make safe
     log_val = val > 0 ? log(val) : -1e10  # Large negative instead of -Inf
     safe_grad = val > 0 ? grad ./ val : zeros(length(grad))  # Zero gradient when val=0
     
     return log_val, safe_grad
+end
+
+function logit_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
+    set_metaparams!(weights, var2param, params)
+    wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
+    val, grad = wmc_result
+    if grad == []
+	grad = zeros(length(params))
+    end
+    logit_grad = grad .* params .* (1.0 .- params)
+    log_val = val > 0 ? log(val) : -1e10  # Large negative instead of -Inf
+    safe_grad = val > 0 ? logit_grad ./ val : zeros(length(logit_grad))  # Zero gradient when val=0
+    return log_val, safe_grad
+end
+
+function logit_gradient_update(params, gradient, step_size)
+    num = params .* exp.(step_size * gradient)
+    denom = 1.0 .+ params .* (exp.(step_size * gradient) .- 1.0)
+    return num ./ denom
 end
 
 function max_native_int_used(e::PExpr)
@@ -38,10 +56,10 @@ function optimize(exprs, η, init, n_steps; kwargs...)
 
     for _=1:n_steps
         # get gradients
-	all_normalized_results = [get_true_result(ret.raw_worlds) for ret in rets]
-	all_true_duals = [isnothing(bdd) ? (0.0, zeros(npartials)) : RSDD.bdd_wmc(bdd) for bdd in all_normalized_results]
+	all_true_results = [get_true_result(ret.raw_worlds) for ret in rets]
+	all_duals = [isnothing(bdd) ? (0.0, zeros(npartials)) : RSDD.bdd_wmc(bdd) for bdd in all_true_results]
         # logsumexp over all expressions, so we're maximizing the product of the likelihoods
-        true_dual = expsumlog_dual(all_true_duals)
+        true_dual = expsumlog_dual(all_duals)
         # update metaparams
         metaparam_vals = clamp.(metaparam_vals + η * true_dual[2], 0.0, 1.0)
         # update bdd weights
