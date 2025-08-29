@@ -1,4 +1,4 @@
-export optimize, unnormalized_gradient, logit_gradient, logit_gradient_update
+export optimize, unnormalized_gradient, logit_log_gradient, logit_linear_gradient, logit_gradient_update
 
 function unnormalized_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
     set_metaparams!(weights, var2param, params)
@@ -12,7 +12,19 @@ function unnormalized_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var
     return log_val, safe_grad
 end
 
-function logit_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
+
+function logit_linear_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
+    set_metaparams!(weights, var2param, params)
+    wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
+    val, grad = wmc_result
+    if grad == []
+	grad = zeros(length(params))
+    end
+    logit_grad = grad .* params .* (1.0 .- params)
+    return val, logit_grad
+end
+
+function logit_log_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
     set_metaparams!(weights, var2param, params)
     wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
     val, grad = wmc_result
