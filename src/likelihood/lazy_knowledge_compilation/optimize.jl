@@ -1,4 +1,4 @@
-export optimize, unnormalized_gradient, logit_log_gradient, logit_linear_gradient, logit_gradient_update
+export optimize, unnormalized_gradient, logit_log_gradient, logit_linear_gradient, logit_gradient_update, logit_log_gradient_jacobian_adjustment
 
 function unnormalized_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
     set_metaparams!(weights, var2param, params)
@@ -12,7 +12,6 @@ function unnormalized_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var
     return log_val, safe_grad
 end
 
-
 function logit_linear_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
     set_metaparams!(weights, var2param, params)
     wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
@@ -22,6 +21,27 @@ function logit_linear_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var
     end
     logit_grad = grad .* params .* (1.0 .- params)
     return val, logit_grad
+end
+
+function logit_log_gradient_jacobian_adjustment(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
+    set_metaparams!(weights, var2param, params)
+    wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
+    val, grad = wmc_result
+    if grad == []
+        grad = zeros(length(params))
+    end
+    
+    # Jacobian determinant for logit transformation: prod(p * (1 - p))
+    jacobian_det = prod(params .* (1 .- params))
+    adjusted_val = val * jacobian_det
+    
+    # Correct logit gradient with Jacobian adjustment
+    # d/d(logit) log(f(p) * J) = p(1-p) * df/dp / f + (1-2p)
+    logit_grad = params .* (1 .- params) .* (grad ./ val) .+ (1 .- 2 .* params)
+    
+    log_val = adjusted_val > 0 ? log(adjusted_val) : -1e10
+    safe_grad = adjusted_val > 0 ? logit_grad : zeros(length(logit_grad))
+    return log_val, safe_grad
 end
 
 function logit_log_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
