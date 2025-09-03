@@ -27,21 +27,22 @@ function logit_log_gradient_jacobian_adjustment(bdd_ptr::Csize_t, params, weight
     set_metaparams!(weights, var2param, params)
     wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
     val, grad = wmc_result
-    if grad == []
+    println("val: ", val)
+    if grad == [] || val == 0.0
         grad = zeros(length(params))
+        return -Inf, grad
     end
     
     # Jacobian determinant for logit transformation: prod(p * (1 - p))
-    jacobian_det = prod(params .* (1 .- params))
-    adjusted_val = val * jacobian_det
+    log_jacobian_det = sum(log.(params) + log.(1 .- params))
+    adjusted_val = log(val) + log_jacobian_det
     
     # Correct logit gradient with Jacobian adjustment
     # d/d(logit) log(f(p) * J) = p(1-p) * df/dp / f + (1-2p)
-    logit_grad = params .* (1 .- params) .* (grad ./ val) .+ (1 .- 2 .* params)
-    
-    log_val = adjusted_val > 0 ? log(adjusted_val) : -1e10
-    safe_grad = adjusted_val > 0 ? logit_grad : zeros(length(logit_grad))
-    return log_val, safe_grad
+    # logit_grad = params .* (1 .- params) .* (grad ./ val) .+ (1 .- 2 .* params)
+    logit_grad = (grad ./ val) .* params .* (1 .- params) + (1 .- 2 * params)
+
+    return adjusted_val, logit_grad
 end
 
 function logit_log_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var2param)
