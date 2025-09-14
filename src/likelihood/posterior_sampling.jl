@@ -1,6 +1,7 @@
 export posterior_sample, adaptive_rejection_sampling, SampleValueState
 
-function posterior_sample(val, state)    
+function posterior_sample(val, state)
+    @assert val.constructor == :PosteriorSamples && length(val.args) == 3 "expected (PosteriorSamples query evidence num-samples)"
     # First evaluate the evidence thunk to get true/false BDDs
     evidence_results, _ = evaluate(val.args[2], state.manager.BDD_TRUE, state)
     n, concrete = from_value(evaluate(val.args[3], nothing, SampleValueState(nothing, [], nothing, false)))

@@ -1,0 +1,36 @@
+
+(define-type gexpr
+  (GVar sym list)
+  (GPrim sym list))
+
+
+(define (cons x xs) (Cons x xs))
+(define (nil) [])
+(define (A) 'A)
+(define (B) 'B)
+
+;; basic AB variable length list grammar
+(define (sample-gexpr type)
+  (if (native_eq type 'int)
+    (if (flip 0.5) (GPrim 'A []) (GPrim 'B []))
+    (if (native_eq type 'list)
+        (if (flip 0.5) (GPrim 'nil [])
+                        (GPrim 'cons [(sample-gexpr 'int) (sample-gexpr 'list)]))
+        (unreachable))))
+
+(define (pexpr-of-gexpr gexpr) ;; gexpr -> pexpr
+  (match gexpr
+    GPrim p args => (make-apply (Defined p) (map pexpr-of-gexpr args))
+    GVar x args => (make-apply-no-unit (Var x) (map pexpr-of-gexpr args))))
+
+(query
+ sampled-gexpr
+ (let ((gexpr (sample-gexpr 'list)))
+   (PosteriorSamples
+    (pexpr-of-gexpr gexpr)
+    (True)
+    10)))
+
+
+
+

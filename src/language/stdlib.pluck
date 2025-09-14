@@ -1,5 +1,9 @@
 (define (constructors_equal a b) (native_eq (get_constructor a) (get_constructor b)))
 
+(define (unreachable) (crash 'unreachable))
+
+(define (error-shave-probability) (match (Unit)))
+
 ;; boolean operations
 (define (and a b) (if a b (False)))
 (define (or a b) (if a (True) b))
@@ -197,10 +201,26 @@
 ;; make primitive usable as a function
 (define (constructor=? a b) (constructors_equal a b))
 
-;; generic adt equality
+(define-type abstract_value_type
+  (Value)
+  (NativeValue)
+  (Closure))
+
+;; generic abstract value equality, whether it's a value, native value, or closure
 (define (=? a b)
+  (let ((ta (abstract_type a))
+        (tb (abstract_type b)))
+    (and (constructor=? ta tb) ;; reject comparing value to closure, or value to native value, etc
+         (match ta
+            Closure => false ;; closures are never equal for now
+            NativeValue => (native_eq a b) ;; native equality
+            Value => (and (constructor=? a b) (list=? =? (get_args a) (get_args b)))))))
+
+;; generic adt equality
+(define (adt=? a b)
   (and (constructors_equal a b)
-       (list=? =? (get_args a) (get_args b))))
+       (list=? adt=? (get_args a) (get_args b))))
+
 
 ;; Pairs
 (define-type pair (Pair any any))
@@ -292,3 +312,24 @@
 (define (sample-seq dist)
   (match dist
     Cons pair tl => (if (flip (snd pair)) (fst pair) (sample-seq tl))))
+
+
+;; metaprogramming
+
+(define-type pexpr
+  (Var sym)
+  (Abs sym expr)
+  (Defined sym)
+  (App f x))
+
+
+(define (make-apply-no-unit f xs)
+  (match xs
+    Nil => f
+    Cons x xs => (make-apply-no-unit (App f x) xs)))
+
+;; (make-apply f [1 2 3]) = (f 1 2 3)
+(define (make-apply f xs)
+  (if (isempty xs) ;; insert Unit if no arguments
+    (make-apply-no-unit f [(Unit)])
+    (make-apply-no-unit f xs)))

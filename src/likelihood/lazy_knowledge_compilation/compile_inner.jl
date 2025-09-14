@@ -62,7 +62,6 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
         scrutinee isa Value || pluck_error(state, "caseof must be applied to a Value, not: $scrutinee :: $(typeof(scrutinee)) in $expr")
 
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
-        
         if isnothing(idx)
             # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return program_error_worlds(state)
@@ -296,4 +295,22 @@ end
 
 function compile_inner(expr::PExpr{PrintOp}, env, path_condition, state)
     return traced_compile_inner(expr.args[1], env, path_condition, state, 0)
+end
+
+function compile_inner(expr::PExpr{AbstractTypeOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
+        if val isa Value
+            return pure_monad(Value(:Value), path_condition, state)
+        elseif val isa NativeValue
+            return pure_monad(Value(:NativeValue), path_condition, state)
+        elseif val isa Closure
+            return pure_monad(Value(:Closure), path_condition, state)
+        else
+            error("AbstractTypeOp: expected Value, NativeValue, or Closure, got $(val) :: $(typeof(val)) in $expr")
+        end
+    end
+end
+
+function compile_inner(expr::PExpr{CrashOp}, env, path_condition, state)
+    pluck_error(state, "crashop: $expr")
 end

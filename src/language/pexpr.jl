@@ -296,6 +296,12 @@ define_parser!("int_dist_eq", IntDistEqOp, 2)
 struct PrintOp <: Head end
 define_parser!("print", PrintOp, 1)
 
+struct AbstractTypeOp <: Head end
+define_parser!("abstract_type", AbstractTypeOp, 1)
+
+struct CrashOp <: Head end
+define_parser!("crash", CrashOp, 1)
+
 struct FDivOp <: Head end
 define_parser!("/.", FDivOp, 2)
 

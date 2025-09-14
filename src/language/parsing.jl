@@ -143,6 +143,9 @@ function parse_expr_inner(tokens, defs, env)
             branches = PExpr[]
             while tokens[1] != ")"
                 @assert tokens[1] != "(" "unnecessary parens around pattern match guard at $(detokenize(tokens))" # common mistake
+                if tokens[1] == "|"
+                    tokens = view(tokens, 2:length(tokens))
+                end
                 constructor = Symbol(tokens[1])
                 tokens = view(tokens, 2:length(tokens))
                 args = Symbol[]

@@ -49,6 +49,7 @@ end
 Base.:(==)(x::NativeValue{T}, y::NativeValue{U}) where {T, U} = T == U && x.value == y.value
 Base.hash(x::NativeValue{T}, h::UInt) where T = hash(T, hash(x.value, h))
 Base.show(io::IO, x::NativeValue{T}) where T = print(io, x.value)
+Base.show(io::IO, x::NativeValue{Symbol}) = print(io, "'", x.value)
 
 mutable struct Value <: AbstractValue
     constructor::Symbol
@@ -93,13 +94,14 @@ function from_value(x::Value)
         concrete &= arg_concrete
     end
 
-    base_val = if x.constructor === :True
-        true
-    elseif x.constructor === :False
-        false
-    elseif x.constructor === :Unit
-        nothing
-    elseif x.constructor == :O
+    base_val =
+    # if x.constructor === :True
+    #     true
+    # elseif x.constructor === :False
+    #     false
+    # # elseif x.constructor === :Unit
+    #     nothing
+    if x.constructor == :O
         0
     elseif x.constructor == :S
         concrete ? 1 + converted_args[1] : x
@@ -115,9 +117,70 @@ function from_value(x::Value)
     return base_val, concrete
 end
 
+
+function rawstring(x::Value)
+    s = "(" * string(x.constructor)
+    for arg in x.args
+        s *= " "
+        s *= rawstring(arg)
+    end
+    s *= ")"
+    return s
+end
+rawstring(x::Any) = string(x)
+
 function Base.show(io::IO, x::Value)
-    v, concrete = from_value(x)
-    show_value_inner(io, v)
+    return print(io, rawstring(x))
+    if x.constructor == :Cons || x.constructor == :Nil
+        print(io, "[")
+        while x isa Value && x.constructor == :Cons
+            head, tail = x.args
+            print(io, head)
+            if tail isa Value && tail.constructor == :Cons
+                print(io, ", ")
+            end
+            x = tail
+        end
+        print(io, "]")
+    elseif x.constructor === :Prob
+        prob, constructor, args = x.args
+        prob = prob.value # NativeValue{Float64} -> Float64
+        args, _ = from_value(args) # Value -> Vector{Any}
+        if prob ≈ 1.0
+            print(io, "(", constructor)
+        else
+            print(io, "(", constructor, "{", @sprintf("%.2f", prob), "}")
+        end
+        for arg in args
+            print(io, " ")
+            show_value_inner(io, arg)
+        end
+        print(io, ")")
+    elseif x.constructor == :App
+        f, x = x.args
+        args = [x]
+        while f isa Value && f.constructor == :App
+            f, x = f.args
+            push!(args, x)
+        end
+        if length(args) == 1 && args[1] isa Value && args[1].constructor == :Unit
+            print(io, "(", f, ")") # (f (Unit)) is written as (f)
+            return
+        end
+        print(io, "(", f)
+        for arg in reverse(args)
+            print(io, " ", arg)
+        end
+        print(io, ")")
+    elseif x.constructor == :Defined
+        print(io, x.args[1])
+    else
+        print(io, "(", x.constructor)
+        for arg in x.args
+            print(io, " ", arg)
+        end
+        print(io, ")")
+    end
 end
 
 show_value_inner(io::IO, x::Any) = print(io, x)
@@ -140,31 +203,6 @@ function show_value_inner(io::IO, x::Tuple)
     print(io, ")")
 end
 
-function show_value_inner(io::IO, x::Value)
-    if x.constructor === :Prob
-        prob, constructor, args = x.args
-        prob = prob.value # NativeValue{Float64} -> Float64
-        args, _ = from_value(args) # Value -> Vector{Any}
-        if prob ≈ 1.0
-            print(io, "(", constructor)
-        else
-            print(io, "(", constructor, "{", @sprintf("%.2f", prob), "}")
-        end
-        for arg in args
-            print(io, " ")
-            show_value_inner(io, arg)
-        end
-        print(io, ")")
-        return
-    end
-
-    print(io, "(", x.constructor)
-    for arg in x.args
-        print(io, " ")
-        show_value_inner(io, arg)
-    end
-    print(io, ")")
-end
 
 function JSON.lower(x::Value)
     # v, concrete = from_value(x)
@@ -180,4 +218,12 @@ end
 
 Base.@kwdef mutable struct StateVars
     fuel::Int = 0 # 0 means infinite
+end
+
+function list_to_value(xs::AbstractVector)
+    res = Value(:Nil)
+    for x in reverse(xs)
+        res = Value(:Cons, [x, res])
+    end
+    return res
 end

@@ -32,6 +32,7 @@ include("language/toplevel.jl")
 include("util/bdd_viz.jl")
 include("util/tests.jl")
 include("util/deriv_tests.jl")
+include("language/meta.jl")
 
 export get_rsdd_time, clear_rsdd_time!, @rsdd_time
 

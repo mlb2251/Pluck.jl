@@ -81,7 +81,7 @@ function posterior_query(val, state)
 end
 
 function sample_output(expr::String; kwargs...)
-    worlds = process_query("(PosteriorSamples $expr true 1)"; silent=true, kwargs...)[1]
+    process_query("(PosteriorSamples $expr true 1)"; silent=true, kwargs...)[1]
 end
 
 function process_query(expr::String, args...; env=EMPTY_ENV, kwargs...)
