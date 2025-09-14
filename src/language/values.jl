@@ -106,7 +106,9 @@ function from_value(x::Value)
     elseif x.constructor == :Nil
         Any[]
     elseif x.constructor == :Cons
-        Any[converted_args[1]; converted_args[2]]
+        Any[[converted_args[1]]; converted_args[2]]
+    elseif x.constructor == :Pair
+        converted_args[1], converted_args[2]
     else
         x
     end
@@ -122,10 +124,20 @@ show_value_inner(io::IO, x::Any) = print(io, x)
 function show_value_inner(io::IO, x::Vector{Any})
     print(io, "[")
     for i in 1:length(x)
-        print(io, x[i])
+        show_value_inner(io, x[i])
         i != length(x) && print(io, ", ")
     end
     print(io, "]")
+end
+
+function show_value_inner(io::IO, x::Tuple)
+    print(io, "(")
+    for i in 1:length(x)
+        show_value_inner(io, x[i])
+        i != length(x) && print(io, ", ")
+    end
+    length(x) == 1 && print(io, ", ")
+    print(io, ")")
 end
 
 function show_value_inner(io::IO, x::Value)
@@ -140,7 +152,7 @@ function show_value_inner(io::IO, x::Value)
         end
         for arg in args
             print(io, " ")
-            print(io, arg)
+            show_value_inner(io, arg)
         end
         print(io, ")")
         return
@@ -149,7 +161,7 @@ function show_value_inner(io::IO, x::Value)
     print(io, "(", x.constructor)
     for arg in x.args
         print(io, " ")
-        print(io, arg)
+        show_value_inner(io, arg)
     end
     print(io, ")")
 end

@@ -23,9 +23,10 @@ end
 compile(expr::String) = compile(expr, LazyKCConfig())
 compile(expr; kwargs...) = compile(expr, LazyKCConfig(; kwargs...))
 
-function compile_deterministic(expr)
-    worlds = compile(expr; full_dist=true)
-    @assert length(worlds) == 1 "Deterministic compilation returned 0 or 2+ worlds"
+function compile_deterministic(expr; kwargs...)::Union{Nothing, Value}
+    worlds = compile(expr; full_dist=true, kwargs...)
+    length(worlds) == 0 && return nothing
+    length(worlds) > 1 && error("Deterministic compilation returned 2+ worlds")
     return worlds[1][1]
 end
 
