@@ -130,7 +130,7 @@ end
 rawstring(x::Any) = string(x)
 
 function Base.show(io::IO, x::Value)
-    return print(io, rawstring(x))
+    # return print(io, rawstring(x))
     if x.constructor == :Cons || x.constructor == :Nil
         print(io, "[")
         while x isa Value && x.constructor == :Cons
@@ -156,24 +156,24 @@ function Base.show(io::IO, x::Value)
             show_value_inner(io, arg)
         end
         print(io, ")")
-    elseif x.constructor == :App
-        f, x = x.args
-        args = [x]
-        while f isa Value && f.constructor == :App
-            f, x = f.args
-            push!(args, x)
-        end
-        if length(args) == 1 && args[1] isa Value && args[1].constructor == :Unit
-            print(io, "(", f, ")") # (f (Unit)) is written as (f)
-            return
-        end
-        print(io, "(", f)
-        for arg in reverse(args)
-            print(io, " ", arg)
-        end
-        print(io, ")")
-    elseif x.constructor == :Defined
-        print(io, x.args[1])
+    # elseif x.constructor == :App
+    #     f, x = x.args
+    #     args = [x]
+    #     while f isa Value && f.constructor == :App
+    #         f, x = f.args
+    #         push!(args, x)
+    #     end
+    #     if length(args) == 1 && args[1] isa Value && args[1].constructor == :Unit
+    #         print(io, "(", f, ")") # (f (Unit)) is written as (f)
+    #         return
+    #     end
+    #     print(io, "(", f)
+    #     for arg in reverse(args)
+    #         print(io, " ", arg)
+    #     end
+    #     print(io, ")")
+    # elseif x.constructor == :Defined
+    #     print(io, x.args[1].value)
     else
         print(io, "(", x.constructor)
         for arg in x.args
