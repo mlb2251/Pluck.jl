@@ -1,6 +1,6 @@
 (define (constructors_equal a b) (native_eq (get_constructor a) (get_constructor b)))
 
-(define (unreachable) (crash 'unreachable))
+(define (unreachable) (error 'unreachable))
 
 (define (error-shave-probability) (match (Unit)))
 
@@ -201,9 +201,9 @@
 ;; make primitive usable as a function
 (define (constructor=? a b) (constructors_equal a b))
 
-(define-type abstract_value_type
+(define-type abstract_type
   (Value)
-  (NativeValue)
+  (NativeValue type) ;; symbol representing the type
   (Closure))
 
 ;; generic abstract value equality, whether it's a value, native value, or closure
@@ -213,7 +213,7 @@
     (and (constructor=? ta tb) ;; reject comparing value to closure, or value to native value, etc
          (match ta
             Closure => false ;; closures are never equal for now
-            NativeValue => (native_eq a b) ;; native equality
+            NativeValue _ => (native_eq a b) ;; native equality
             Value => (and (constructor=? a b) (list=? =? (get_args a) (get_args b)))))))
 
 ;; generic adt equality

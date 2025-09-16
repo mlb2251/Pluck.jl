@@ -10,9 +10,19 @@ macro expr_str(str)
     :(parse_expr($(esc(str))))
 end
 
+mutable struct ParseState
+    defs
+    env_stack
+    query
+    ParseState(defs, env) = new(defs, [env], nothing)
+end
+
+
 function parse_expr(s::String; defs=DEFINITIONS, env=[])
     tokens = tokenize(s)
-    expr, rest = parse_expr_inner(tokens, defs, env)
+    state = ParseState(defs, env)
+    state.query = s
+    expr, rest = parse_expr_inner(tokens, state)
     @assert isempty(rest)
     return expr
 end
@@ -64,7 +74,15 @@ function tokenize(s)
     return split(strip(s))
 end
 
-function parse_expr_inner(tokens, defs, env)
+function parse_with_env(tokens, state, env)
+    pushfirst!(state.env_stack, env)
+    expr, tokens = parse_expr_inner(tokens, state)
+    popfirst!(state.env_stack)
+    return expr, tokens
+end
+
+function parse_expr_inner(tokens, state)
+    env = state.env_stack[1]
     if length(tokens) == 0
         error("unexpected end of input")
     end
@@ -85,7 +103,7 @@ function parse_expr_inner(tokens, defs, env)
                 tokens = view(tokens, 2:length(tokens))
                 # Add dummy unit variable to environment
                 env = ["_", env...]
-                body, tokens = parse_expr_inner(tokens, defs, env)
+                body, tokens = parse_with_env(tokens, state, env)
                 tokens[1] != ")" && error("expected closing paren")
                 return Abs(Symbol("_"))(body), view(tokens, 2:length(tokens))
             end
@@ -105,7 +123,7 @@ function parse_expr_inner(tokens, defs, env)
                     break
                 end
             end
-            body, tokens = parse_expr_inner(tokens, defs, env)
+            body, tokens = parse_with_env(tokens, state, env)
             for i ∈ 1:num_args
                 body = Abs(Symbol(env[i]))(body)
             end
@@ -114,9 +132,9 @@ function parse_expr_inner(tokens, defs, env)
         elseif token == "if"
             # Parse an if
             tokens = view(tokens, 2:length(tokens))
-            cond, tokens = parse_expr_inner(tokens, defs, env)
-            then_expr, tokens = parse_expr_inner(tokens, defs, env)
-            else_expr, tokens = parse_expr_inner(tokens, defs, env)
+            cond, tokens = parse_expr_inner(tokens, state)
+            then_expr, tokens = parse_expr_inner(tokens, state)
+            else_expr, tokens = parse_expr_inner(tokens, state)
             tokens[1] != ")" && error("expected closing paren")
             # Parse as a CaseOf expression.
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
@@ -124,11 +142,11 @@ function parse_expr_inner(tokens, defs, env)
         elseif token == "Y"
             # parse a Y
             tokens = view(tokens, 2:length(tokens))
-            f, tokens = parse_expr_inner(tokens, defs, env)
+            f, tokens = parse_expr_inner(tokens, state)
             e = Y()(f)
             if tokens[1] != ")"
                 # parse (Y f x) into App(Y(f), x)
-                x, tokens = parse_expr_inner(tokens, defs, env)
+                x, tokens = parse_expr_inner(tokens, state)
                 e = App()(e, x)
             end
             tokens[1] != ")" && error("expected closing paren")
@@ -136,7 +154,7 @@ function parse_expr_inner(tokens, defs, env)
         elseif token == "case" || token == "match"
             # case e1 of Cons => (λ_->(λ_->e2)) | Nil => e3
             tokens = view(tokens, 2:length(tokens))
-            scrutinee, tokens = parse_expr_inner(tokens, defs, env)
+            scrutinee, tokens = parse_expr_inner(tokens, state)
             @assert tokens[1] == "of" || token == "match"
             tokens[1] == "of" && (tokens = view(tokens, 2:length(tokens)))
             guards = CaseOfGuard[]
@@ -151,7 +169,7 @@ function parse_expr_inner(tokens, defs, env)
                 args = Symbol[]
                 # Else branch of this allows for the syntax (Cons x xs => body) instead of (Cons => (λ x xs -> body))
                 if tokens[1] == "=>"
-                    body, tokens = parse_expr_inner(view(tokens, 2:length(tokens)), defs, env)
+                    body, tokens = parse_expr_inner(view(tokens, 2:length(tokens)), state)
                     while body isa PExpr{Abs}
                         push!(args, body.head.var)
                         body = body.args[1]
@@ -165,7 +183,7 @@ function parse_expr_inner(tokens, defs, env)
                         tokens = view(tokens, 2:length(tokens))
                     end
                     tokens = view(tokens, 2:length(tokens))
-                    body, tokens = parse_expr_inner(tokens, defs, new_env)
+                    body, tokens = parse_with_env(tokens, state, new_env)
                     # Wrap body in Abs for each argument, in the proper order.
                 end
                 @assert !any(g -> g.constructor == constructor, guards) "duplicate constructor $constructor in case..of"
@@ -195,20 +213,20 @@ function parse_expr_inner(tokens, defs, env)
                     tokens = view(tokens, 2:length(tokens))  # Skip opening paren
                     var = tokens[1]
                     tokens = view(tokens, 2:length(tokens))
-                    val, tokens = parse_expr_inner(tokens, defs, env)
+                    val, tokens = parse_with_env(tokens, state, env)
                     @assert tokens[1] == ")" "Expected closing parenthesis in let binding"
                     tokens = view(tokens, 2:length(tokens))  # Skip closing paren
                 else
                     # Flat list format
                     var = tokens[1]
                     tokens = view(tokens, 2:length(tokens))
-                    val, tokens = parse_expr_inner(tokens, defs, env)
+                    val, tokens = parse_with_env(tokens, state, env)
                 end
                 push!(bindings, (var, val))
                 env = [var, env...]
             end
             tokens = view(tokens, 2:length(tokens))  # Skip closing paren of bindings list
-            body, tokens = parse_expr_inner(tokens, defs, env)
+            body, tokens = parse_with_env(tokens, state, env)
 
             @assert tokens[1] == ")" "Expected closing parenthesis at end of let expression"
 
@@ -227,21 +245,21 @@ function parse_expr_inner(tokens, defs, env)
             tokens = view(tokens, 2:length(tokens))
             args = []
             while tokens[1] != ")"
-                arg, tokens = parse_expr_inner(tokens, defs, env)
+                    arg, tokens = parse_expr_inner(tokens, state)
                 push!(args, arg)
             end
             if length(args) != length(args_of_constructor[constructor])
                 error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(detokenize(tokens))")
             end
             return Construct(constructor)(args...), view(tokens, 2:length(tokens))
-        elseif has_prim(token) && !haskey(defs, Symbol(token))
+        elseif has_prim(token) && !haskey(state.defs, Symbol(token))
             head_type = lookup_prim(token)
             arity = prim_arity(head_type)
             tokens = view(tokens, 2:length(tokens))
             head = head_type()
             args = PExpr[]
             for i ∈ 1:arity
-                arg, tokens = parse_expr_inner(tokens, defs, env)
+                arg, tokens = parse_expr_inner(tokens, state)
                 push!(args, arg)
             end
             tokens[1] != ")" && error("too few arguments for primitive $token, expected $arity, got $(length(args)) at: $(detokenize(tokens))")
@@ -258,7 +276,7 @@ function parse_expr_inner(tokens, defs, env)
                 tokens = view(tokens, 2:length(tokens))
                 
                 # Parse the expression
-                expr, tokens = parse_expr_inner(tokens, defs, env)
+                expr, tokens = parse_expr_inner(tokens, state)
                 push!(options, expr)
                 
                 # Parse the probability (must be a literal number)
@@ -274,7 +292,7 @@ function parse_expr_inner(tokens, defs, env)
             
             # Generate the nested if-expression using the discrete function
             expr_str = discrete(options, probabilities)
-            expr, rest = parse_expr_inner(tokenize(expr_str), defs, env)
+            expr, rest = parse_expr_inner(tokenize(expr_str), state)
             @assert isempty(rest)
             
             return expr, view(tokens, 2:length(tokens))
@@ -283,7 +301,7 @@ function parse_expr_inner(tokens, defs, env)
             tokens = view(tokens, 2:length(tokens))
             options = PExpr[]
             while tokens[1] != ")"
-                expr, tokens = parse_expr_inner(tokens, defs, env)
+                expr, tokens = parse_expr_inner(tokens, state)
                 push!(options, expr)
             end
             
@@ -292,16 +310,16 @@ function parse_expr_inner(tokens, defs, env)
             
             # Generate the nested if-expression using the discrete function
             expr_str = discrete(options, probabilities)
-            expr, rest = parse_expr_inner(tokenize(expr_str), defs, env)
+            expr, rest = parse_expr_inner(tokenize(expr_str), state)
             @assert isempty(rest)
             
             return expr, view(tokens, 2:length(tokens))
         else
             # Parse an application
-            f, tokens = parse_expr_inner(tokens, defs, env)
+            f, tokens = parse_expr_inner(tokens, state)
             args = []
             while tokens[1] != ")"
-                arg, tokens = parse_expr_inner(tokens, defs, env)
+                arg, tokens = parse_expr_inner(tokens, state)
                 push!(args, arg)
             end
 
@@ -325,7 +343,7 @@ function parse_expr_inner(tokens, defs, env)
         tokens = view(tokens, 2:length(tokens))
         vals = []
         while tokens[1] != "]"
-            head, tokens = parse_expr_inner(tokens, defs, env)
+            head, tokens = parse_expr_inner(tokens, state)
             # @assert tokens[1] == "," || tokens[1] == "]" "expected comma or closing bracket in list at $(detokenize(tokens))"
             if tokens[1] == ","
                 tokens = view(tokens, 2:length(tokens))
@@ -367,11 +385,21 @@ function parse_expr_inner(tokens, defs, env)
             token = token[2:end]
         end
         return Var(Symbol(token))(), view(tokens, 2:length(tokens))
-    elseif haskey(defs, Symbol(token))
+    elseif haskey(state.defs, Symbol(token))
         return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
-        context = detokenize(tokens)
-        context = context[1:min(length(context), 30)]
-        error("unknown token: $token at \"$context\" with env $env")
+        parse_error(state, "unknown token: $token", tokens)
     end
+end
+
+
+function parse_error(state, msg, tokens)
+    context = detokenize(tokens)
+    context = context[1:min(length(context), 50)]
+    printstyled("Pluck Parse Error: ", color=:red)
+    println(msg)
+    println("Context: $context")
+    println("Env: ", state.env_stack[1])
+    println("Query: ", state.query)
+    throw(ErrorException("Pluck Parse Error"))
 end

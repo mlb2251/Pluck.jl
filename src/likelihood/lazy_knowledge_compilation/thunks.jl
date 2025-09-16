@@ -1,10 +1,11 @@
 
 struct LazyKCThunk <: Thunk
-    expr::Union{PExpr, Thunk}
+    expr::PExpr
     env::Env
     cache::Vector{GuardedWorlds}
     callstack::Callstack
     strict_order_index::Int
+    stacktrace::Vector{Union{PExpr, Nothing}}
 
     function LazyKCThunk(expr, env::Env, strict_order_index::Int, state)
         if expr isa PExpr{Var} && getenv(env, expr.head.name) isa LazyKCThunk
@@ -15,7 +16,7 @@ struct LazyKCThunk <: Thunk
         # if state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
         #     return state.thunk_cache[key]
         # else
-        thunk = new(expr, env, [], copy(state.callstack), strict_order_index)
+        thunk = new(expr, env, [], copy(state.callstack), strict_order_index, copy(state.stacktrace))
         # if state.cfg.use_thunk_cache
         #     state.thunk_cache[(expr, copy(env), copy(state.callstack))] = thunk
         # end
@@ -110,15 +111,19 @@ function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
     print_thunk_enter(thunk, state)
     old_callstack = state.callstack
     state.callstack = thunk.callstack
+    old_stacktrace = state.stacktrace
+    state.stacktrace = thunk.stacktrace
 
     expr = thunk.expr
     if expr isa LazyKCThunk
         # if the .expr is a Thunk, we need to evaluate it first to get a PExprValue
         return bind_evaluate(expr, thunk.env, path_condition, state) do e, path_condition
+            @assert false # im pretty sure we're not doing this anymore
             # @assert e isa PExprValue "LazyKCThunk must be evaluated to a PExprValue, got $(e) :: $(typeof(e))"
             @assert e isa NativeValue && e.value isa PExpr "LazyKCThunk must be evaluated to a NativeValue{PExpr{T}}, got $(e) :: $(typeof(e))"
             result = traced_compile_inner(e.value, thunk.env, path_condition, state, thunk.strict_order_index)
             state.callstack = old_callstack
+            state.stacktrace = old_stacktrace
             print_thunk_exit(thunk, result, state)
             return result
         end
@@ -126,6 +131,7 @@ function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
     result = traced_compile_inner(expr, thunk.env, path_condition, state, thunk.strict_order_index)
 
     state.callstack = old_callstack
+    state.stacktrace = old_stacktrace
     print_thunk_exit(thunk, result, state)
     return result
 end

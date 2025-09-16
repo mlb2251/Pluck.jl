@@ -153,7 +153,7 @@ mutable struct LazyKCState
     var2metaparam::Dict{Int, Int}
     timer::Ttimer
     query::Union{Nothing, PExpr}
-    stacktrace::Vector{PExpr}
+    stacktrace::Vector{Union{PExpr, Nothing}}
 end
 
 struct CompileResult
@@ -348,4 +348,15 @@ function print_exit(expr, result, env, state)
     printstyled(green, color=:green)
     length(green) + length(blue) > 80 && print("\n")
     printstyled(blue * "\n", color=:blue)
+end
+
+function with_stacktrace(f::F, state::LazyKCState, expr::Union{PExpr, Nothing}) where F <: Function
+    push!(state.stacktrace, expr)
+    res = f()
+    pop!(state.stacktrace)
+    return res
+end
+
+function with_stacktrace(f::F, state, expr::Union{PExpr, Nothing}) where F <: Function
+    f() # no stacktrace implemented
 end

@@ -129,9 +129,24 @@ function rawstring(x::Value)
 end
 rawstring(x::Any) = string(x)
 
+function ends_in_nil(x::Value)
+    check_end = x
+    while check_end isa Value && check_end.constructor == :Cons
+        check_end = check_end.args[2]
+    end
+    return check_end isa Value && check_end.constructor == :Nil
+end
+function ends_in_zero(x::Value)
+    check_end = x
+    while check_end isa Value && check_end.constructor == :S
+        check_end = check_end.args[1]
+    end
+    return check_end isa Value && check_end.constructor == :O
+end
+
+
 function Base.show(io::IO, x::Value)
-    # return print(io, rawstring(x))
-    if x.constructor == :Cons || x.constructor == :Nil
+    if (x.constructor == :Cons || x.constructor == :Nil) && ends_in_nil(x)
         print(io, "[")
         while x isa Value && x.constructor == :Cons
             head, tail = x.args
@@ -142,6 +157,13 @@ function Base.show(io::IO, x::Value)
             x = tail
         end
         print(io, "]")
+    elseif (x.constructor == :O || x.constructor == :S) && ends_in_zero(x)
+        total = 0
+        while x isa Value && x.constructor == :S
+            total += 1
+            x = x.args[1]
+        end
+        print(io, total)
     elseif x.constructor === :Prob
         prob, constructor, args = x.args
         prob = prob.value # NativeValue{Float64} -> Float64

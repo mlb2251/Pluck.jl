@@ -9,13 +9,15 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
-        return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
+        with_stacktrace(state, f.origin) do
+            traced_compile_inner(f.expr, new_env, path_condition, state, 2)
+        end
     end
 end
 
 function compile_inner(expr::PExpr{Abs}, env, path_condition, state)
     # A lambda term deterministically evaluates to a closure.
-    return pure_monad(Closure(expr.args[1], env, expr.head.var), path_condition, state)
+    return pure_monad(Closure(expr.args[1], env, expr.head.var, nothing), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
@@ -28,7 +30,7 @@ function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
 end
 
 function pluck_error(state, msg)
-    printstyled("Pluck Error: ", color=:red)
+    printstyled("Pluck Error from $(typeof(state)): ", color=:red)
     println(msg)
     println("\nDuring execution of $(state.query)\n")
 
@@ -45,6 +47,10 @@ end
 function print_stacktrace(state)
     println("Stacktrace:")
     for (i, e) in enumerate(reverse(state.stacktrace))
+        if isnothing(e)
+            println("  [$i] <nothing>")
+            continue
+        end
         ty = typeof(e).parameters[1]
         println("  [$i] $e :: $ty")
     end
@@ -56,19 +62,19 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
     bind_compile(getscrutinee(expr), env, path_condition, state, 0) do scrutinee, path_condition
         # value_type = type_of_constructor[scrutinee.constructor]
         # if !isempty(expr.cases) && !(value_type == caseof_type)
-            # @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
+        #     @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
         # end
 
         scrutinee isa Value || pluck_error(state, "caseof must be applied to a Value, not: $scrutinee :: $(typeof(scrutinee)) in $expr")
 
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         if isnothing(idx)
-            # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
+            println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return program_error_worlds(state)
         end
 
         case_expr = getbranch(expr, idx)
-        @assert length(scrutinee.args) == length(getguard(expr, idx).args)
+        @assert length(scrutinee.args) == length(getguard(expr, idx).args) "wrorng number of arguments in caseof: guard is $(getguard(expr, idx))"
 
         # In each of the scrutinee arguments, filter out options that contradict the available information.
         for (arg, name) in zip(scrutinee.args, getguard(expr, idx).args)
@@ -98,14 +104,9 @@ end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # Execute Defined with a blanked out environment.
-    # if state.cfg.stacktrace
-    #     push!(state.stacktrace, expr)
-    # end
-    res = traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
-    # if state.cfg.stacktrace
-    #     pop!(state.stacktrace)
-    # end
-    return res
+    with_stacktrace(state, expr) do
+        traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
+    end
 end
 
 
@@ -211,9 +212,32 @@ function compile_inner(expr::PExpr{FSubOp}, env, path_condition, state)
     compile_native_binop(-, expr, env, path_condition, state)
 end
 
-function compile_inner(expr::PExpr{ErrorOp}, env, path_condition, state)
-    error("ErrorOp: $expr")
+function compile_inner(expr::PExpr{IsApproxOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do arg1, path_condition
+        bind_compile(expr.args[2], env, path_condition, state, 1) do arg2, path_condition
+            return pure_monad(isapprox(arg1.value, arg2.value) ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE, path_condition, state)
+        end
+    end
 end
+
+function compile_inner(expr::PExpr{ErrorOp}, env, path_condition, state)
+    pluck_error(state, "ErrorOp: $expr")
+end
+
+# function compile_inner(expr::PExpr{DefineOp}, env, path_condition, state)
+
+
+    # define(sym.value, expr.args[2])
+    # return pure_monad(Value(:Unit), path_condition, state)
+
+    # bind_compile(expr.args[1], env, path_condition, state, 0) do sym, path_condition
+    #     @assert sym isa NativeValue{Symbol} "DefineOp: NativeValue{Symbol} expected, got $(sym) :: $(typeof(sym)) in $expr"
+        # bind_compile(expr.args[2], env, path_condition, state, 1) do def, path_condition
+        #     define(sym.value, pexpr_from_value(def))
+        #     return pure_monad(Value(:Unit), path_condition, state)
+        # end
+    # end
+# end
 
 
 
@@ -302,15 +326,12 @@ function compile_inner(expr::PExpr{AbstractTypeOp}, env, path_condition, state)
         if val isa Value
             return pure_monad(Value(:Value), path_condition, state)
         elseif val isa NativeValue
-            return pure_monad(Value(:NativeValue), path_condition, state)
+            inner_type = Symbol(typeof(val.value))
+            return pure_monad(Value(:NativeValue, [NativeValue(inner_type)]), path_condition, state)
         elseif val isa Closure
             return pure_monad(Value(:Closure), path_condition, state)
         else
             error("AbstractTypeOp: expected Value, NativeValue, or Closure, got $(val) :: $(typeof(val)) in $expr")
         end
     end
-end
-
-function compile_inner(expr::PExpr{CrashOp}, env, path_condition, state)
-    pluck_error(state, "crashop: $expr")
 end

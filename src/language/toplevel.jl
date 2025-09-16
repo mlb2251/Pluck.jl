@@ -180,23 +180,23 @@ function parse_and_process_query(tokens, defs; silent=false)
         # No parentheses - must be one or two names
         if length(query_tokens) == 1
             # Single name case
-            query_expr, tokens = parse_expr_inner(query_tokens, defs, [])
+            query_expr, tokens = parse_expr_inner(query_tokens, ParseState(defs, []))
             display_str = query_tokens[1]
         else
             # Name followed by expression name
             display_str = query_tokens[1]
-            query_expr, tokens = parse_expr_inner(query_tokens[2:end], defs, [])
+            query_expr, tokens = parse_expr_inner(query_tokens[2:end], ParseState(defs, []))
         end
     elseif first_paren == 1
         # Starts with parenthesis - single expression
-        query_expr, rest_query_tokens = parse_expr_inner(query_tokens, defs, [])
+        query_expr, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, []))
         @assert length(rest_query_tokens) == 1 "Expected empty rest_query_tokens"
         # Format expression as before
         display_str = detokenize(query_tokens)
     else
         # Name followed by expression
         display_str = query_tokens[1]
-        query_expr, rest_query_tokens = parse_expr_inner(view(query_tokens, 2:length(query_tokens)), defs, [])
+        query_expr, rest_query_tokens = parse_expr_inner(view(query_tokens, 2:length(query_tokens)), ParseState(defs, []))
         @assert length(rest_query_tokens) == 1 "Expected empty rest_query_tokens"
     end
 
@@ -234,7 +234,7 @@ function parse_and_process_define_function(tokens, defs)
     end
 
     # Parse body with updated environment
-    body, tokens = parse_expr_inner(tokens, defs, new_env)
+    body, tokens = parse_expr_inner(tokens, ParseState(defs, new_env))
 
     # @show body
     # Construct lambda expression
@@ -262,7 +262,7 @@ function parse_and_process_define_value(tokens, defs)
     defs[name] = Definition(name, DUMMY_EXPRESSION)
 
     tokens = view(tokens, 2:length(tokens))
-    expr, tokens = parse_expr_inner(tokens, defs, [])
+    expr, tokens = parse_expr_inner(tokens, ParseState(defs, []))
 
     @assert tokens[1] == ")" "Expected closing paren"
 
@@ -305,7 +305,7 @@ function process_toplevel_form(tokens, defs; silent=false)
     token = tokens[1]
     if token != "("
         # Ordinary expression without parentheses
-        expr, rest = parse_expr_inner(tokens, defs, [])
+        expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
         return (:expr, expr), rest
     end
 
@@ -330,7 +330,7 @@ function process_toplevel_form(tokens, defs; silent=false)
         end
     else
         # Regular expression in parentheses
-        expr, rest = parse_expr_inner(tokens, defs, [])
+        expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
         return (:expr, expr), rest
     end
 end

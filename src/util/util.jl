@@ -1,4 +1,4 @@
-export logaddexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path, compile_deterministic
+export logaddexp, logsumexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path, compile_deterministic
 
 using Dates
 using Printf
@@ -16,6 +16,10 @@ function logaddexp(x::Float64, y::Float64)::Float64
     end
 end
 
+function logsumexp(logweights)
+    return reduce(logaddexp, logweights, init=-Inf)
+end
+
 function compile(expr::String, cfg::T) where T
     expr = parse_expr(expr)
     compile(expr, cfg)
@@ -23,7 +27,7 @@ end
 compile(expr::String) = compile(expr, LazyKCConfig())
 compile(expr; kwargs...) = compile(expr, LazyKCConfig(; kwargs...))
 
-function compile_deterministic(expr; kwargs...)::Union{Nothing, Value}
+function compile_deterministic(expr; kwargs...)::Union{Nothing, AbstractValue}
     worlds = compile(expr; full_dist=true, kwargs...)
     length(worlds) == 0 && return nothing
     length(worlds) > 1 && error("Deterministic compilation returned 2+ worlds")
@@ -48,7 +52,7 @@ function normalize_dual(results)
     return [(world, (primal / total_primal, (total_primal*deriv - primal*total_deriv)/(total_primal^2))) for (world, (primal, deriv)) in results]
 end
 
-function get_true_result(results, default=nothing)
+function get_true_result(results, default)
     res = nothing
     for (val, x) in results
         if val == Pluck.TRUE_VALUE || (val isa Bool && val == true)

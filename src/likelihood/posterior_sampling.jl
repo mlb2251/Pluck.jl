@@ -96,17 +96,21 @@ end
 mutable struct SampleValueState
     constraint::Union{BDD, Nothing}
     callstack::Vector{Int}
+    stacktrace::Vector{Union{PExpr, Nothing}}
     trace::Dict{Tuple{Vector{Int}, Float64}, Bool}
     var_of_callstack::Union{Dict{Tuple{Callstack, Float64}, BDD}, Nothing}
     lazy::Bool
+    cache::IdDict{LazyKCThunk, Any}
 
     function SampleValueState(constraint=nothing, callstack=Int[], var_of_callstack=nothing, lazy=false)
         state = new(
             constraint,
             callstack,
+            [],
             Dict{Tuple{Vector{Int}, Float64}, Bool}(),
             var_of_callstack,
-            lazy
+            lazy,
+            IdDict{LazyKCThunk, Any}()
         )
         return state
     end
@@ -137,21 +141,31 @@ function bind_monad(cont::F, val, null, state::SampleValueState) where F <: Func
 end
 
 function evaluate(thunk::LazyKCThunk, null, state::SampleValueState)
-    # no cache for posterior sampling – but we can reuse the cacheless version from lazy KC
-    res = evaluate_no_cache(thunk, null, state)
-    return res
+    # we use a cache in the state instead of thunk because the same thunk gets
+    # used for multiple posterior samples
+    get!(state.cache, thunk) do 
+        evaluate_no_cache(thunk, null, state)
+    end
+    # if isempty(thunk.cache)
+    #     res = evaluate_no_cache(thunk, null, state)
+    #     push!(thunk.cache, res)
+    # end
+    # @assert length(thunk.cache) == 1
+    # return thunk.cache[1]
 end
 
 
 
 function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::SampleValueState)
     p = traced_compile_inner(expr.args[1], env, null, state, 0)
+    (p isa NativeValue) || pluck_error(state, "FlipOp: expected NativeValue, got $(p) :: $(typeof(p)) in $expr")
     p = p.value
     isapprox(p, 0.0) && return Pluck.FALSE_VALUE
     isapprox(p, 1.0) && return Pluck.TRUE_VALUE
 
     callstack_to_check = ([state.callstack..., 1], p)
 
+    # check if we've already set this value
     if haskey(state.trace, callstack_to_check)
         return state.trace[callstack_to_check] ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE
     end
@@ -164,6 +178,7 @@ function compile_inner(expr::PExpr{FlipOp}, env::Env, null::Nothing, state::Samp
     end
 
 
+    # check if the value is constrained by our constraint
     var = state.var_of_callstack[callstack_to_check]
     bdd_is_true(bdd_implies(state.constraint, var)) && return Pluck.TRUE_VALUE
     bdd_is_true(bdd_implies(state.constraint, !var)) && return Pluck.FALSE_VALUE

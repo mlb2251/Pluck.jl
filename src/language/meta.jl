@@ -7,11 +7,11 @@ function pexpr_from_value(x::Value)
         f, x = x.args
         return App()(pexpr_from_value(f), pexpr_from_value(x))
     elseif x.constructor == :Defined
-        return Defined(x.args[1])()
+        return Defined(x.args[1].value)()
     elseif x.constructor == :Var
-        return Var(x.args[1])()
+        return Var(x.args[1].value)()
     elseif x.constructor == :Abs
-        return Abs(x.args[1])()(pexpr_from_value(x.args[2]))
+        return Abs(x.args[1].value)(pexpr_from_value(x.args[2]))
     else
         return Construct(x.constructor)([pexpr_from_value(arg) for arg in x.args]...)
     end

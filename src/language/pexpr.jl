@@ -299,9 +299,6 @@ define_parser!("print", PrintOp, 1)
 struct AbstractTypeOp <: Head end
 define_parser!("abstract_type", AbstractTypeOp, 1)
 
-struct CrashOp <: Head end
-define_parser!("crash", CrashOp, 1)
-
 struct FDivOp <: Head end
 define_parser!("/.", FDivOp, 2)
 
@@ -314,8 +311,18 @@ define_parser!("+.", FAddOp, 2)
 struct FSubOp <: Head end
 define_parser!("-.", FSubOp, 2)
 
+struct IsApproxOp <: Head end
+define_parser!("isapprox", IsApproxOp, 2)
+
 struct ErrorOp <: Head end
 define_parser!("error", ErrorOp, 1)
+
+struct DefineOp <: Head end
+define_parser!("define", DefineOp, 2)
+
+struct PExprFromValueOp <: Head end
+define_parser!("pexpr_from_value", PExprFromValueOp, 1)
+
 
 
 
