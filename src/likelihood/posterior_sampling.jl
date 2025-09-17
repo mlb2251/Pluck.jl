@@ -30,6 +30,7 @@ function posterior_sample(val, state)
             state.var_of_callstack,
             true
         )
+        sample_state.query = query_thunk
     
         # Sample from the query under the evidence constraint
         sampled_value = evaluate(query_thunk, nothing, sample_state)
@@ -97,6 +98,7 @@ mutable struct SampleValueState
     constraint::Union{BDD, Nothing}
     callstack::Vector{Int}
     stacktrace::Vector{Union{PExpr, Nothing}}
+    query
     trace::Dict{Tuple{Vector{Int}, Float64}, Bool}
     var_of_callstack::Union{Dict{Tuple{Callstack, Float64}, BDD}, Nothing}
     lazy::Bool
@@ -107,6 +109,7 @@ mutable struct SampleValueState
             constraint,
             callstack,
             [],
+            nothing,
             Dict{Tuple{Vector{Int}, Float64}, Bool}(),
             var_of_callstack,
             lazy,
@@ -118,9 +121,11 @@ end
 
 function traced_compile_inner(expr, env, null, state::SampleValueState, strict_order_index::Int)
     push!(state.callstack, strict_order_index)
+    push!(state.stacktrace, expr)
     print_enter(expr, env, state)
     result = compile_inner(expr, env, null, state)
     print_exit(expr, result, env, state)
+    pop!(state.stacktrace)
     pop!(state.callstack)
     return result
 end

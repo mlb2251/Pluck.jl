@@ -34,7 +34,7 @@ function pluck_error(state, msg)
     println(msg)
     println("\nDuring execution of $(state.query)\n")
 
-    if state.cfg.stacktrace
+    if !isempty(state.stacktrace)
         print_stacktrace(state)
     else
         println("Run with stacktrace=true to see the full Pluck stacktrace")
