@@ -31,6 +31,8 @@ Base.@kwdef mutable struct LazyKCConfig
     stacktrace::Bool = true
     vector_size::Int = 0
     dual::Bool = false
+    state = nothing
+    path_condition = nothing
 end
 
 set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
@@ -41,7 +43,8 @@ get_time_limit(cfg::LazyKCConfig) = cfg.time_limit
 Top-level compile function for lazy knowledge compilation.
 """
 function compile(expr::PExpr, cfg::LazyKCConfig)
-    state = LazyKCState(cfg)
+    state = cfg.state === nothing ? LazyKCState(cfg) : cfg.state
+    state.cfg = cfg
     state.query = expr
 
     tstart = ttime()
@@ -49,10 +52,13 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     bdd_set_time_limit(state.manager, get_timer(state))
     bdd_start_ite_limit(state.manager, cfg.ite_limit)
 
+    path_condition = isnothing(cfg.path_condition) ? state.manager.BDD_TRUE : cfg.path_condition
+
     try 
-        worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, state.manager.BDD_TRUE, state, 0)
+        worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, path_condition, state, 0)
     catch e
         if e isa StackOverflowError
+            println("StackOverflowError in pluck")
             worlds = []
             state.stats.hit_limit = true
         else
@@ -153,7 +159,7 @@ mutable struct LazyKCState
     var2metaparam::Dict{Int, Int}
     timer::Ttimer
     query::Union{Nothing, PExpr}
-    stacktrace::Vector{Union{PExpr, Nothing}}
+    stacktrace::Vector{PExpr}
 end
 
 struct CompileResult

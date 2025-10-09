@@ -9,15 +9,21 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
-        with_stacktrace(state, f.origin) do
+        res = with_stacktrace(state, f.origin) do
             traced_compile_inner(f.expr, new_env, path_condition, state, 2)
         end
+        for (val, _) in res[1]
+            if val isa Closure
+                val.origin = f.origin
+            end
+        end
+        return res
     end
 end
 
 function compile_inner(expr::PExpr{Abs}, env, path_condition, state)
     # A lambda term deterministically evaluates to a closure.
-    return pure_monad(Closure(expr.args[1], env, expr.head.var, nothing), path_condition, state)
+    return pure_monad(Closure(expr.args[1], env, expr.head.var, expr), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
@@ -47,12 +53,13 @@ end
 function print_stacktrace(state)
     println("Stacktrace:")
     for (i, e) in enumerate(reverse(state.stacktrace))
-        if isnothing(e)
-            println("  [$i] <nothing>")
-            continue
-        end
         ty = typeof(e).parameters[1]
-        println("  [$i] $e :: $ty")
+        if ty == Abs || ty == Defined
+            color = :blue
+        else
+            color = :white
+        end
+        printstyled("  [$i] $e :: $ty\n", color=color)
     end
 end
 
@@ -70,6 +77,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         if isnothing(idx)
             println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
+            pluck_error(state, "Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return program_error_worlds(state)
         end
 
@@ -104,9 +112,15 @@ end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # Execute Defined with a blanked out environment.
-    with_stacktrace(state, expr) do
+    res = with_stacktrace(state, expr) do
         traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
     end
+    for (val, _) in res[1]
+        if val isa Closure
+            val.origin = expr
+        end
+    end
+    return res
 end
 
 

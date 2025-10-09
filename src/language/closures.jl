@@ -4,7 +4,7 @@ mutable struct Closure <: AbstractValue
     expr::Union{PExpr, Thunk}
     env::Env
     name::Symbol
-    origin::Union{PExpr, Nothing} # debug / stacktrace info
+    origin::PExpr # debug / stacktrace info
 end
 
 function Base.:(==)(x::Closure, y::Closure)
