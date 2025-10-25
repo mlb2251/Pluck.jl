@@ -58,7 +58,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
         worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, path_condition, state, 0)
     catch e
         if e isa StackOverflowError
-            println("StackOverflowError in pluck")
+            println("StackOverflowError in pluck when compiling $expr")
             worlds = []
             state.stats.hit_limit = true
         else
@@ -143,6 +143,10 @@ end
 LazyKCStats() = LazyKCStats(nothing, 0, false, 0)
 function Base.:+(a::LazyKCStats, b::LazyKCStats)
     LazyKCStats(a.time + b.time, a.num_forward_calls + b.num_forward_calls, a.hit_limit || b.hit_limit, a.num_recursive_calls + b.num_recursive_calls)
+end
+
+function Base.show(io::IO, stats::LazyKCStats)
+    print(io, "LazyKCStats(time=$(stats.time), num_forward_calls=$(stats.num_forward_calls), hit_limit=$(stats.hit_limit), num_recursive_calls=$(stats.num_recursive_calls))")
 end
 
 mutable struct LazyKCState
