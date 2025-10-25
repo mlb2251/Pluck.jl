@@ -149,6 +149,7 @@ mutable struct LazyKCState
     callstack::Callstack
     var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
     sorted_callstacks::Vector{Tuple{Callstack, Float64}}
+    stacktrace_of_callstack::Dict{Tuple{Callstack, Float64}, Vector{PExpr}}
     sorted_var_labels::Vector{Int}
     manager::RSDD.Manager
     depth::Int
@@ -183,6 +184,7 @@ function LazyKCState(cfg::LazyKCConfig)
         Callstack(),
         Dict{Tuple{Callstack, Float64}, BDD}(),
         Tuple{Callstack, Float64}[],
+        Dict{Tuple{Callstack, Float64}, Vector{PExpr}}(),
         Int[],
         manager,
         0,
@@ -287,6 +289,10 @@ the variable if it doesn't exist yet.
 """
 function current_address(state::LazyKCState, p::Float64)
     if haskey(state.var_of_callstack, (state.callstack, p))
+        # @assert length(state.stacktrace_of_callstack[(state.callstack, p)]) == length(state.stacktrace)
+        # for (e1, e2) in zip(state.stacktrace_of_callstack[(state.callstack, p)], state.stacktrace)
+        #     @assert objectid(e1) == objectid(e2)
+        # end
         return state.var_of_callstack[(state.callstack, p)]
     end
     callstack = copy(state.callstack)
@@ -307,6 +313,7 @@ function current_address(state::LazyKCState, p::Float64)
         insert!(state.sorted_var_labels, i, Int(bdd_topvar(addr)))
     end
     state.var_of_callstack[(callstack, p)] = addr
+    state.stacktrace_of_callstack[(callstack, p)] = copy(state.stacktrace)
     return addr
 end
 

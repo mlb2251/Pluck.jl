@@ -77,7 +77,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         if isnothing(idx)
             println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
-            pluck_error(state, "Scrutinee not in case expression: $(scrutinee) in $(expr)")
+            # pluck_error(state, "Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return program_error_worlds(state)
         end
 
