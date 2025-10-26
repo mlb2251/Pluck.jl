@@ -76,7 +76,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
 
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         if isnothing(idx)
-            println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
+            # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
             # pluck_error(state, "Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return program_error_worlds(state)
         end
@@ -95,7 +95,7 @@ end
 function compile_inner(expr::PExpr{Y}, env, path_condition, state)
     rec_lambda = expr.args[1] :: PExpr{Abs}
     arg_lambda = rec_lambda.args[1] :: PExpr{Abs}
-    closure = make_self_loop(arg_lambda.args[1], env, rec_lambda.head.var, arg_lambda.head.var)
+    closure = make_self_loop(arg_lambda.args[1], env, rec_lambda.head.var, arg_lambda.head.var, expr)
 
     return pure_monad(closure, path_condition, state)
 end

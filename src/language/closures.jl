@@ -36,9 +36,9 @@ function Base.show(io::IO, c::Closure)
     print(io, "]")
 end
 
-function make_self_loop(body, env, recname, nonrecname)
+function make_self_loop(body, env, recname, nonrecname, origin)
     new_env = EnvCons(recname, missing, env)
-    closure = Closure(body, new_env, nonrecname)
+    closure = Closure(body, new_env, nonrecname, origin)
     new_env.val = closure # overwrite the Missing with the closure itself
     closure
 end
