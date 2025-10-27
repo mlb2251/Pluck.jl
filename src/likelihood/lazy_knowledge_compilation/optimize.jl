@@ -17,7 +17,7 @@ function logit_linear_gradient(bdd_ptr::Csize_t, params, weights::WmcParams, var
     wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
     val, grad = wmc_result
     if grad == []
-	grad = zeros(length(params))
+        grad = zeros(length(params))
     end
     logit_grad = grad .* params .* (1.0 .- params)
     return val, logit_grad
@@ -27,7 +27,6 @@ function logit_log_gradient_jacobian_adjustment(bdd_ptr::Csize_t, params, weight
     set_metaparams!(weights, var2param, params)
     wmc_result = RSDD.bdd_wmc_raw(bdd_ptr, weights)
     val, grad = wmc_result
-    println("val: ", val)
     if grad == [] || val == 0.0
         grad = zeros(length(params))
         return -Inf, grad
@@ -89,7 +88,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
 
     for _=1:n_steps
         # get gradients
-	all_true_results = [get_true_result(ret.raw_worlds) for ret in rets]
+	all_true_results = [get_true_result(ret.raw_worlds, nothing) for ret in rets]
 	all_duals = [isnothing(bdd) ? (0.0, zeros(npartials)) : RSDD.bdd_wmc(bdd) for bdd in all_true_results]
         # logsumexp over all expressions, so we're maximizing the product of the likelihoods
         true_dual = expsumlog_dual(all_duals)
