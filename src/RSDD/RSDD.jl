@@ -642,7 +642,7 @@ function bdd_time_limit_exceeded(manager::Manager)
 end
 
 function bdd_ite_limit_exceeded(manager::Manager)
-    manager.hit_ite_limit
+    @ccall librsdd_path.bdd_manager_ite_limit_exceeded(manager.ptr::ManagerPtr)::Bool
 end
 
 function bdd_deep_copy(bdd::BDD)
