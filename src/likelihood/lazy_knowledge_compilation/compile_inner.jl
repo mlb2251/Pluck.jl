@@ -238,6 +238,13 @@ function compile_inner(expr::PExpr{ErrorOp}, env, path_condition, state)
     pluck_error(state, "ErrorOp: $expr")
 end
 
+function compile_inner(expr::PExpr{LookupOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do name, path_condition
+        @assert name isa NativeValue{Symbol} "LookupOp: NativeValue{Symbol} expected, got $(name) :: $(typeof(name)) in $expr"
+        return traced_compile_inner(Pluck.lookup(name.value).expr, env, path_condition, state, 1)
+    end
+end
+
 # function compile_inner(expr::PExpr{DefineOp}, env, path_condition, state)
 
 

@@ -317,6 +317,9 @@ define_parser!("isapprox", IsApproxOp, 2)
 struct ErrorOp <: Head end
 define_parser!("error", ErrorOp, 1)
 
+struct LookupOp <: Head end
+define_parser!("lookup", LookupOp, 1)
+
 struct DefineOp <: Head end
 define_parser!("define", DefineOp, 2)
 

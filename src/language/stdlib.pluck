@@ -333,3 +333,115 @@
   (if (isempty xs) ;; insert Unit if no arguments
     (make-apply-no-unit f [(Unit)])
     (make-apply-no-unit f xs)))
+
+
+
+
+(define-type option
+    (Some value)
+    (None))
+
+(define (Some.x o)
+    (match o
+        Some value => value
+        None => (error 'unwrap-none)))
+
+(define (assoc-set xs k v) (Cons (Pair k v) xs))
+(define (assoc-get xs key)
+    (match xs
+        Nil => (None)
+        Cons entry tail => (if (=? (fst entry) key) (Some (snd entry)) (assoc-get tail key))))
+
+
+(define (is-sym x)
+    (match (abstract_type x)
+        NativeValue ty => (=? ty 'Symbol)
+        Value => (False)
+        Closure => (False)))
+
+(define (is-native-value x)
+    (match (abstract_type x)
+        NativeValue ty => (True)
+        Value => (False)
+        Closure => (False)))
+
+(define (is-value x)
+    (match (abstract_type x)
+        NativeValue ty => (False)
+        Value => (True)
+        Closure => (False)))
+
+(define (is-closure x)
+    (match (abstract_type x)
+        NativeValue ty => (False)
+        Value => (False)
+        Closure => (True)))
+
+(define-type type
+    (Arrow arg_type return_type)
+    (Base sym))
+
+(define (arrow-car t)
+    (match t
+        Arrow arg_type _ => arg_type
+        Base _ => (error 'not-an-arrow)))
+(define (arrow-cdr t)
+    (match t
+        Arrow _ return_type => return_type
+        Base _ => (unreachable)))
+
+
+(define (is-type t)
+    (and (is-value t)
+        (let (c (get_constructor t))
+            (or (=? c 'Arrow)
+                (=? c 'Base)))))
+
+;; + :: ['nat 'nat 'nat]
+;; map :: [['nat 'nat] 'list 'list]
+;; [a b c] and [a [b c]] are parsed to the same thing
+;; edge cases: crashes on empty list, and any singleton list is just the inner base type
+(define (parse-type t)
+    (if (is-sym t)
+        (Base t) ;; symbols are just base types
+        (match t
+            Cons t ts =>
+                (let (head_type (parse-type t))
+                    (if (isempty ts) head_type ;; singleton lists or last elements of lists can be base or arrow however theyre written
+                        (Arrow head_type (parse-type ts))))
+            Nil => (error 'empty-arrow))))
+
+
+(define (type-args t)
+    (match t
+        Base sym => []
+        Arrow argtype rettype => (Cons argtype (type-args rettype))))
+
+(define (type-returns t)
+    (match t
+        Base sym => t
+        Arrow argtype rettype => (type-returns rettype)))
+
+
+(define (in xs x)
+    (any (?= x) xs))
+
+  
+(define (find-first p xs)
+    (match xs
+        Nil => (None)
+        Cons x xs => (if (p x) (Some x) (find-first p xs))))
+
+;; replace element at index with new value
+(define (replace-at-index xs idx new-value)
+  (match xs
+    Nil => (Nil)
+    Cons x xs => 
+      (match idx
+        O => (Cons new-value xs)
+        S n => (Cons x (replace-at-index xs n new-value)))))
+
+;; first index in xs that is greater than x, so inserting x at this index (right before the current element)
+;; would maintain sorted order
+(define (sorted-insert-idx xs x)
+  (find-first (> x) xs))
