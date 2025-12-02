@@ -211,15 +211,6 @@
   (match p
     Pair _ y => y))
 
-;; Conditioning
-(define (given p q)
-  (match p
-    True => q))
-(define-type query
-  (Marginal any)
-  (Posterior any bool)
-  (PosteriorSamples any bool int)
-  (AdaptiveRejection any bool))
 
 ;; Suspendible Boolean
 (define-type suspendible-bool
@@ -227,16 +218,36 @@
   (FinallyFalse)
   (Suspend suspendible-bool))
 
+(define-type suspendible-computation
+  (Return any)
+  (Suspend suspendible-computation))
+
 (define (suspendible-list=? elems=? xs ys)
   (match xs
     Nil => (match ys
-             Nil => (FinallyTrue)
-             Cons y ys => (FinallyFalse))
+             Nil => (Return (True))
+             Cons y ys => (Return (False)))
     Cons x xs => (match ys
-                   Nil => (FinallyFalse)
+                   Nil => (Return (False))
                    Cons y ys => (if (elems=? x y)
                                   (Suspend (suspendible-list=? elems=? xs ys))
-                                  (FinallyFalse)))))
+                                  (Return (False))))))
+
+;; Conditioning
+(define (given p q)
+  (match p
+    True => q))
+(define (given-suspend p q)
+  (match p
+    Suspend x => (Suspend (given-suspend x q))
+    Return x => (given x q)))
+
+(define-type query
+  (Marginal any)
+  (Posterior any bool)
+  (PosteriorSamples any bool int)
+  (SubproblemMonteCarlo int query)
+  (AdaptiveRejection any bool))
 
 ;; Binary integers
 (define-type int1 (Int1 bool))
