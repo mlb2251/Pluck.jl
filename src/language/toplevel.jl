@@ -127,6 +127,32 @@ function process_query(expr::PExpr, query_str::AbstractString=string(expr); sile
 
     @assert RSDD.bdd_is_true(bdd) "Query expression must evaluate to either (Marginal ...), (Posterior ...), or (PosteriorSample ...) with probability 1."
 
+    results = eval_query(val, query_str, state)
+
+    if !silent
+        if val.constructor == :Marginal
+            print_query_results(results, query_str; save = state.cfg.results_file)
+        elseif val.constructor == :Posterior
+            print_query_results(results, query_str; save = state.cfg.results_file)
+        elseif val.constructor == :PosteriorSamples
+            printstyled("$query_str:\n", color=:yellow, bold=true)
+            for (i, result) in enumerate(results)
+                printstyled("  $result\n", bold=true)
+            end
+        elseif val.constructor == :AdaptiveRejection
+            printstyled("$query_str:\n", color=:yellow, bold=true)
+            printstyled("  $results\n", bold=true)
+        else
+            error("printing not supported for query type $(val.constructor)")
+        end
+        println()
+    end
+    return results
+end
+
+
+# Add this helper function to process queries
+function eval_query(val::Value, query_str, state::LazyKCState)
     mode = ExactInference()
 
     if val.constructor == :SubproblemMonteCarlo
@@ -142,34 +168,18 @@ function process_query(expr::PExpr, query_str::AbstractString=string(expr); sile
     end
 
     if val.constructor == :Marginal
-        results = marginal_query(val, state, mode)
-        silent || print_query_results(results, query_str; save = state.cfg.results_file)
+        return marginal_query(val, state, mode)
     elseif val.constructor == :Posterior
-        results = posterior_query(val, state, mode)
-        silent || print_query_results(results, query_str; save = state.cfg.results_file)
+        return posterior_query(val, state, mode)
     elseif val.constructor == :PosteriorSamples
         # Get a single sample from the posterior
         @assert mode isa ExactInference "SubproblemMonteCarlo has not yet been implemented for PosteriorSamples queries."
-        results = posterior_sample(val, state)
-        # Print the sample
-        if !silent
-            printstyled("$query_str:\n", color=:yellow, bold=true)
-            for (i, result) in enumerate(results)
-                printstyled("  $result\n", bold=true)
-            end
-        end
+        return posterior_sample(val, state)
     elseif val.constructor == :AdaptiveRejection
-        results = adaptive_rejection_sampling(val, state)
-        # Print the sample
-        silent || printstyled("$query_str:\n", color=:yellow, bold=true)
-        silent || printstyled("  $results\n", bold=true)
+        return adaptive_rejection_sampling(val, state)
     else
         error("Expected Marginal, Posterior, or PosteriorSample query, got $(val.constructor)")
     end
-
-    silent || println()
-
-    return results
 end
 
 function find_ending_paren(tokens)
