@@ -72,7 +72,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
         #     @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
         # end
 
-        scrutinee isa Value || pluck_error(state, "caseof must be applied to a Value, not: $scrutinee :: $(typeof(scrutinee)) in $expr")
+        scrutinee isa Value || pluck_error(state, "at $expr: scrutinee must a Value not a $(typeof(scrutinee))\nScrutinee: $scrutinee")
 
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         if isnothing(idx)
@@ -134,6 +134,10 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
         # handle dual number mode
         if state.cfg.dual
+            println("p: $p expr: $expr")
+            if p isa Value
+                pluck_error(state, "FlipOp: expected NativeValue, got $(p) :: $(typeof(p)) in $expr")
+            end
             metaparam = p.value isa Int ? p.value : nothing
             p = isnothing(metaparam) ? p.value : 0.5 # default value used in dual mode, can swap out for another later
 
