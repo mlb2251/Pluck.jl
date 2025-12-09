@@ -244,9 +244,6 @@ function eval_form(tokens, defs; silent=false, base_dir=pwd())
     # Peek at what follows the opening paren
     if tokens[2] == "query"
         return parse_and_process_query(tokens, defs; silent=silent, base_dir=base_dir)
-
-    # elseif tokens[2] == "include"
-    #     return parse_and_process_include(tokens, defs; base_dir=base_dir, silent=silent)
     end
     
     # Regular expression in parentheses - wrap in Marginal
