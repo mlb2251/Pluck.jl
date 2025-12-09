@@ -327,6 +327,7 @@ struct LookupOp <: Head end
 define_parser!("lookup", LookupOp, 1)
 
 struct DefineOp <: Head end
+define_parser!("define", DefineOp, 2)
 # DefineOp has special parsing - see parse_expr_inner in parsing.jl
 
 struct DefineTypeOp <: Head end

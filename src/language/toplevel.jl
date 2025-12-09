@@ -274,84 +274,6 @@ function parse_and_process_query(tokens, defs; silent=false)
 
 end
 
-function parse_and_process_define_function(tokens, defs)
-    # Function definition form: (define (fname arg1 arg2) body)
-    # Desugar to: (query fname-def (Marginal (define 'fname (lambda arg1 arg2 -> body))))
-    tokens = view(tokens, 2:length(tokens))
-    fname = Symbol(tokens[1])
-    # Set up dummy binding before parsing the body
-    defs[fname] = Definition(fname, DUMMY_EXPRESSION)
-
-    tokens = view(tokens, 2:length(tokens))
-    # Collect args and parse body as before...
-    args = Symbol[]
-    new_env = []
-    while tokens[1] != ")"
-        arg = Symbol(tokens[1])
-        push!(args, arg)
-        new_env = [tokens[1], new_env...]
-        tokens = view(tokens, 2:length(tokens))
-    end
-    tokens = view(tokens, 2:length(tokens))
-
-    # For zero-argument case, add dummy unit variable
-    if isempty(args)
-        new_env = ["_", new_env...]
-    end
-
-    # Parse body with updated environment
-    body, tokens = parse_expr_inner(tokens, ParseState(defs, new_env))
-
-    # Construct lambda expression
-    expr = body
-    if isempty(args)
-        expr = Abs(Symbol("_"))(expr)
-    else
-        for arg in reverse(args)
-            expr = Abs(arg)(expr)
-        end
-    end
-
-    @assert tokens[1] == ")" "Expected closing paren when defining $fname, instead got: $(tokens[1:min(length(tokens), 10)])"
-
-    # Create the desugared query: (Marginal (define 'fname (lambda ...)))
-    define_call = DefineOp()(ConstNative(fname)(), expr)
-    query_expr = Construct(:Marginal)(define_call)
-
-    # Execute the query to update DEFINITIONS
-    process_query(query_expr, string(fname) * "-def"; silent=true)
-
-    # Update local defs for subsequent parsing in this file
-    defs[fname] = Definition(fname, expr)
-
-    return (:define, fname, expr), view(tokens, 2:length(tokens))
-end
-
-function parse_and_process_define_value(tokens, defs)
-    # Regular (define x e) form
-    # Desugar to: (query x-def (Marginal (define 'x e)))
-    name = Symbol(tokens[1])
-
-    # Set up dummy binding so the expression can reference the name recursively
-    defs[name] = Definition(name, DUMMY_EXPRESSION)
-
-    tokens = view(tokens, 2:length(tokens))
-    expr, tokens = parse_expr_inner(tokens, ParseState(defs, []))
-
-    @assert tokens[1] == ")" "Expected closing paren"
-
-    # Create the desugared query: (Marginal (define 'name expr))
-    define_call = DefineOp()(ConstNative(name)(), expr)
-    query_expr = Construct(:Marginal)(define_call)
-
-    # Execute the query to update DEFINITIONS
-    process_query(query_expr, string(name) * "-def"; silent=true)
-
-    # Update local defs for subsequent parsing in this file
-    defs[name] = Definition(name, expr)
-
-    return (:define, name, expr), view(tokens, 2:length(tokens))
-end
 
 function parse_and_process_define_type(tokens, defs)
     # Parse (define-type name (Constructor1 args...) (Constructor2 args...) ...)
@@ -404,25 +326,13 @@ function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
     elseif tokens[2] == "define-type"
         return parse_and_process_define_type(tokens, defs)
 
-    elseif tokens[2] == "define"
-        # Now consume the paren and "define"
-        tokens = view(tokens, 3:length(tokens))
-
-        # Get the name being defined
-        if tokens[1] == "("
-            return parse_and_process_define_function(tokens, defs)
-
-        else
-            return parse_and_process_define_value(tokens, defs)
-            
-        end
     elseif tokens[2] == "include"
         return parse_and_process_include(tokens, defs; base_dir=base_dir, silent=silent)
     else
         # Regular expression in parentheses - wrap in Marginal
         expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
         query_expr = Construct(:Marginal)(expr)
-        result = process_query(query_expr, "expr-" * string(hash(expr)); silent=silent)
+        result = process_query(query_expr; silent=true)
         return (:expr, expr, result), rest
     end
 end

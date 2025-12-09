@@ -298,6 +298,10 @@ function parse_expr_inner(tokens, state)
                     new_env = ["_", new_env...]
                 end
 
+                # Set up dummy binding so the body can reference the function recursively
+                # new_defs = copy(state.defs)
+                state.defs[fname] = Definition(fname, DUMMY_EXPRESSION)
+
                 # Parse body with updated environment
                 body, tokens = parse_expr_inner(tokens, ParseState(state.defs, new_env))
 
@@ -320,8 +324,12 @@ function parse_expr_inner(tokens, state)
                 name = Symbol(tokens[1])
                 tokens = view(tokens, 2:length(tokens))
 
+                # Set up dummy binding so the expression can reference the name recursively
+                new_defs = copy(state.defs)
+                new_defs[name] = Definition(name, DUMMY_EXPRESSION)
+
                 # Parse expression
-                expr, tokens = parse_expr_inner(tokens, state)
+                expr, tokens = parse_expr_inner(tokens, ParseState(new_defs, state.env))
 
                 @assert tokens[1] == ")" "Expected closing paren in define"
 
