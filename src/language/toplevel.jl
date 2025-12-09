@@ -275,40 +275,6 @@ function parse_and_process_query(tokens, defs; silent=false)
 end
 
 
-# COMMENTED OUT - now using auto-marginal wrapping for define-type
-# function parse_and_process_define_type(tokens, defs)
-#     # Parse (define-type name (Constructor1 args...) (Constructor2 args...) ...)
-#     # Desugar to: (query type-def (Marginal (define-type 'name constructors)))
-#     tokens = view(tokens, 3:length(tokens))
-
-#     # Get the type name
-#     type_name = Symbol(tokens[1])
-#     tokens = view(tokens, 2:length(tokens))
-
-#     # Parse each constructor definition
-#     constructors = Dict{Symbol,Vector{Symbol}}()
-#     while tokens[1] != ")"
-#         # Each constructor is a parenthesized list
-#         end_idx = findfirst(t -> t == ")", tokens)
-#         constructor, args = parse_constructor(tokens[1:end_idx])
-#         constructors[constructor] = args
-#         tokens = view(tokens, end_idx+1:length(tokens))
-#     end
-
-#     # Define the type immediately at parse time so constructors are available to parser
-#     define_type!(type_name, constructors)
-
-#     # Create the desugared query: (Marginal (define-type 'name constructors))
-#     # This will also execute at runtime to update the type definitions
-#     define_type_call = DefineTypeOp()(ConstNative(type_name)(), ConstNative(constructors)())
-#     query_expr = Construct(:Marginal)(define_type_call)
-
-#     # Execute the query to update runtime type definitions
-#     process_query(query_expr, string(type_name) * "-type-def"; silent=true)
-
-#     return (:define_type, type_name, constructors), view(tokens, 2:length(tokens))
-# end
-
 # Modify process_toplevel_form to handle queries
 function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
     if length(tokens) == 0
@@ -324,18 +290,15 @@ function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
     if tokens[2] == "query"
         return parse_and_process_query(tokens, defs; silent=silent)
 
-    # elseif tokens[2] == "define-type"
-    #     return parse_and_process_define_type(tokens, defs)
-
     elseif tokens[2] == "include"
         return parse_and_process_include(tokens, defs; base_dir=base_dir, silent=silent)
-    else
-        # Regular expression in parentheses - wrap in Marginal
-        expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
-        query_expr = Construct(:Marginal)(expr)
-        result = process_query(query_expr; silent=true)
-        return (:expr, expr, result), rest
     end
+    
+    # Regular expression in parentheses - wrap in Marginal
+    expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
+    query_expr = Construct(:Marginal)(expr)
+    result = process_query(query_expr; silent=true)
+    return (:expr, expr, result), rest
 end
 
 # Parse and process a sequence of top-level forms
