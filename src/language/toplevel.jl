@@ -68,6 +68,26 @@ function print_query_results(results, query_str; save = false)
     end
 end
 
+
+function print_query_results_by_type(val, results, query_str; save = nothing)
+    if val.constructor == :Marginal
+        print_query_results(results, query_str; save)
+    elseif val.constructor == :Posterior
+        print_query_results(results, query_str; save)
+    elseif val.constructor == :PosteriorSamples
+        printstyled("$query_str:\n", color=:yellow, bold=true)
+        for (i, result) in enumerate(results)
+            printstyled("  $result\n", bold=true)
+        end
+    elseif val.constructor == :AdaptiveRejection
+        printstyled("$query_str:\n", color=:yellow, bold=true)
+        printstyled("  $results\n", bold=true)
+    else
+        error("printing not supported for query type $(val.constructor)")
+    end
+    println()
+end
+
 function marginal_query(val, state, mode::ExactInference)
     ret, _ = evaluate(val.args[1], state.manager.BDD_TRUE, state)
     full_ret = infer_full_distribution(ret, state)
@@ -130,26 +150,10 @@ function process_query(expr::PExpr, query_str::AbstractString=string(expr); sile
     results = eval_query(val, query_str, state)
 
     if !silent
-        if val.constructor == :Marginal
-            print_query_results(results, query_str; save = state.cfg.results_file)
-        elseif val.constructor == :Posterior
-            print_query_results(results, query_str; save = state.cfg.results_file)
-        elseif val.constructor == :PosteriorSamples
-            printstyled("$query_str:\n", color=:yellow, bold=true)
-            for (i, result) in enumerate(results)
-                printstyled("  $result\n", bold=true)
-            end
-        elseif val.constructor == :AdaptiveRejection
-            printstyled("$query_str:\n", color=:yellow, bold=true)
-            printstyled("  $results\n", bold=true)
-        else
-            error("printing not supported for query type $(val.constructor)")
-        end
-        println()
+        print_query_results_by_type(val, results, query_str; save = state.cfg.results_file)
     end
     return results
 end
-
 
 # Add this helper function to process queries
 function eval_query(val::Value, query_str, state::LazyKCState)
