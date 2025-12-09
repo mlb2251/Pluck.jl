@@ -1,5 +1,13 @@
 export load_pluck_file, parse_toplevel, sample_output, @pluck_str
 
+
+abstract type InferenceMode end
+struct ExactInference <: InferenceMode end
+struct SMCInference <: InferenceMode
+    k::Int
+end
+
+
 """
 pluck"..." is equivalent to parse_toplevel("...")
 """
@@ -62,23 +70,43 @@ function print_query_results(results, query_str; save = false)
     end
 end
 
-function marginal_query(val, state)
+function marginal_query(val, state, mode::ExactInference)
     ret, _ = evaluate(val.args[1], state.manager.BDD_TRUE, state)
     full_ret = infer_full_distribution(ret, state)
     results = [v => RSDD.bdd_wmc(b) for (v, b) in full_ret]
     return results
 end
 
-function posterior_query(val, state)
+function marginal_query(val, state, mode::SMCInference)
+    ret, _ = evaluate(val.args[1], state.manager.BDD_TRUE, state)
+    ret_thunk_union, normalizer = subproblem_monte_carlo(ret, mode.k, state)
+    ret, _ = evaluate(ret_thunk_union, state.manager.BDD_TRUE, state)
+    full_ret = infer_full_distribution(ret, state)
+    results = [v => RSDD.bdd_wmc(b) for (v, b) in full_ret]
+    return results
+end
+
+function posterior_query(val, state, mode::ExactInference)
     env = EnvCons(:a, val.args[1], EnvCons(:b, val.args[2], EnvNil()))
     given_expr = parse_expr("(given b a)"; env=["a", "b"])
-    # App(App(Defined(:given), Var(2, :b)), Var(1, :a))
     # TODO: reconsider strict order index to use?
     ret, _ = traced_compile_inner(given_expr, env, state.manager.BDD_TRUE, state, 0)
     full_ret = infer_full_distribution(ret, state)
     results = normalize([v => RSDD.bdd_wmc(b) for (v, b) in full_ret])
     return results
 end
+
+function posterior_query(val, state, mode::SMCInference)
+    env = EnvCons(:a, val.args[1], EnvCons(:b, val.args[2], EnvNil()))
+    given_expr = parse_expr("(given-suspend b a)"; env=["a", "b"])
+    ret, _ = traced_compile_inner(given_expr, env, state.manager.BDD_TRUE, state, 0)
+    ret_thunk_union, normalizer = subproblem_monte_carlo(ret, mode.k, state)
+    ret, _ = evaluate(ret_thunk_union, state.manager.BDD_TRUE, state)
+    full_ret = infer_full_distribution(ret, state)
+    results = normalize([v => RSDD.bdd_wmc(b) for (v, b) in full_ret])
+    return results
+end
+
 
 function sample_output(expr::String; kwargs...)
     process_query("(PosteriorSamples $expr true 1)"; silent=true, kwargs...)[1]
@@ -101,14 +129,29 @@ function process_query(expr::PExpr, query_str::AbstractString=string(expr); sile
 
     @assert RSDD.bdd_is_true(bdd) "Query expression must evaluate to either (Marginal ...), (Posterior ...), or (PosteriorSample ...) with probability 1."
 
+    mode = ExactInference()
+
+    if val.constructor == :SubproblemMonteCarlo
+        sample_k_state = SampleValueState(nothing, [], nothing, false)
+        k, = from_value(force_value(evaluate(val.args[1], nothing, sample_k_state), nothing, sample_k_state))
+        mode = SMCInference(k)
+
+        ret, used_information = evaluate(val.args[2], state.manager.BDD_TRUE, state)
+        if length(ret) != 1
+            error("SubproblemMonteCarlo must have a second argument that deterministically evaluates to another query, got $(val.args[2]).")
+        end
+        val, bdd = first(ret)
+    end
+
     if val.constructor == :Marginal
-        results = marginal_query(val, state)
+        results = marginal_query(val, state, mode)
         silent || print_query_results(results, query_str; save = state.cfg.results_file)
     elseif val.constructor == :Posterior
-        results = posterior_query(val, state)
+        results = posterior_query(val, state, mode)
         silent || print_query_results(results, query_str; save = state.cfg.results_file)
     elseif val.constructor == :PosteriorSamples
         # Get a single sample from the posterior
+        @assert mode isa ExactInference "SubproblemMonteCarlo has not yet been implemented for PosteriorSamples queries."
         results = posterior_sample(val, state)
         # Print the sample
         if !silent

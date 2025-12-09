@@ -578,8 +578,8 @@ end
 Performs weighted sampling on a BDD.
 Returns: Tuple of (BDD, Float64) representing the sampled BDD and its probability
 """
-function weighted_sample(bdd::BDD, wmc_params::WmcParams)
-    result = @rsdd_timed @ccall librsdd_path.robdd_weighted_sample(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, wmc_params.ptr::Ptr{Cvoid})::WeightedSampleResult
+function weighted_sample(bdd::BDD)
+    result = @rsdd_timed @ccall librsdd_path.robdd_weighted_sample(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, bdd.manager.weights.ptr::Ptr{Cvoid})::WeightedSampleResult
 
     sample_bdd = BDD(bdd.manager, result.sample)
     probability = result.probability
@@ -587,8 +587,8 @@ function weighted_sample(bdd::BDD, wmc_params::WmcParams)
     return (sample_bdd, probability)
 end
 
-function bdd_top_k_paths(bdd::BDD, k::Integer, wmc_params::WmcParams)
-    ptr = @rsdd_timed @ccall librsdd_path.robdd_top_k_paths(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, k::Csize_t, wmc_params.ptr::Ptr{Cvoid})::Csize_t
+function bdd_top_k_paths(bdd::BDD, k::Integer)
+    ptr = @rsdd_timed @ccall librsdd_path.robdd_top_k_paths(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, k::Csize_t, bdd.manager.weights.ptr::Ptr{Cvoid})::Csize_t
     BDD(bdd.manager, ptr)
 end
 

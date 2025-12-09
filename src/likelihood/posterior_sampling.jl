@@ -11,7 +11,7 @@ function posterior_sample(val, state)
         evidence_bdd = nothing
         for (result, bdd) in evidence_results
             if result == Pluck.TRUE_VALUE || (result isa Value && result.constructor == :True)
-                evidence_bdd, _ = RSDD.weighted_sample(bdd, state.manager.weights)
+                evidence_bdd, _ = RSDD.weighted_sample(bdd)
                 break
             end
         end
@@ -50,7 +50,7 @@ function adaptive_rejection_sampling(val, state)
     sample_state = SampleValueState(constraint, [], state.var_of_callstack, true)
     
     while true
-        sampled_constraint, _ = RSDD.weighted_sample(constraint, state.manager.weights)
+        sampled_constraint, _ = RSDD.weighted_sample(constraint)
         sample_state.constraint = sampled_constraint
         sampled_pred = evaluate(val.args[2], nothing, sample_state)
         
@@ -72,7 +72,7 @@ function adaptive_rejection_sampling(val, state)
                 insert!(sorted_callstacks, i, callstack)
                 insert!(sorted_var_labels, i, Int(bdd_topvar(addr)))
                 sample_state.var_of_callstack[callstack] = addr
-                RSDD.wmc_param_f64_set_weight(state.manager.weights, bdd_topvar(addr), 1.0 - callstack[2], callstack[2])
+                RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - callstack[2], callstack[2])
             end
             addr = sample_state.var_of_callstack[callstack]
             if result
