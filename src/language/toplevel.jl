@@ -385,9 +385,7 @@ function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
 
     token = tokens[1]
     if token != "("
-        # Ordinary expression without parentheses
-        expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
-        return (:expr, expr), rest
+        error("Expected opening paren at start of toplevel form, got: $token")
     end
 
     # Peek at what follows the opening paren
@@ -412,9 +410,11 @@ function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
     elseif tokens[2] == "include"
         return parse_and_process_include(tokens, defs; base_dir=base_dir, silent=silent)
     else
-        # Regular expression in parentheses
+        # Regular expression in parentheses - wrap in Marginal
         expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
-        return (:expr, expr), rest
+        query_expr = Construct(:Marginal)(expr)
+        result = process_query(query_expr, "expr-" * string(hash(expr)); silent=silent)
+        return (:expr, expr, result), rest
     end
 end
 

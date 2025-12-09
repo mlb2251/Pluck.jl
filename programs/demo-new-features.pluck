@@ -1,0 +1,27 @@
+;; Demo of new Pluck features:
+;; 1. Toplevel define uses the define builtin
+;; 2. Standalone expressions auto-wrap in Marginal
+
+;; === Regular defines (desugar to builtin) ===
+(define pi 3.14)
+(define (square x) (* x x))
+
+;; === Standalone expressions (auto-wrap in Marginal) ===
+
+;; Deterministic computation
+(+ 2 3)
+
+;; Probabilistic computation - two possible values!
+(if (flip 0.7) 100 200)
+
+;; Using defined values
+(square 5)
+
+;; === Named queries (traditional style) ===
+(query my-query (Marginal (+ 10 20)))
+
+;; === The define builtin can be used for metaprogramming ===
+(query dynamic-define
+  (let ((value (if (flip 0.5) 42 99)))
+    (match (define 'computed value)
+      Unit => (Marginal (lookup 'computed)))))
