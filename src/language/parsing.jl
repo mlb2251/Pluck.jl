@@ -18,6 +18,18 @@ mutable struct ParseState
     ParseState(defs, env, base_dir=pwd()) = new(defs, [env], nothing, base_dir)
 end
 
+# Parse a single constructor definition of form (Constructor arg1 arg2 ...)
+function parse_constructor(tokens)
+    @assert tokens[1] == "(" "Expected opening paren in constructor definition"
+    @assert tokens[end] == ")" "Expected closing paren in constructor definition"
+
+    # Get constructor name and args (if any)
+    constructor = Symbol(tokens[2])
+    args = Symbol[Symbol(arg) for arg in tokens[3:end-1]]
+
+    constructor => args
+end
+
 
 function parse_expr(s::String; defs=DEFINITIONS, env=[])
     tokens = tokenize(s)
@@ -552,4 +564,25 @@ function parse_error(state, msg, tokens)
     println("Env: ", state.env_stack[1])
     println("Query: ", state.query)
     throw(ErrorException("Pluck Parse Error"))
+end
+
+function detokenize(tokens)
+    result_str = ""
+    for (i, token) in enumerate(tokens)
+        if token == "(" || token == ")"
+            result_str *= token
+            if token == ")" && i < length(tokens) && tokens[i+1] == "("
+                result_str *= " "
+            end
+        else
+            if i > 1 && tokens[i-1] != "("
+                result_str *= " "
+            end
+            result_str *= token
+            if i < length(tokens) && tokens[i+1] != ")"
+                result_str *= " "
+            end
+        end
+    end
+    return result_str
 end

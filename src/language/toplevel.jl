@@ -1,4 +1,4 @@
-export load_pluck_file, parse_toplevel, sample_output, @pluck_str
+export load_pluck_file, eval_forms, sample_output, @pluck_str
 
 
 abstract type InferenceMode end
@@ -7,38 +7,13 @@ struct SMCInference <: InferenceMode
     k::Int
 end
 
-# COMMENTED OUT - now using auto-marginal wrapping for include
-# function parse_and_process_include(tokens, defs; base_dir=pwd(), silent=false)
-#     @assert tokens[2] == "include"
-#     tokens = view(tokens, 3:length(tokens))
-#     path_token = tokens[1]
-#     @assert startswith(path_token, "\"") && endswith(path_token, "\"") "include expects a string literal path"
-#     rel_path = path_token[2:end-1]
-#     full_path = isabspath(rel_path) ? rel_path : joinpath(base_dir, rel_path)
-#     load_pluck_file(full_path)
-#     @assert tokens[2] == ")" "expected closing paren in include"
-#     return (:include, full_path), view(tokens, 3:length(tokens))
-# end
-
 """
-pluck"..." is equivalent to parse_toplevel("...")
+pluck"..." is equivalent to eval_forms("...")
 """
 macro pluck_str(str)
     # Handle string interpolation
     # interpolated_str = Meta.parse("\"$str\"")
-    :(parse_toplevel($(esc(str))))
-end
-
-# Parse a single constructor definition of form (Constructor arg1 arg2 ...)
-function parse_constructor(tokens)
-    @assert tokens[1] == "(" "Expected opening paren in constructor definition"
-    @assert tokens[end] == ")" "Expected closing paren in constructor definition"
-
-    # Get constructor name and args (if any)
-    constructor = Symbol(tokens[2])
-    args = Symbol[Symbol(arg) for arg in tokens[3:end-1]]
-
-    constructor => args
+    :(eval_forms($(esc(str))))
 end
 
 function print_query_results(results, query_str; save = false)
@@ -211,27 +186,6 @@ function find_ending_paren(tokens)
     return end_idx-1
 end
 
-function detokenize(tokens)
-    result_str = ""
-    for (i, token) in enumerate(tokens)
-        if token == "(" || token == ")"
-            result_str *= token
-            if token == ")" && i < length(tokens) && tokens[i+1] == "("
-                result_str *= " "
-            end
-        else
-            if i > 1 && tokens[i-1] != "("
-                result_str *= " "
-            end
-            result_str *= token
-            if i < length(tokens) && tokens[i+1] != ")"
-                result_str *= " "
-            end
-        end
-    end
-    return result_str
-end
-
 function parse_and_process_query(tokens, defs; silent=false, base_dir=pwd())
     # Skip past "(" and "query"
     tokens = view(tokens, 3:length(tokens))
@@ -276,8 +230,8 @@ function parse_and_process_query(tokens, defs; silent=false, base_dir=pwd())
 end
 
 
-# Modify process_toplevel_form to handle queries
-function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
+# Modify eval_form to handle queries
+function eval_form(tokens, defs; silent=false, base_dir=pwd())
     if length(tokens) == 0
         error("unexpected end of input")
     end
@@ -303,20 +257,16 @@ function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
 end
 
 # Parse and process a sequence of top-level forms
-function parse_toplevel(s::String, defs=DEFINITIONS; silent=false, base_dir=pwd())
+function eval_forms(s::String, defs=DEFINITIONS; silent=false, base_dir=pwd())
     tokens = tokenize(s)
-    forms = []
-
     while !isempty(tokens)
-        form, tokens = process_toplevel_form(tokens, defs; silent=silent, base_dir=base_dir)
-        push!(forms, form)
+        _, tokens = eval_form(tokens, defs; silent=silent, base_dir=base_dir)
     end
-
-    forms
+    nothing
 end
 
 # Load and process definitions from a file
 function load_pluck_file(filename::String)
     content = read(filename, String)
-    parse_toplevel(content; base_dir=dirname(abspath(filename)))
+    eval_forms(content; base_dir=dirname(abspath(filename)))
 end
