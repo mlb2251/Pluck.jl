@@ -275,7 +275,8 @@ function parse_and_process_query(tokens, defs; silent=false)
 end
 
 function parse_and_process_define_function(tokens, defs)
-    # Function definition form
+    # Function definition form: (define (fname arg1 arg2) body)
+    # Desugar to: (query fname-def (Marginal (define 'fname (lambda arg1 arg2 -> body))))
     tokens = view(tokens, 2:length(tokens))
     fname = Symbol(tokens[1])
     # Set up dummy binding before parsing the body
@@ -301,7 +302,6 @@ function parse_and_process_define_function(tokens, defs)
     # Parse body with updated environment
     body, tokens = parse_expr_inner(tokens, ParseState(defs, new_env))
 
-    # @show body
     # Construct lambda expression
     expr = body
     if isempty(args)
@@ -314,7 +314,14 @@ function parse_and_process_define_function(tokens, defs)
 
     @assert tokens[1] == ")" "Expected closing paren when defining $fname, instead got: $(tokens[1:min(length(tokens), 10)])"
 
-    # Update the definition with the actual expression
+    # Create the desugared query: (Marginal (define 'fname (lambda ...)))
+    define_call = DefineOp()(ConstNative(fname)(), expr)
+    query_expr = Construct(:Marginal)(define_call)
+
+    # Execute the query to update DEFINITIONS
+    process_query(query_expr, string(fname) * "-def"; silent=true)
+
+    # Update local defs for subsequent parsing in this file
     defs[fname] = Definition(fname, expr)
 
     return (:define, fname, expr), view(tokens, 2:length(tokens))
@@ -322,8 +329,10 @@ end
 
 function parse_and_process_define_value(tokens, defs)
     # Regular (define x e) form
+    # Desugar to: (query x-def (Marginal (define 'x e)))
     name = Symbol(tokens[1])
-    # Set up dummy binding
+
+    # Set up dummy binding so the expression can reference the name recursively
     defs[name] = Definition(name, DUMMY_EXPRESSION)
 
     tokens = view(tokens, 2:length(tokens))
@@ -331,7 +340,14 @@ function parse_and_process_define_value(tokens, defs)
 
     @assert tokens[1] == ")" "Expected closing paren"
 
-    # Update with actual expression
+    # Create the desugared query: (Marginal (define 'name expr))
+    define_call = DefineOp()(ConstNative(name)(), expr)
+    query_expr = Construct(:Marginal)(define_call)
+
+    # Execute the query to update DEFINITIONS
+    process_query(query_expr, string(name) * "-def"; silent=true)
+
+    # Update local defs for subsequent parsing in this file
     defs[name] = Definition(name, expr)
 
     return (:define, name, expr), view(tokens, 2:length(tokens))

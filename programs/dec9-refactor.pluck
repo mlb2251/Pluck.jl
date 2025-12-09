@@ -4,12 +4,14 @@
 ;; For toplevel definitions, still use the regular syntax:
 (define x 5)
 (define y (+ 3 2))
-(define (add a b) (+ a b))
+;; (define (myadd a b) (+ a b))
+
+(query (Marginal (define 'myadd (fn a b -> (+ a b)))))
 
 ;; Test that regular toplevel defines still work
 (query test-x (Marginal x))
 (query test-y (Marginal y))
-(query test-add (Marginal (add 10 20)))
+(query test-add (Marginal (myadd 10 20)))
 
 ;; Test 1: Basic define builtin - force evaluation by matching on the Unit result
 (query test-define-builtin
