@@ -193,21 +193,10 @@ function parse_and_process_query(tokens, defs; silent=false, base_dir=pwd())
     # Skip past "query"
     @assert tokens[1] == "query" "Expected query keyword"
     query_tokens = view(tokens, 2:end_idx)
-    
+
     # Count tokens before first parenthesis
     first_paren = findfirst(t -> t == "(", query_tokens)
-    if isnothing(first_paren)
-        # No parentheses - must be one or two names
-        if length(query_tokens) == 1
-            # Single name case
-            query_expr, tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
-            display_str = query_tokens[1]
-        else
-            # Name followed by expression name
-            display_str = query_tokens[1]
-            query_expr, tokens = parse_expr_inner(query_tokens[2:end], ParseState(defs, [], base_dir))
-        end
-    elseif first_paren == 1
+    if first_paren == 1
         # Starts with parenthesis - single expression
         query_expr, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
         @assert length(rest_query_tokens) == 1 "Expected empty rest_query_tokens, got $(rest_query_tokens)"
