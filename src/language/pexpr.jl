@@ -329,6 +329,9 @@ define_parser!("lookup", LookupOp, 1)
 struct DefineOp <: Head end
 define_parser!("define", DefineOp, 2)
 
+struct DefineTypeOp <: Head end
+define_parser!("define-type", DefineTypeOp, 2)
+
 struct PExprFromValueOp <: Head end
 define_parser!("pexpr_from_value", PExprFromValueOp, 1)
 

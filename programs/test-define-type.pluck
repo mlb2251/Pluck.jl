@@ -1,0 +1,20 @@
+;; Test define-type builtin
+
+;; Define a simple type
+(define-type color
+  (Red)
+  (Green)
+  (Blue))
+
+;; Test using the type
+(query test-color
+  (Marginal (Red)))
+
+;; Define a type with arguments
+(define-type maybe
+  (Nothing)
+  (Just value))
+
+;; Test using the parameterized type
+(query test-maybe
+  (Marginal (Just 42)))

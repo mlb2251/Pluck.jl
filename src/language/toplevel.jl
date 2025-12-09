@@ -355,6 +355,7 @@ end
 
 function parse_and_process_define_type(tokens, defs)
     # Parse (define-type name (Constructor1 args...) (Constructor2 args...) ...)
+    # Desugar to: (query type-def (Marginal (define-type 'name constructors)))
     tokens = view(tokens, 3:length(tokens))
 
     # Get the type name
@@ -371,10 +372,18 @@ function parse_and_process_define_type(tokens, defs)
         tokens = view(tokens, end_idx+1:length(tokens))
     end
 
-    # Define the type
-    spt = define_type!(type_name, constructors)
+    # Define the type immediately at parse time so constructors are available to parser
+    define_type!(type_name, constructors)
 
-    return (:define_type, spt), view(tokens, 2:length(tokens))
+    # Create the desugared query: (Marginal (define-type 'name constructors))
+    # This will also execute at runtime to update the type definitions
+    define_type_call = DefineTypeOp()(ConstNative(type_name)(), ConstNative(constructors)())
+    query_expr = Construct(:Marginal)(define_type_call)
+
+    # Execute the query to update runtime type definitions
+    process_query(query_expr, string(type_name) * "-type-def"; silent=true)
+
+    return (:define_type, type_name, constructors), view(tokens, 2:length(tokens))
 end
 
 # Modify process_toplevel_form to handle queries

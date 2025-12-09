@@ -1,0 +1,26 @@
+;; Test that define-type now works as a builtin
+;; The toplevel form desugars to using the builtin
+
+;; Define types using toplevel syntax (which desugars to the builtin)
+(define-type color
+  (Red)
+  (Green)
+  (Blue))
+
+(define-type maybe
+  (Nothing)
+  (Just value))
+
+;; Test using the types
+(query test-colors
+  (Marginal (if (flip 0.33)
+              (Red)
+              (if (flip 0.5)
+                (Green)
+                (Blue)))))
+
+(query test-maybe-nothing
+  (Marginal (Nothing)))
+
+(query test-maybe-just
+  (Marginal (Just 42)))

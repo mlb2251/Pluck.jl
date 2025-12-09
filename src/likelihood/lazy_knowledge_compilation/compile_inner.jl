@@ -259,6 +259,21 @@ function compile_inner(expr::PExpr{DefineOp}, env, path_condition, state)
     end
 end
 
+function compile_inner(expr::PExpr{DefineTypeOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do type_name_val, path_condition
+        @assert type_name_val isa NativeValue{Symbol} "DefineTypeOp: expected NativeValue{Symbol} for type name, got $(type_name_val) :: $(typeof(type_name_val))"
+
+        bind_compile(expr.args[2], env, path_condition, state, 0) do constructors_val, path_condition
+            @assert constructors_val isa NativeValue{Dict{Symbol,Vector{Symbol}}} "DefineTypeOp: expected NativeValue{Dict{Symbol,Vector{Symbol}}} for constructors, got $(constructors_val) :: $(typeof(constructors_val))"
+
+            # Define the type
+            Pluck.define_type!(type_name_val.value, constructors_val.value)
+
+            return pure_monad(Value(:Unit), path_condition, state)
+        end
+    end
+end
+
 
 
 

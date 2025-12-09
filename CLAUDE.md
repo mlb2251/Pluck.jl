@@ -7,10 +7,10 @@ To get up to speed, do the following:
 
 ---
 
-## Recent Development: Define Builtin and Auto-Marginal Wrapping (Dec 9, 2024)
+## Recent Development: Toplevel Forms as Builtins + Auto-Marginal Wrapping (Dec 9, 2024)
 
 ### Overview
-Converted the `define` toplevel form into a Pluck builtin with side-effecting semantics, making it usable inside expressions (e.g., conditional defines). Also added auto-wrapping of standalone expressions as Marginal queries for a more interactive REPL-like experience.
+Converted the `define` and `define-type` toplevel forms into Pluck builtins with side-effecting semantics. This makes `define` usable inside expressions (e.g., conditional defines). Also added auto-wrapping of standalone parenthesized expressions as Marginal queries for a more interactive REPL-like experience.
 
 ### Key Changes
 
@@ -53,7 +53,42 @@ process_query(query_expr, string(name) * "-def"; silent=true)
 
 This provides a unified implementation - single code path for both toplevel and builtin defines.
 
-#### 3. Auto-Marginal Wrapping
+#### 3. Define-Type Builtin Implementation
+**Files**:
+- `src/language/pexpr.jl` (lines 332-333): DefineTypeOp head definition
+- `src/likelihood/lazy_knowledge_compilation/compile_inner.jl` (lines 262-275): Builtin implementation
+- `src/language/toplevel.jl` (lines 356-387): Toplevel desugaring
+
+The `define-type` builtin modifies the global type definition dictionaries at compile/runtime:
+
+```julia
+function compile_inner(expr::PExpr{DefineTypeOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do type_name_val, path_condition
+        bind_compile(expr.args[2], env, path_condition, state, 0) do constructors_val, path_condition
+            # Define the type
+            Pluck.define_type!(type_name_val.value, constructors_val.value)
+            return pure_monad(Value(:Unit), path_condition, state)
+        end
+    end
+end
+```
+
+**Toplevel define-type desugaring (lines 375-386)**:
+```julia
+# Define the type immediately at parse time so constructors are available to parser
+define_type!(type_name, constructors)
+
+# Create the desugared query: (Marginal (define-type 'name constructors))
+define_type_call = DefineTypeOp()(ConstNative(type_name)(), ConstNative(constructors)())
+query_expr = Construct(:Marginal)(define_type_call)
+
+# Execute the query to update runtime type definitions
+process_query(query_expr, string(type_name) * "-type-def"; silent=true)
+```
+
+**Important**: Type definitions happen at both parse time (so constructors are available to the parser) and runtime (via the builtin query execution).
+
+#### 4. Auto-Marginal Wrapping
 **File**: `src/language/toplevel.jl` (lines 387-421)
 
 Any standalone parenthesized expression at toplevel automatically executes as a Marginal query:
@@ -118,19 +153,29 @@ end
 
 3. **Toplevel vs Builtin**: Toplevel `(define x 5)` updates parser state immediately. Builtin `(define 'x 5)` only updates runtime DEFINITIONS.
 
+4. **Define-Type at Parse and Runtime**: `define-type` executes at both parse time (to make constructors available to the parser) and runtime (via the builtin). This dual execution ensures constructors work correctly in all contexts.
+
 ### Test Files
 
+**Define builtin tests:**
 - `programs/dec9-refactor.pluck` - Comprehensive tests for define builtin
-- `programs/test-auto-marginal.pluck` - Tests for auto-wrapping feature
-- `programs/demo-new-features.pluck` - Demo of all new features
+- `programs/demo-new-features.pluck` - Demo of define and auto-wrapping features
 
-All existing programs (simple_example.pluck, fig2.pluck, etc.) continue to work unchanged.
+**Define-type builtin tests:**
+- `programs/test-define-type.pluck` - Simple define-type tests
+- `programs/test-define-type-builtin.pluck` - Tests showing desugaring to builtin
+
+**Auto-marginal tests:**
+- `programs/test-auto-marginal.pluck` - Tests for auto-wrapping feature
+
+All existing programs (simple_example.pluck, fig1.pluck, fig2.pluck, etc.) continue to work unchanged.
 
 ### Future Work (Not Yet Implemented)
 
 The original plan included converting other toplevel forms to builtins:
-- `define-type` - Type definitions
+- ✅ `define` - Value and function definitions (completed)
+- ✅ `define-type` - Type definitions (completed)
 - `query` - Named queries
 - `include` - File inclusion
 
-These were explicitly deferred ("lets just do define first") and await future implementation.
+The remaining forms (`query` and `include`) await future implementation if needed.
