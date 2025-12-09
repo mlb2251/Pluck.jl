@@ -14,7 +14,8 @@ mutable struct ParseState
     defs
     env_stack
     query
-    ParseState(defs, env) = new(defs, [env], nothing)
+    base_dir
+    ParseState(defs, env, base_dir=pwd()) = new(defs, [env], nothing, base_dir)
 end
 
 
@@ -272,6 +273,26 @@ function parse_expr_inner(tokens, state)
                 error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(detokenize(tokens))")
             end
             return Construct(constructor)(args...), view(tokens, 2:length(tokens))
+        elseif token == "include"
+            # Special parsing for include: (include "path/to/file.pluck")
+            tokens = view(tokens, 2:length(tokens))
+            
+            path_token = tokens[1]
+            @assert startswith(path_token, "\"") && endswith(path_token, "\"") "include expects a string literal path"
+            rel_path = path_token[2:end-1]
+            
+            # Resolve relative paths using the base directory of the current file
+            full_path = isabspath(rel_path) ? rel_path : joinpath(state.base_dir, rel_path)
+            
+            # Load the file immediately so definitions are available to the parser
+            load_pluck_file(full_path)
+            
+            tokens = view(tokens, 2:length(tokens))
+            @assert tokens[1] == ")" "Expected closing paren in include"
+            
+            # Return IncludeOp with path as ConstNative
+            return IncludeOp()(ConstNative(full_path)()), view(tokens, 2:length(tokens))
+            
         elseif token == "define-type"
             # Special parsing for define-type: (define-type name (Constructor1 args...) ...)
             tokens = view(tokens, 2:length(tokens))

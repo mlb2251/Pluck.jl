@@ -7,17 +7,18 @@ struct SMCInference <: InferenceMode
     k::Int
 end
 
-function parse_and_process_include(tokens, defs; base_dir=pwd(), silent=false)
-    @assert tokens[2] == "include"
-    tokens = view(tokens, 3:length(tokens))
-    path_token = tokens[1]
-    @assert startswith(path_token, "\"") && endswith(path_token, "\"") "include expects a string literal path"
-    rel_path = path_token[2:end-1]
-    full_path = isabspath(rel_path) ? rel_path : joinpath(base_dir, rel_path)
-    load_pluck_file(full_path)
-    @assert tokens[2] == ")" "expected closing paren in include"
-    return (:include, full_path), view(tokens, 3:length(tokens))
-end
+# COMMENTED OUT - now using auto-marginal wrapping for include
+# function parse_and_process_include(tokens, defs; base_dir=pwd(), silent=false)
+#     @assert tokens[2] == "include"
+#     tokens = view(tokens, 3:length(tokens))
+#     path_token = tokens[1]
+#     @assert startswith(path_token, "\"") && endswith(path_token, "\"") "include expects a string literal path"
+#     rel_path = path_token[2:end-1]
+#     full_path = isabspath(rel_path) ? rel_path : joinpath(base_dir, rel_path)
+#     load_pluck_file(full_path)
+#     @assert tokens[2] == ")" "expected closing paren in include"
+#     return (:include, full_path), view(tokens, 3:length(tokens))
+# end
 
 """
 pluck"..." is equivalent to parse_toplevel("...")
@@ -231,7 +232,7 @@ function detokenize(tokens)
     return result_str
 end
 
-function parse_and_process_query(tokens, defs; silent=false)
+function parse_and_process_query(tokens, defs; silent=false, base_dir=pwd())
     # Skip past "(" and "query"
     tokens = view(tokens, 3:length(tokens))
     
@@ -245,23 +246,23 @@ function parse_and_process_query(tokens, defs; silent=false)
         # No parentheses - must be one or two names
         if length(query_tokens) == 1
             # Single name case
-            query_expr, tokens = parse_expr_inner(query_tokens, ParseState(defs, []))
+            query_expr, tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
             display_str = query_tokens[1]
         else
             # Name followed by expression name
             display_str = query_tokens[1]
-            query_expr, tokens = parse_expr_inner(query_tokens[2:end], ParseState(defs, []))
+            query_expr, tokens = parse_expr_inner(query_tokens[2:end], ParseState(defs, [], base_dir))
         end
     elseif first_paren == 1
         # Starts with parenthesis - single expression
-        query_expr, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, []))
+        query_expr, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
         @assert length(rest_query_tokens) == 1 "Expected empty rest_query_tokens"
         # Format expression as before
         display_str = detokenize(query_tokens)
     else
         # Name followed by expression
         display_str = query_tokens[1]
-        query_expr, rest_query_tokens = parse_expr_inner(view(query_tokens, 2:length(query_tokens)), ParseState(defs, []))
+        query_expr, rest_query_tokens = parse_expr_inner(view(query_tokens, 2:length(query_tokens)), ParseState(defs, [], base_dir))
         @assert length(rest_query_tokens) == 1 "Expected empty rest_query_tokens"
     end
 
@@ -288,14 +289,14 @@ function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
 
     # Peek at what follows the opening paren
     if tokens[2] == "query"
-        return parse_and_process_query(tokens, defs; silent=silent)
+        return parse_and_process_query(tokens, defs; silent=silent, base_dir=base_dir)
 
-    elseif tokens[2] == "include"
-        return parse_and_process_include(tokens, defs; base_dir=base_dir, silent=silent)
+    # elseif tokens[2] == "include"
+    #     return parse_and_process_include(tokens, defs; base_dir=base_dir, silent=silent)
     end
     
     # Regular expression in parentheses - wrap in Marginal
-    expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
+    expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
     query_expr = Construct(:Marginal)(expr)
     result = process_query(query_expr; silent=true)
     return (:expr, expr, result), rest

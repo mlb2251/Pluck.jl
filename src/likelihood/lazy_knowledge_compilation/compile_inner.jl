@@ -274,6 +274,16 @@ function compile_inner(expr::PExpr{DefineTypeOp}, env, path_condition, state)
     end
 end
 
+function compile_inner(expr::PExpr{IncludeOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do path_val, path_condition
+        @assert path_val isa NativeValue{String} "IncludeOp: expected NativeValue{String} for path, got $(path_val) :: $(typeof(path_val))"
+
+        # The file was already loaded at parse time, so this just returns Unit
+        # This ensures the include has the correct runtime semantics
+        return pure_monad(Value(:Unit), path_condition, state)
+    end
+end
+
 
 
 
