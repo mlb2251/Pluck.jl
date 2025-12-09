@@ -187,12 +187,12 @@ function find_ending_paren(tokens)
 end
 
 function parse_and_process_query(tokens, defs; silent=false, base_dir=pwd())
-    # Skip past "(" and "query"
-    tokens = view(tokens, 3:length(tokens))
-    
-    # Find the end of the query form
+    @assert tokens[1] == "(" "Expected opening paren at start of query"
+    tokens = view(tokens, 2:length(tokens))
     end_idx = find_ending_paren(tokens)
-    query_tokens = tokens[1:end_idx]
+    # Skip past "query"
+    @assert tokens[1] == "query" "Expected query keyword"
+    query_tokens = view(tokens, 2:end_idx)
     
     # Count tokens before first parenthesis
     first_paren = findfirst(t -> t == "(", query_tokens)
@@ -210,7 +210,7 @@ function parse_and_process_query(tokens, defs; silent=false, base_dir=pwd())
     elseif first_paren == 1
         # Starts with parenthesis - single expression
         query_expr, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
-        @assert length(rest_query_tokens) == 1 "Expected empty rest_query_tokens"
+        @assert length(rest_query_tokens) == 1 "Expected empty rest_query_tokens, got $(rest_query_tokens)"
         # Format expression as before
         display_str = detokenize(query_tokens)
     else
