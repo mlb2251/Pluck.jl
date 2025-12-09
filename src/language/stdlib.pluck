@@ -37,6 +37,7 @@
              O => (False)
              S k => (iseven k))))
 
+(define (isodd n) (not (iseven n)))
 
 (define (== x y)
   (match x
