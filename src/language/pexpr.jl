@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, UniformIntOp, UniformIntRangeOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
 
 import DataStructures: OrderedDict
 
@@ -289,6 +289,12 @@ define_parser!("get_config", GetConfig, 0)
 
 struct MkIntOp <: Head end
 define_parser!("mk_int", MkIntOp, 2)
+
+struct UniformIntOp <: Head end
+define_parser!("uniform_int", UniformIntOp, 1)
+
+struct UniformIntRangeOp <: Head end
+define_parser!("uniform_int_range", UniformIntRangeOp, 3)
 
 struct IntDistEqOp <: Head end
 define_parser!("int_dist_eq", IntDistEqOp, 2)

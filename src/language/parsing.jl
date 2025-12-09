@@ -32,36 +32,56 @@ function tokenize(s)
     lines = split(s, '\n')
     processed_lines = String[]
     for line in lines
-        # Find comment start if it exists
         comment_start = findfirst(";;", line)
         if isnothing(comment_start)
             push!(processed_lines, line)
         else
-            # Keep only the part before the comment
             push!(processed_lines, line[1:comment_start.start-1])
         end
     end
-    s = join(processed_lines, " ")
+    s = join(processed_lines, "\n")
 
-    # Now process the comment-free string as before
-    s = replace(
-        s,
-        r"\(" => " ( ",
-        r"\)" => " ) ",
-        "{" => " { ",
-        "}" => " } ",
-        "->" => " -> ",
-        "λ" => " λ ",
-        "," => " , ",
-        "~" => " ~ ",
-        "`" => " ` ",
-        "[" => " [ ",
-        "]" => " ] ",
-    )
-    # Remove all extraneous whitespace
-    s = replace(s, r"\s+" => " ")
-    # Split on spaces
-    return split(strip(s))
+    tokens = String[]
+    i = firstindex(s)
+    while i <= lastindex(s)
+        c = s[i]
+        if isspace(c)
+            i = nextind(s, i)
+            continue
+        elseif c == '"'
+            start = i
+            i = nextind(s, i)
+            while i <= lastindex(s) && s[i] != '"'
+                i = nextind(s, i)
+            end
+            i <= lastindex(s) || error("unterminated string literal")
+            token = s[start:i]
+            push!(tokens, token)
+            i = nextind(s, i)
+            continue
+        elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
+            push!(tokens, "->")
+            i = nextind(s, nextind(s, i))
+            continue
+        elseif c in ('(', ')', '{', '}', '[', ']', ',', '~', '`')
+            push!(tokens, string(c))
+            i = nextind(s, i)
+            continue
+        else
+            start = i
+            while i <= lastindex(s)
+                c = s[i]
+                if isspace(c) || c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', '"')
+                    break
+                elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
+                    break
+                end
+                i = nextind(s, i)
+            end
+            push!(tokens, s[start:prevind(s, i)])
+        end
+    end
+    return tokens
 end
 
 function parse_expr_inner(tokens, defs, env)
@@ -260,7 +280,7 @@ function parse_expr_inner(tokens, defs, env)
                 
                 # Parse the probability (must be a literal number)
                 prob_str = tokens[1]
-                @assert all(c -> isdigit(c) || c == '.', prob_str) "Probability must be a literal number in discrete distribution"
+                @assert all(c -> isdigit(c) || c == '.' || c =='e' || c == '-', prob_str) "Probability must be a literal number in discrete distribution, got $prob_str"
                 prob = parse(Float64, prob_str)
                 push!(probabilities, prob)
                 
@@ -317,6 +337,28 @@ function parse_expr_inner(tokens, defs, env)
         # parse a symbol
         sym = Symbol(token[2:end])
         return ConstNative(sym)(), view(tokens, 2:length(tokens))
+    elseif startswith(token, "0c") && length(token) == 3
+        # byte literal: 0cX for a single ASCII byte X
+        inner = token[3]
+        @assert ncodeunits(string(inner)) == 1 "byte literal must be exactly one byte, got \"$inner\""
+        byte = Int(codeunit(string(inner), 1))
+        bitwidth = ConstNative(8)()
+        val = ConstNative(byte)()
+        return MkIntOp()(bitwidth, val), view(tokens, 2:length(tokens))
+    elseif startswith(token, "\"") && endswith(token, "\"")
+        # string literal -> list of 8-bit ints
+        # Use proper character indexing for UTF-8 safety
+        start_idx = nextind(token, firstindex(token))
+        end_idx = prevind(token, lastindex(token))
+        inner = token[start_idx:end_idx]
+        bytes = collect(codeunits(inner))
+        expr = Construct(:Nil)()
+        for b in reverse(bytes)
+            bitwidth = ConstNative(8)()
+            val = ConstNative(Int(b))()
+            expr = Construct(:Cons)(MkIntOp()(bitwidth, val), expr)
+        end
+        return expr, view(tokens, 2:length(tokens))
     elseif token == "["
         # parse a list: parse expressions until ]
         tokens = view(tokens, 2:length(tokens))

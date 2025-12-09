@@ -207,12 +207,86 @@ end
 
 
 function bdd_prim_forward(expr::PExpr{MkIntOp}, env::Env, state::BDDStrictEvalState)
-    bitwidth = expr.args[1]::ConstNative
-    val = expr.args[2]::ConstNative
-    bools = digits(Bool, val.value, base = 2, pad = bitwidth.value)
-    bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
+    bitwidth = traced_bdd_forward(expr.args[1], env, state)
+    return bdd_bind(bitwidth, state) do bw, guard1
+        val = traced_bdd_forward(expr.args[2], env, state)
+        return bdd_bind(val, state) do v, guard2
+            bools = digits(Bool, v.value, base = 2, pad = bw.value)
+            bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
+            return [(IntDist(bits), guard1 & guard2)]
+        end
+    end
+end
 
-    return [(IntDist(bits), state.manager.BDD_TRUE)]
+function bdd_prim_forward(expr::PExpr{UniformIntOp}, env::Env, state::BDDStrictEvalState)
+    bitwidth = traced_bdd_forward(expr.args[1], env, state)
+    return bdd_bind(bitwidth, state) do bw, guard
+        width = bw.value
+        @assert width isa Int "uniform_int expects a native Int bitwidth, got $(typeof(width))"
+
+        bits = Vector{BDD}(undef, width)
+        for i = 1:width
+            if state.max_depth !== nothing && state.depth > state.max_depth && state.sample_after_max_depth
+                bits[i] = rand(Bool) ? state.manager.BDD_TRUE : state.manager.BDD_FALSE
+            else
+                addr = bdd_new_var(state.manager, true)
+                RSDD.set_weight(state.manager, bdd_topvar(addr), 0.5, 0.5)
+                bits[i] = addr
+            end
+        end
+
+        return [(IntDist(bits), guard)]
+    end
+end
+
+function bdd_prim_forward(expr::PExpr{UniformIntRangeOp}, env::Env, state::BDDStrictEvalState)
+    bitwidth = traced_bdd_forward(expr.args[1], env, state)
+    return bdd_bind(bitwidth, state) do bw, guard1
+        lo = traced_bdd_forward(expr.args[2], env, state)
+        return bdd_bind(lo, state) do lo_val, guard2
+            hi = traced_bdd_forward(expr.args[3], env, state)
+            return bdd_bind(hi, state) do hi_val, guard3
+                width = bw.value
+                start = lo_val.value
+                stop = hi_val.value
+                @assert start isa Int && stop isa Int "uniform_int_range expects native Int bounds"
+                @assert width isa Int "uniform_int_range expects native Int bitwidth"
+                @assert stop >= start "uniform_int_range upper bound must be >= lower bound"
+                bits = fill(state.manager.BDD_FALSE, width)
+                base_guard = guard1 & guard2 & guard3
+
+                function encode_range(lo_val, hi_val, guard)
+                    bdd_is_false(guard) && return
+                    if lo_val == hi_val
+                        bools = digits(Bool, lo_val, base = 2, pad = width)
+                        for i = 1:width
+                            @inbounds bits[i] |= (bools[i] ? state.manager.BDD_TRUE : state.manager.BDD_FALSE) & guard
+                        end
+                        return
+                    end
+                    mid = lo_val + (hi_val - lo_val) ÷ 2
+                    lower_size = mid - lo_val + 1
+                    upper_size = hi_val - mid
+                    p = lower_size / (lower_size + upper_size)
+                    if state.max_depth !== nothing && state.depth > state.max_depth && state.sample_after_max_depth
+                        chosen = rand() < p
+                        chosen_guard = chosen ? guard : state.manager.BDD_FALSE
+                        other_guard = chosen ? state.manager.BDD_FALSE : guard
+                        encode_range(lo_val, mid, chosen_guard)
+                        encode_range(mid + 1, hi_val, other_guard)
+                    else
+                        addr = bdd_new_var(state.manager, true)
+                        RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
+                        encode_range(lo_val, mid, guard & addr)
+                        encode_range(mid + 1, hi_val, guard & !addr)
+                    end
+                end
+
+                encode_range(start, stop, state.manager.BDD_TRUE)
+                return [(IntDist(bits), base_guard)]
+            end
+        end
+    end
 end
 
 
@@ -296,7 +370,7 @@ function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, recor
     ret = []
     for (val, bdd) in inner_ret
         if val isa IntDist
-            append!(ret, enumerate_int_dist(val, bdd))
+            append!(ret, enumerate_int_dist(val, bdd, state.manager))
         else
             push!(ret, (val, bdd))
         end

@@ -62,6 +62,15 @@ Base.hash(x::Value, h::UInt) = hash(x.constructor, hash(x.args, h))
 TRUE_VALUE::Value = Value(:True)
 FALSE_VALUE::Value = Value(:False)
 
+function bools_to_uint8(bits::AbstractVector{Bool})
+    @assert length(bits) == 8 "expected 8 bits for byte conversion"
+    val = 0
+    for (i, b) in enumerate(bits)
+        b && (val += 1 << (i - 1)) # bits are little-endian here
+    end
+    return UInt8(val)
+end
+
 
 pluck_nat(n::Int) = foldr((_, acc) -> "(S " * acc * ")", 1:n; init = "(O)")
 
@@ -110,7 +119,7 @@ function from_value(x::Value)
     elseif x.constructor == :Pair
         converted_args[1], converted_args[2]
     else
-        x
+        Value(x.constructor, converted_args)
     end
     return base_val, concrete
 end
@@ -120,8 +129,33 @@ function Base.show(io::IO, x::Value)
     show_value_inner(io, v)
 end
 
+function bools_to_uint8(bits::AbstractVector)
+    @assert length(bits) == 8
+    return UInt8(sum((b ? 1 : 0) << (i-1) for (i, b) in enumerate(bits)))
+end
+
 show_value_inner(io::IO, x::Any) = print(io, x)
 function show_value_inner(io::IO, x::Vector{Any})
+    if all(y -> y isa NativeValue{Int}, x)
+        try
+            bytes = [UInt8(c.value) for c in x]
+            str = String(bytes)
+            print(io, "\"", str, "\"")
+            return
+        catch
+            # fall through to vector printing if invalid UTF-8
+        end
+    end
+    if all(y -> y isa IntDist && length(y.bits) == 8 && all(b -> b === true || b === false, y.bits), x)
+        try
+            bytes = [bools_to_uint8(Bool[y.bits...]) for y in x]
+            str = String(bytes)
+            print(io, "\"", str, "\"")
+            return
+        catch
+            # fall through to vector printing if invalid UTF-8
+        end
+    end
     print(io, "[")
     for i in 1:length(x)
         show_value_inner(io, x[i])
