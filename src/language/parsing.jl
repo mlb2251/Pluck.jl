@@ -575,9 +575,6 @@ function detokenize(tokens)
                 result_str *= " "
             end
         else
-            if i > 1 && tokens[i-1] != "("
-                result_str *= " "
-            end
             result_str *= token
             if i < length(tokens) && tokens[i+1] != ")"
                 result_str *= " "

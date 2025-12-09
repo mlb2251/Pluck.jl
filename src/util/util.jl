@@ -27,10 +27,11 @@ end
 compile(expr::String) = compile(expr, LazyKCConfig())
 compile(expr; kwargs...) = compile(expr, LazyKCConfig(; kwargs...))
 
-function compile_deterministic(expr; kwargs...)::Union{Nothing, AbstractValue}
-    worlds = compile(expr; full_dist=true, kwargs...)
+function compile_deterministic(expr; env=EMPTY_ENV, full_dist=true, kwargs...)::Union{Nothing, AbstractValue}
+    worlds = compile(expr; env, full_dist, kwargs...)
     length(worlds) == 0 && return nothing
     length(worlds) > 1 && error("Deterministic compilation returned 2+ worlds")
+    @assert isapprox(worlds[1][2], 1.0) "Deterministic compilation returned a world with probability not 1"
     return worlds[1][1]
 end
 

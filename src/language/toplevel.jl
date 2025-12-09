@@ -134,29 +134,32 @@ function process_query(expr::String, args...; env=EMPTY_ENV, kwargs...)
     process_query(parse_expr(expr; env=parse_env(env)), args...; env=env, kwargs...)
 end
 
+function traced_compile_deterministic(expr::PExpr, env::Env, state::LazyKCState, strict_order_index::Int)
+    res, _ = traced_compile_inner(expr, env, state.manager.BDD_TRUE, state, strict_order_index)
+    @assert length(res) == 1 "Expected deterministic compilation to return a single value, got $(res)"
+    @assert RSDD.bdd_is_true(res[1][2]) "Expected deterministic compilation to return a value with probability 1, got $(res[1][2])"
+    return res[1][1]
+end
+
 # Add this helper function to process queries
-function process_query(expr::PExpr, query_str::AbstractString=string(expr); silent=false, env=EMPTY_ENV, kwargs...)
+function process_query(expr::PExpr{QueryOp}, query_str::AbstractString=string(expr); silent=false, env=EMPTY_ENV, kwargs...)
+
     state = LazyKCState(; kwargs...)
-    ret, used_information = traced_compile_inner(expr, env, state.manager.BDD_TRUE, state, 0)
 
-    if length(ret) != 1
-        error("A query must either be a Marginal, Posterior, or PosteriorSample query, got $(expr).")
-    end
+    # this is a little weird – we dont allow name compilation to affect body
+    name = compile_deterministic(expr.args[1])
+    body = traced_compile_deterministic(expr.args[2], env, state, 1)
 
-    val, bdd = first(ret)
-
-    @assert RSDD.bdd_is_true(bdd) "Query expression must evaluate to either (Marginal ...), (Posterior ...), or (PosteriorSample ...) with probability 1."
-
-    results = eval_query(val, query_str, state)
+    results = eval_query(body, state)
 
     if !silent
-        print_query_results_by_type(val, results, query_str; save = state.cfg.results_file)
+        print_query_results_by_type(body, results, name)
     end
     return results
 end
 
 # Add this helper function to process queries
-function eval_query(val::Value, query_str, state::LazyKCState)
+function eval_query(val, state::LazyKCState)
     mode = ExactInference()
 
     if val.constructor == :SubproblemMonteCarlo
@@ -210,18 +213,24 @@ function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
 
     if findfirst(t -> t == "(", query_tokens) == 1
         # Name is the entire expression
-        display_str = detokenize(query_tokens)
+        name_expr = parse_expr("\"$(replace(detokenize(query_tokens), "\"" => "\""))\"")
     else
         # Name followed by expression
-        display_str = query_tokens[1]
-        @assert String(display_str)[1] == '\'' "Expected query name to be a symbol, got: $display_str"
+        name = String(query_tokens[1])[2:end]
+        println("name: $name")
+        name_expr = parse_expr("\"$name\"")
         query_tokens = view(query_tokens, 2:length(query_tokens))
     end
 
-    query_expr, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
+    query_body, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
     @assert length(rest_query_tokens) == 1 && query_tokens[end] == ")" "Expected closing paren and nothing else, got $(detokenize(rest_query_tokens))"
 
-    return query_expr, display_str, view(tokens, end_idx+1:length(tokens))
+    # @assert String(display_str)[1] == '\'' "Expected query name to be a symbol, got: $display_str"
+    # name_expr = parse_expr("\"$display_str\"")
+
+    query_expr = QueryOp()(name_expr, query_body)
+
+    return query_expr, view(tokens, end_idx+1:length(tokens))
 end
 
 
@@ -239,17 +248,18 @@ function eval_form(tokens, defs; silent=false, base_dir=pwd())
 
     # Peek at what follows the opening paren
     if tokens[2] == "query"
-        query_expr, display_str, rest = parse_query_expr(tokens, defs; silent=silent, base_dir=base_dir)
+        query_expr, rest = parse_query_expr(tokens, defs; silent=silent, base_dir=base_dir)
         silent = false
     else
         # Regular expression in parentheses - wrap in Marginal
         expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
-        query_expr = Construct(:Marginal)(expr)
-        display_str = string(expr)
+        query_body = Construct(:Marginal)(expr)
+        name_expr = ConstNative(Symbol(string(expr)))()
+        query_expr = QueryOp()(name_expr, query_body)
         silent = true
     end
     
-    result = process_query(query_expr, display_str; silent=silent)
+    result = process_query(query_expr; silent=silent)
     return (:query, query_expr, result), rest
 end
 

@@ -340,6 +340,9 @@ define_parser!("include", IncludeOp, 1)
 struct PExprFromValueOp <: Head end
 define_parser!("pexpr_from_value", PExprFromValueOp, 1)
 
+struct QueryOp <: Head end
+define_parser!("query", QueryOp, 2)
+
 
 
 

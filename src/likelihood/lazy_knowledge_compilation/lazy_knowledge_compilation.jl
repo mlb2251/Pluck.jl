@@ -33,6 +33,7 @@ Base.@kwdef mutable struct LazyKCConfig
     dual::Bool = false
     state = nothing
     path_condition = nothing
+    env = EMPTY_ENV
 end
 
 set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
@@ -55,7 +56,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     path_condition = isnothing(cfg.path_condition) ? state.manager.BDD_TRUE : cfg.path_condition
 
     try 
-        worlds, used_information = traced_compile_inner((expr), Pluck.EMPTY_ENV, path_condition, state, 0)
+        worlds, used_information = traced_compile_inner((expr), cfg.env, path_condition, state, 0)
     catch e
         if e isa StackOverflowError
             println("StackOverflowError in pluck when compiling $expr")
