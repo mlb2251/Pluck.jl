@@ -23,7 +23,7 @@
 ;; :a, :a, :a, :a, :b, 
 ;; :a, :a, :a]
 (query
- probability-of-string
+ 'probability-of-string
  (Marginal
   (string=? (generate (Start))
             (Cons (c_) (Cons (b_) (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_)  (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (b_) (Cons (a_) (Cons (a_) (Cons (a_) (Nil)))))))))))))))))))))))))))
@@ -31,7 +31,7 @@
 ;; What could the string be if it is 5 or fewer letters long 
 ;; and the third letter is an a?
 (query
- posterior-on-strings
+ 'posterior-on-strings
  (let ((s (generate (Start))))
    (Posterior
     s
@@ -58,20 +58,20 @@
                       ((Cons (uniform (cat_) (dog_) (bone_)) (Nil)) 0.7))))
 
 (query
- probability-of-sentence
+ 'probability-of-sentence
  (Marginal
   (string=? (generate-english (Sent))
             (Cons (the_) (Cons (dog_) (Cons (eats_) (Cons (the_) (Cons (bone_) (Nil)))))))))
 
 (query
- short-sentence
+ 'short-sentence
  (let ((s (generate-english (Sent))))
    (Posterior
     s
     (>= 3 (length s)))))
 
 (query
- infilling-given-fifth-word-tasty
+ 'infilling-given-fifth-word-tasty
  (let ((s (generate-english (Sent))))
    (Posterior
     s
@@ -80,7 +80,7 @@
      (constructor=? (index 4 s) (tasty_))))))
 
 (query
- sample-long-sentence-with-fifth-word-tasty
+ 'sample-long-sentence-with-fifth-word-tasty
  (let ((s (generate-english (Sent))))
    (PosteriorSamples
     s

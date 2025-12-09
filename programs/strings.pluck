@@ -25,7 +25,7 @@
 (define (random-surname) (random-string-surnames BOS))
 
 (query
- uncertain-world
+ 'uncertain-world
  (let
   ((s1 (random-printable-string))
    (s2 (random-printable-string))
@@ -60,7 +60,7 @@
   (filter (fn c -> (not (char=? c (car " ")))) s))
 
 (query
- namelist
+ 'namelist
  (let
   ((num-people (geom 0.5))
    (names (map (fn i -> (render-person (random-person))) (range num-people)))
@@ -71,7 +71,7 @@
     names ;; (map (fn p -> (match p Person f m l => [f,m,l])) people)
     (string=? obs "EmilyJaneMcClellan"))));; 10)))
 
-(query people
+(query 'people
        (let
         ((num-people 3)
          (indices (map (fn -> (uniform 0 1 2)) (range 5)))
@@ -102,7 +102,7 @@
       (others (generate-mentions m (if need-new? (Cons person people-so-far) people-so-far))))
       (Pair (Cons new-mention (fst others)) (snd others)))))
 
-(query people-2
+(query 'people-2
        (let
         ((obs ["JBF", "Jacob", "JCF", "J. Fry"])
          (mentions (generate-mentions (length obs) (Nil))))
@@ -113,7 +113,7 @@
                            ((list=? string=?) (fst mentions)
                                               obs) 10)))
 
-(query people-hard
+(query 'people-hard
        (let
         ((num-people 3)
          (indices (map (fn -> (uniform 0 1 2)) (range 5)))

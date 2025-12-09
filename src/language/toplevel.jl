@@ -214,6 +214,7 @@ function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
     else
         # Name followed by expression
         display_str = query_tokens[1]
+        @assert String(display_str)[1] == '\'' "Expected query name to be a symbol, got: $display_str"
         query_tokens = view(query_tokens, 2:length(query_tokens))
     end
 

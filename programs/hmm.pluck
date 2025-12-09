@@ -33,7 +33,7 @@
 ;; Posterior distribution of the 11th latent,
 ;; given that the first fifty observations are all true.
 (query
- posterior-first-fifty-latents
+ 'posterior-first-fifty-latents
  (let ((chain (hmm (flip 0.5))))
    ;; Compute the exact posterior distribution P(11th latent | first fifty observations all true)
    (Posterior
@@ -44,7 +44,7 @@
 
 ;; Sample from the posterior of the entire latent chain.
 (query
- sampled-chain
+ 'sampled-chain
  (let ((chain (hmm (flip 0.5))))
    (PosteriorSamples
     ;; Query expression -- A in "P(A | B)"

@@ -11,4 +11,4 @@
     O => (True)
     S m => (diamond (network m))))
 
-(query network-100 (Marginal (network 100)))
+(query 'network-100 (Marginal (network 100)))

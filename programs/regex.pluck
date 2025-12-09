@@ -65,17 +65,17 @@
     (append (append "(" (append (render-re re1) "|")) (append (render-re re2) ")"))))
 
 (query
- short
+ 'short
  (let ((s (generate-from (Concat (KleeneStar (String "ab")) (String "c")))))
    (Posterior s (< (length s) 10))))
 
 (query
- parse
+ 'parse
  (let ((re (generate-regex)))
    (Posterior re (string=? (render-re re) "(ab)*c"))))
 
 (query
- together
+ 'together
  (let ((re (generate-regex))
        (s (generate-from re)))
    (Posterior
@@ -91,7 +91,7 @@
     KleeneStar r => (S (regex-size r))))
 
 (query
- infer-re
+ 'infer-re
  (let ((re (generate-regex))
        (s (generate-from re)))
    (Posterior
@@ -100,7 +100,7 @@
          (string=? s "aabaabaaba")))))
 
 (query
- which-regex
+ 'which-regex
  (let
   ((regex-string (if (flip 0.5) "((a|b))*" "((a)*|(b)*)"))
    (regex (generate-regex))

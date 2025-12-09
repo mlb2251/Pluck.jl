@@ -270,6 +270,9 @@
   (SubproblemMonteCarlo int query)
   (AdaptiveRejection any bool))
 
+(define-type named-query
+  (NamedQuery sym query))
+
 ;; Binary integers
 (define-type int1 (Int1 bool))
 (define-type int2 (Int2 bool bool))

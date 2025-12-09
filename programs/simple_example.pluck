@@ -6,7 +6,7 @@
 ;; greater than 5.
 (query
   ;; Query name (optional):
- num-greater-than-five
+ 'num-greater-than-five
   ;; Query:
  (Marginal
   (> (generate-number 0.7) 5)))
@@ -14,7 +14,7 @@
 ;; Posterior distribution of the number,
 ;; given that it is less than 5.
 (query
- posterior-given-less-than-five
+ 'posterior-given-less-than-five
  (let ((n (generate-number 0.7)))
    (Posterior
     n

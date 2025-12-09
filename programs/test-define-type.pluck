@@ -7,7 +7,7 @@
   (Blue))
 
 ;; Test using the type
-(query test-color
+(query 'test-color
   (Marginal (Red)))
 
 ;; Define a type with arguments
@@ -16,5 +16,5 @@
   (Just value))
 
 ;; Test using the parameterized type
-(query test-maybe
+(query 'test-maybe
   (Marginal (Just 42)))

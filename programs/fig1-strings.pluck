@@ -46,12 +46,12 @@
 ;;  - (PosteriorSamples <expr> <bool> <num-samples>), to draw <num-samples> samples from the posterior distribution over values that <expr> can take on, conditioned on the evidence <bool> being true.
 (query
  ;; Query name
- lazy-to-lucky
+ 'lazy-to-lucky
  (Marginal (string=? (perturb "lazy") "lucky")))
 
 ;; Is "gat" more likely a typo of "goat" or "bat"?
 (query
- goat-or-bat
+ 'goat-or-bat
  (let ((original_string (if (flip 0.5) "goat" "bat"))
        (observed_string "gat"))
 
@@ -67,7 +67,7 @@
 
 ;; If a user intended to type "cat" and the third letter they type is an "a", what did they probably type?
 (query
- cat-third-char
+ 'cat-third-char
  (let ((typed-string
         (perturb "cat")))
    (PosteriorSamples

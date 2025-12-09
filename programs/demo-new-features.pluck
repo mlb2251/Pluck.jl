@@ -18,10 +18,10 @@
 (square 5)
 
 ;; === Named queries (traditional style) ===
-(query my-query (Marginal (+ 10 20)))
+(query 'my-query (Marginal (+ 10 20)))
 
 ;; === The define builtin can be used for metaprogramming ===
-(query dynamic-define
+(query 'dynamic-define
   (let ((value (if (flip 0.5) 42 99)))
     (match (define computed value)
       Unit => (Marginal (lookup 'computed)))))

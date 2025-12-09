@@ -12,15 +12,15 @@
   (Just value))
 
 ;; Test using the types
-(query test-colors
+(query 'test-colors
   (Marginal (if (flip 0.33)
               (Red)
               (if (flip 0.5)
                 (Green)
                 (Blue)))))
 
-(query test-maybe-nothing
+(query 'test-maybe-nothing
   (Marginal (Nothing)))
 
-(query test-maybe-just
+(query 'test-maybe-just
   (Marginal (Just 42)))

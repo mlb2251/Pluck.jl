@@ -9,4 +9,4 @@
     ;; given that `called` is true
     (Posterior burglary called)))
 
-(query burglary-given-that-mary-called (burglary))
+(query 'burglary-given-that-mary-called (burglary))

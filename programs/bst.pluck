@@ -34,7 +34,7 @@
 ;; The one thing that scales well is the number of samples,
 ;; which can be arbitrarily large.
 (query
- binary-search-tree
+ 'binary-search-tree
  (let ((tree (random-tree 4)))
    (PosteriorSamples
     tree

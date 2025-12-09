@@ -24,7 +24,7 @@
     GVar x args => (make-apply-no-unit (Var x) (map pexpr-of-gexpr args))))
 
 (query
- sampled-gexpr
+ 'sampled-gexpr
  (let ((gexpr (sample-gexpr 'list)))
    (PosteriorSamples
     (pexpr-of-gexpr gexpr)

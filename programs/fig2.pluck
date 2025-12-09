@@ -5,14 +5,14 @@
       (Cons x (mkSortedList x)))))
 
 (query
- first-two-elements-are-zero
+ 'first-two-elements-are-zero
  (Marginal
   (list=? nat=?
           (take 2 (mkSortedList 0))
           (Cons 0 (Cons 0 (Nil))))))
 
 (query
- second-element-given-first-and-third
+ 'second-element-given-first-and-third
  (let ((xs (mkSortedList 0)))
    (Posterior
     (index 1 xs)
@@ -20,7 +20,7 @@
          (nat=? (index 2 xs) 5)))))
 
 (query
- posterior-samples-given-sixth-elem-is-3
+ 'posterior-samples-given-sixth-elem-is-3
  (let ((xs (mkSortedList 0)))
    (PosteriorSamples
     ;; Query
