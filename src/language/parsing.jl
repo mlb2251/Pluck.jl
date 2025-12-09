@@ -610,3 +610,17 @@ function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
 
     return query_expr, view(tokens, end_idx+1:length(tokens))
 end
+
+function find_ending_paren(tokens)
+    depth = 1
+    end_idx = 1
+    while depth > 0 && end_idx <= length(tokens)
+        if tokens[end_idx] == "("
+            depth += 1
+        elseif tokens[end_idx] == ")"
+            depth -= 1
+        end
+        end_idx += 1
+    end
+    return end_idx-1
+end

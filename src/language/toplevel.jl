@@ -88,6 +88,8 @@ function print_query_results_by_type(val, results, query_str; save = nothing)
     println()
 end
 
+
+
 function marginal_query(val, state, mode::ExactInference)
     ret, _ = evaluate(val.args[1], state.manager.BDD_TRUE, state)
     full_ret = infer_full_distribution(ret, state)
@@ -188,22 +190,6 @@ function eval_query(val, state::LazyKCState)
     end
 end
 
-function find_ending_paren(tokens)
-    depth = 1
-    end_idx = 1
-    while depth > 0 && end_idx <= length(tokens)
-        if tokens[end_idx] == "("
-            depth += 1
-        elseif tokens[end_idx] == ")"
-            depth -= 1
-        end
-        end_idx += 1
-    end
-    return end_idx-1
-end
-
-
-
 # Modify eval_form to handle queries
 function eval_form(tokens, defs; silent=false, base_dir=pwd())
     if length(tokens) == 0
@@ -215,16 +201,12 @@ function eval_form(tokens, defs; silent=false, base_dir=pwd())
         error("Expected opening paren at start of toplevel form, got: $token")
     end
 
-    # Peek at what follows the opening paren
-    if tokens[2] == "query"
-        query_expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
-        silent = false
-    else
-        # Regular expression in parentheses - wrap in Marginal
-        expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
-        query_body = Construct(:Marginal)(expr)
-        name_expr = ConstNative(Symbol(string(expr)))()
-        query_expr = QueryOp()(name_expr, query_body)
+    query_expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
+    if tokens[2] != "query"
+        # implicitly wrap in a Marginal Query
+        name_expr = ConstNative(Symbol(string(query_expr)))()
+        body_expr = Construct(:Marginal)(query_expr)
+        query_expr = QueryOp()(name_expr, body_expr)
         silent = true
     end
     
