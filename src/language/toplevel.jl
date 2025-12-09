@@ -168,10 +168,9 @@ function eval_query(val, state::LazyKCState)
         mode = SMCInference(k)
 
         ret, used_information = evaluate(val.args[2], state.manager.BDD_TRUE, state)
-        if length(ret) != 1
-            error("SubproblemMonteCarlo must have a second argument that deterministically evaluates to another query, got $(val.args[2]).")
-        end
-        val, bdd = first(ret)
+        @assert length(ret) == 1 "SubproblemMonteCarlo must have a second argument that deterministically evaluates to another query, got $(val.args[2])."
+        val, bdd = ret[1]
+        @assert RSDD.bdd_is_true(bdd) "SubproblemMonteCarlo must have a second argument that deterministically evaluates to another query, got $(val.args[2])."
     end
 
     if val.constructor == :Marginal
@@ -224,9 +223,6 @@ function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
 
     query_body, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
     @assert length(rest_query_tokens) == 1 && query_tokens[end] == ")" "Expected closing paren and nothing else, got $(detokenize(rest_query_tokens))"
-
-    # @assert String(display_str)[1] == '\'' "Expected query name to be a symbol, got: $display_str"
-    # name_expr = parse_expr("\"$display_str\"")
 
     query_expr = QueryOp()(name_expr, query_body)
 
