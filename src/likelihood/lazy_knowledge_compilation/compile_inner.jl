@@ -247,20 +247,17 @@ function compile_inner(expr::PExpr{LookupOp}, env, path_condition, state)
     end
 end
 
-# function compile_inner(expr::PExpr{DefineOp}, env, path_condition, state)
+function compile_inner(expr::PExpr{DefineOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do name_val, path_condition
+        @assert name_val isa NativeValue{Symbol} "DefineOp: expected NativeValue{Symbol} for name, got $(name_val) :: $(typeof(name_val)) in $expr"
 
+        # Store the UNEVALUATED expression (expr.args[2]) directly
+        # Do NOT compile/evaluate it - we want to store the raw PExpr
+        Pluck.DEFINITIONS[name_val.value] = Pluck.Definition(name_val.value, expr.args[2])
 
-    # define(sym.value, expr.args[2])
-    # return pure_monad(Value(:Unit), path_condition, state)
-
-    # bind_compile(expr.args[1], env, path_condition, state, 0) do sym, path_condition
-    #     @assert sym isa NativeValue{Symbol} "DefineOp: NativeValue{Symbol} expected, got $(sym) :: $(typeof(sym)) in $expr"
-        # bind_compile(expr.args[2], env, path_condition, state, 1) do def, path_condition
-        #     define(sym.value, pexpr_from_value(def))
-        #     return pure_monad(Value(:Unit), path_condition, state)
-        # end
-    # end
-# end
+        return pure_monad(Value(:Unit), path_condition, state)
+    end
+end
 
 
 
