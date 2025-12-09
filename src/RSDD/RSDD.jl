@@ -420,7 +420,7 @@ Base.:⊻(a::BDD, b::BDD) = bdd_xor(a, b)
 Base.:(==)(a::BDD, b::BDD) = bdd_eq(a, b)
 Base.:(!=)(a::BDD, b::BDD) = !bdd_eq(a, b)
 (⟺)(a::BDD, b::BDD) = bdd_iff(a, b)
-
+Base.:~(a::BDD) = bdd_negate(a)
 
 """
 Creates a new WmcParams object for floating-point weights.

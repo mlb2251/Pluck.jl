@@ -1,0 +1,113 @@
+(define-type
+  regex
+  (String string)
+  (KleeneStar regex)
+  (Concat regex regex)
+  (Sum regex regex))
+
+(define (char=? a b)
+  (int_dist_eq a b))
+(define string=?
+  (list=? char=?))
+
+
+;; stubs
+(define (generate-regex) (Unit))
+(define (generate-non-star-regex) (Unit))
+(define (generate-nonconcat-regex) (Unit))
+
+
+
+(define (random-printable-char) (uniform_int_range @8 @32 @126))
+(define (random-printable-string)
+  (if (flip 0.2) "" (Cons (random-printable-char) (random-printable-string))))
+
+(define (generate-non-star-regex)
+  (uniform (String (Cons (random-printable-char) (random-printable-string)))
+           (Sum (generate-regex) (generate-regex))
+           (Concat (generate-nonconcat-regex) (generate-regex))))
+
+(define (generate-nonconcat-regex)
+  (uniform
+   (String (Cons (random-printable-char) (Nil)))
+   (KleeneStar (generate-non-star-regex))
+   (Sum (generate-regex) (generate-regex))))
+
+(define (generate-regex)
+  (if (flip 0.25)
+    (Concat (generate-nonconcat-regex) (generate-regex))
+    (generate-nonconcat-regex)))
+
+(define (generate-from re)
+  (match re
+    String s => s
+    KleeneStar re1 => (let (s (generate-from re1)) (if (flip 0.5) s (append s (generate-from re))))
+    Concat re1 re2 => (append (generate-from re1) (generate-from re2))
+    Sum re1 re2 => (if (flip 0.5) (generate-from re1) (generate-from re2))))
+
+(define (escape s)
+  (match s
+    Nil => ""
+    Cons a b =>
+    (if (or (char=? a (car "("))
+            (or (char=? a (car ")"))
+                (or (char=? a (car "|"))
+                    (or (char=? a (car "\\")) (char=? a (car "*"))))))
+      (append "\\" (Cons a (escape b)))
+      (Cons a (escape b)))))
+
+(define (render-re re)
+  (match re
+    String s => (escape s)
+    KleeneStar re => (append "(" (append (render-re re) ")*"))
+    Concat re1 re2 => (append (render-re re1) (render-re re2))
+    Sum re1 re2 =>
+    (append (append "(" (append (render-re re1) "|")) (append (render-re re2) ")"))))
+
+(query
+ short
+ (let ((s (generate-from (Concat (KleeneStar (String "ab")) (String "c")))))
+   (Posterior s (< (length s) 10))))
+
+(query
+ parse
+ (let ((re (generate-regex)))
+   (Posterior re (string=? (render-re re) "(ab)*c"))))
+
+(query
+ together
+ (let ((re (generate-regex))
+       (s (generate-from re)))
+   (Posterior
+    s
+    (and (string=? (render-re re) "(ab)*c")
+         (< (length s) 10)))))
+
+(define (regex-size re)
+  (match re
+    String s => 1
+    Concat r1 r2 => (S (+ (regex-size r1) (regex-size r2)))
+    Sum r1 r2 => (S (+ (regex-size r1) (regex-size r2)))
+    KleeneStar r => (S (regex-size r))))
+
+(query
+ infer-re
+ (let ((re (generate-regex))
+       (s (generate-from re)))
+   (Posterior
+    re
+    (and (< (regex-size re) 5)
+         (string=? s "aabaabaaba")))))
+
+(query
+ which-regex
+ (let
+  ((regex-string (if (flip 0.5) "((a|b))*" "((a)*|(b)*)"))
+   (regex (generate-regex))
+   (s (generate-from regex)))
+
+   (Posterior
+    regex
+    (and (string=? (render-re regex) regex-string)
+         (string=? s "aaaaa")))))
+

@@ -10,14 +10,14 @@
 (define (talk-inputs-2) [1,8,6,5,7])
 (define (talk-outputs-2) [2,7,5,6,8])
 
-(define (talk-hypothesis-1) (λxs -> (talk-randnatlist)))
-(define (talk-hypothesis-2) (λxs -> (map (λx -> (talk-randnat)) xs)))
-(define (talk-hypothesis-3) (λxs -> (map (λx -> (if (talk-randbool) (inc x) (talk-randnat))) xs)))
-(define (talk-hypothesis-4) (λxs -> (map (λx -> (if (talk-randbool) (inc x) (dec x))) xs)))
-(define (talk-hypothesis-5) (λxs -> (map (λx -> (if (isodd x) (inc x) (dec x))) xs)))
+(define (talk-hypothesis-1) (fn xs -> (talk-randnatlist)))
+(define (talk-hypothesis-2) (fn xs -> (map (fn x -> (talk-randnat)) xs)))
+(define (talk-hypothesis-3) (fn xs -> (map (fn x -> (if (talk-randbool) (inc x) (talk-randnat))) xs)))
+(define (talk-hypothesis-4) (fn xs -> (map (fn x -> (if (talk-randbool) (inc x) (dec x))) xs)))
+(define (talk-hypothesis-5) (fn xs -> (map (fn x -> (if (isodd x) (inc x) (dec x))) xs)))
 
-(define (talk-hypothesis-alt-1) (λxs -> (filter (λx -> (talk-randbool)) xs)))
-(define (talk-hypothesis-alt-2) (λxs -> (Cons (talk-randnat) (talk-randnatlist))))
+(define (talk-hypothesis-alt-1) (fn xs -> (filter (fn x -> (talk-randbool)) xs)))
+(define (talk-hypothesis-alt-2) (fn xs -> (Cons (talk-randnat) (talk-randnatlist))))
 
 (define (talk-evaluate program)
     (and (=? (program (talk-inputs-1)) (talk-outputs-1))

@@ -7,6 +7,17 @@ struct SMCInference <: InferenceMode
     k::Int
 end
 
+function parse_and_process_include(tokens, defs; base_dir=pwd(), silent=false)
+    @assert tokens[2] == "include"
+    tokens = view(tokens, 3:length(tokens))
+    path_token = tokens[1]
+    @assert startswith(path_token, "\"") && endswith(path_token, "\"") "include expects a string literal path"
+    rel_path = path_token[2:end-1]
+    full_path = isabspath(rel_path) ? rel_path : joinpath(base_dir, rel_path)
+    load_pluck_file(full_path)
+    @assert tokens[2] == ")" "expected closing paren in include"
+    return (:include, full_path), view(tokens, 3:length(tokens))
+end
 
 """
 pluck"..." is equivalent to parse_toplevel("...")
@@ -38,8 +49,19 @@ function print_query_results(results, query_str; save = false)
     end
 
     max_val_length = maximum(length(string(v)) for (v, _) in results)
+
     # Sort results by probability
-    sorted_results = sort(results, by = x -> (-x[2], string(x[1])))
+    function _sortkey(val)
+        if isa(val, Number)
+            return (0, val)
+        elseif isa(val, AbstractString)
+            return (1, val)
+        else
+            return (2, string(val))
+        end
+    end
+
+    sorted_results = sort(results, by = x -> (-x[2], _sortkey(x[1])))
     for (v, p) in sorted_results
         if p == 0
             continue
@@ -132,7 +154,7 @@ function process_query(expr::PExpr, query_str::AbstractString=string(expr); sile
     mode = ExactInference()
 
     if val.constructor == :SubproblemMonteCarlo
-        sample_k_state = SampleValueState(nothing, [], nothing, false)
+        sample_k_state = SampleValueState(nothing, [], nothing, false, state.manager)
         k, = from_value(force_value(evaluate(val.args[1], nothing, sample_k_state), nothing, sample_k_state))
         mode = SMCInference(k)
 
@@ -340,7 +362,7 @@ function parse_and_process_define_type(tokens, defs)
 end
 
 # Modify process_toplevel_form to handle queries
-function process_toplevel_form(tokens, defs; silent=false)
+function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
     if length(tokens) == 0
         error("unexpected end of input")
     end
@@ -371,6 +393,8 @@ function process_toplevel_form(tokens, defs; silent=false)
             return parse_and_process_define_value(tokens, defs)
             
         end
+    elseif tokens[2] == "include"
+        return parse_and_process_include(tokens, defs; base_dir=base_dir, silent=silent)
     else
         # Regular expression in parentheses
         expr, rest = parse_expr_inner(tokens, ParseState(defs, []))
@@ -379,12 +403,12 @@ function process_toplevel_form(tokens, defs; silent=false)
 end
 
 # Parse and process a sequence of top-level forms
-function parse_toplevel(s::String, defs=DEFINITIONS; silent=false)
+function parse_toplevel(s::String, defs=DEFINITIONS; silent=false, base_dir=pwd())
     tokens = tokenize(s)
     forms = []
 
     while !isempty(tokens)
-        form, tokens = process_toplevel_form(tokens, defs; silent=silent)
+        form, tokens = process_toplevel_form(tokens, defs; silent=silent, base_dir=base_dir)
         push!(forms, form)
     end
 
@@ -394,5 +418,5 @@ end
 # Load and process definitions from a file
 function load_pluck_file(filename::String)
     content = read(filename, String)
-    parse_toplevel(content)
+    parse_toplevel(content; base_dir=dirname(abspath(filename)))
 end

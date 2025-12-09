@@ -1,0 +1,76 @@
+;; `uniform` is one of the built-in functions for sampling from discrete distributions.
+;; The other built-in distribution primitives are:
+;;   - `(flip p)`, to sample from a Bernoulli distribution with probability `p` of heads.
+;;   - `(discrete (e1 p1) (e2 p2) ...)`, to sample from a discrete distribution over `e1`, `e2`, etc. with probabilities `p1`, `p2`, etc. The probabilities must be floating-point literals and must sum to 1.
+;;   - `(geom p)`, to sample from a geometric distribution on natural numbers with parameter `p`.
+;; (define (random_char) (uniform_int @8)) ;; probably should be more limited to ascii for random-char 
+;; currently it's arbitrary 0-255, so we see � in the samples
+;; (define (random_char) (uniform 0ca 0cb 0cc 0cd 0ce 0cf 0cg 
+;;                                0ch 0ci 0cj 0ck 0cl 0cm 0cn 
+;;                                0co 0cp 0cq 0cr 0cs 0ct 0cu 
+;;                                0cv 0cw 0cx 0cy 0cz 0cA 0cB
+;;                                0cC 0cD 0cE 0cF 0cG 0cH 0cI
+;;                                0cJ 0cK 0cL 0cM 0cN 0cO 0cP
+;;                                0cQ 0cR 0cS 0cT 0cU 0cV 0cW
+;;                                0cX 0cY 0cZ)) 
+(define (random_char) (uniform_int_range @8 @32 @126))
+
+;; list=? (defined in src/language/stdlib.pluck) takes as an argument 
+;; a predicate for comparing two elements for equality.
+;; Here, we use the built-in `constructor=?` which checks if two values 
+;; of user-defined types have the same constructor.
+(define (char=? a b) (int_dist_eq a b))
+(define string=? (list=? char=?))
+
+(define (maybe_insert s)
+  (if (flip 0.99) s (Cons (random_char) (maybe_insert s))))
+
+(define (maybe_cons c cs)
+  (if (flip 0.99) (Cons c cs) cs))
+
+(define (maybe_substitute c)
+  (if (flip 0.99) c (random_char)))
+
+(define (perturb s)
+  (match s
+    Nil => (maybe_insert (Nil))
+    Cons c cs =>
+    (let ((perturbed_cs (perturb cs)))
+      (maybe_insert (maybe_cons (maybe_substitute c) perturbed_cs)))))
+
+;; What is the probability that "lazy" is mistyped as "lucky"?
+;; Syntax: (query <query-name> <query-expression>)
+;; Query expression is a program term evaluating to either:
+;;  - (Marginal <expr>), to compute the marginal distribution over values that <expr> can take on.
+;;  - (Posterior <expr> <bool>), to compute the posterior distribution over values that <expr> can take on, conditioned on the evidence <bool> being true.
+;;  - (PosteriorSamples <expr> <bool> <num-samples>), to draw <num-samples> samples from the posterior distribution over values that <expr> can take on, conditioned on the evidence <bool> being true.
+(query
+ ;; Query name
+ lazy-to-lucky
+ (Marginal (string=? (perturb "lazy") "lucky")))
+
+;; Is "gat" more likely a typo of "goat" or "bat"?
+(query
+ goat-or-bat
+ (let ((original_string (if (flip 0.5) "goat" "bat"))
+       (observed_string "gat"))
+
+   ;; Posterior over `original_string` variable,
+   ;; conditioned on the observed string.
+   (Posterior
+    ;; Query expression -- A in "P(A | B)"
+    original_string
+    ;; Evidence -- B in "P(A | B)"
+    (string=?
+     (perturb original_string)
+     observed_string))))
+
+;; If a user intended to type "cat" and the third letter they type is an "a", what did they probably type?
+(query
+ cat-third-char
+ (let ((typed-string
+        (perturb "cat")))
+   (PosteriorSamples
+    typed-string
+    (char=? (index 2 typed-string) 0ca)
+    15)))

@@ -63,6 +63,15 @@ Base.hash(x::Value, h::UInt) = hash(x.constructor, hash(x.args, h))
 TRUE_VALUE::Value = Value(:True)
 FALSE_VALUE::Value = Value(:False)
 
+function bools_to_uint8(bits::AbstractVector{Bool})
+    @assert length(bits) == 8 "expected 8 bits for byte conversion"
+    val = 0
+    for (i, b) in enumerate(bits)
+        b && (val += 1 << (i - 1)) # bits are little-endian here
+    end
+    return UInt8(val)
+end
+
 
 pluck_nat(n::Int) = foldr((_, acc) -> "(S " * acc * ")", 1:n; init = "(O)")
 
@@ -112,7 +121,7 @@ function from_value(x::Value)
     elseif x.constructor == :Pair
         converted_args[1], converted_args[2]
     else
-        x
+        Value(x.constructor, converted_args)
     end
     return base_val, concrete
 end
@@ -144,8 +153,53 @@ function ends_in_zero(x::Value)
     return check_end isa Value && check_end.constructor == :O
 end
 
+function is_all_native_int(x::Value)
+    xs = x
+    while xs isa Value && xs.constructor == :Cons
+        head = xs.args[1]
+        head isa NativeValue{Int} || return false
+        xs = xs.args[2]
+    end
+    return xs isa Value && xs.constructor === :Nil
+end
+
+function is_all_intdist(x::Value)
+    xs = x
+    while xs isa Value && xs.constructor == :Cons
+        head = xs.args[1]
+        (head isa IntDist && length(head.bits) == 8 && all(b -> b === true || b === false, head.bits)) || return false
+        xs = xs.args[2]
+    end
+    return xs isa Value && xs.constructor === :Nil
+end
+
+function to_list(xs::Value)
+    res = []
+    @assert xs isa Value && xs.constructor == :Cons || xs.constructor == :Nil "Expected Cons or Nil, got $(xs.constructor)"
+    while xs isa Value && xs.constructor == :Cons
+        push!(res, xs.args[1])
+        xs = xs.args[2]
+    end
+    @assert xs isa Value && xs.constructor == :Nil "Expected Nil, got $(xs.constructor)"
+    return res
+end
+
 
 function Base.show(io::IO, x::Value)
+    if is_all_native_int(x)
+        bytes = [UInt8(c.value) for c in to_list(x)]
+        str = String(bytes)
+        print(io, "\"", str, "\"")
+        return
+    end
+
+    if is_all_intdist(x)
+        bytes = [bools_to_uint8(Bool[y.bits...]) for y in to_list(x)]
+        str = String(bytes)
+        print(io, "\"", str, "\"")
+        return
+    end
+
     if (x.constructor == :Cons || x.constructor == :Nil) && ends_in_nil(x)
         print(io, "[")
         while x isa Value && x.constructor == :Cons
@@ -175,7 +229,7 @@ function Base.show(io::IO, x::Value)
         end
         for arg in args
             print(io, " ")
-            show_value_inner(io, arg)
+            print(io, arg)
         end
         print(io, ")")
     # elseif x.constructor == :App
@@ -205,24 +259,9 @@ function Base.show(io::IO, x::Value)
     end
 end
 
-show_value_inner(io::IO, x::Any) = print(io, x)
-function show_value_inner(io::IO, x::Vector{Any})
-    print(io, "[")
-    for i in 1:length(x)
-        show_value_inner(io, x[i])
-        i != length(x) && print(io, ", ")
-    end
-    print(io, "]")
-end
-
-function show_value_inner(io::IO, x::Tuple)
-    print(io, "(")
-    for i in 1:length(x)
-        show_value_inner(io, x[i])
-        i != length(x) && print(io, ", ")
-    end
-    length(x) == 1 && print(io, ", ")
-    print(io, ")")
+function bools_to_uint8(bits::AbstractVector)
+    @assert length(bits) == 8
+    return UInt8(sum((b ? 1 : 0) << (i-1) for (i, b) in enumerate(bits)))
 end
 
 

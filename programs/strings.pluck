@@ -1,0 +1,132 @@
+(include "name_model.pluck")
+(include "surname_model.pluck")
+
+;; Random printable ASCII character
+(define (random-printable-char) (uniform_int_range @8 @32 @126))
+
+;; (define (char=? a b) (int_dist_eq a b))
+;; (define string=? (list=? char=?))
+(define (random-printable-string)
+  (if (flip 0.8)
+    (Cons (random-printable-char) (random-printable-string))
+    ""))
+
+;; (define (random-list elem)
+;;   (if (flip 0.8) (Cons (elem) (random-list elem)) (Nil)))
+
+;; (define (random-lowercase-char) (uniform_int_range @8 @97 @122))
+;; (define (random-uppercase-char) (uniform_int_range @8 @65 @90))
+
+;; (define (random-name)
+;;   (Cons (random-uppercase-char)
+;;         (random-list (fn -> (if (flip 0.99) (random-lowercase-char) (random-uppercase-char))))))
+
+(define (random-name) (random-string BOS))
+(define (random-surname) (random-string-surnames BOS))
+
+(query
+ uncertain-world
+ (let
+  ((s1 (random-printable-string))
+   (s2 (random-printable-string))
+   (s (append s1 (append " " s2))))
+   (Posterior
+    [s1, s2]
+    (string=? s "Hello uncertain world!"))))
+
+;; People have first and last names but sometimes we see initials
+(define-type person (Person first middle last))
+(define (random-person)
+  (Person (random-name) (random-name) (random-surname)))
+(define (render-person p)
+  (match p
+    Person first middle last =>
+    (uniform
+     first
+     (Cons (car first) (append (if (flip 0.5) " " ". ") last))
+     (Cons (car first) (append (if (flip 0.5) " " ". ") (Cons (car middle) (append (if (flip 0.5) " " ". ") last))))
+     (Cons (car first) (Cons (car middle) (Cons (car last) "")))
+     (Cons (car first) (append (uniform " " "." "") (Cons (car last) (uniform "" "."))))
+     (append first (append " " last))
+     (append first (append " " (append middle (append " " last))))
+     (append first (append " " (Cons (car middle) (append (if (flip 0.5) " " ". ") last)))))))
+
+(define (append-all xs)
+  (match xs
+    Nil => ""
+    Cons s xs => (append s (append-all xs))))
+
+(define (remove-spaces s)
+  (filter (fn c -> (not (char=? c (car " ")))) s))
+
+(query
+ namelist
+ (let
+  ((num-people (geom 0.5))
+   (names (map (fn i -> (render-person (random-person))) (range num-people)))
+  ;;  (people (map random-person (range num-people)))
+  ;;  (names (map render-person people))
+   (obs (remove-spaces (append-all names))))
+   (Posterior
+    names ;; (map (fn p -> (match p Person f m l => [f,m,l])) people)
+    (string=? obs "EmilyJaneMcClellan"))));; 10)))
+
+(query people
+       (let
+        ((num-people 3)
+         (indices (map (fn -> (uniform 0 1 2)) (range 5)))
+         (people (map random-person (range num-people)))
+         (refs (map (fn i -> (index i people)) indices))
+         (names (map render-person refs)))
+         ;;(Posterior people ((list=? string=?) names ["John", "Mary", "Alex", "A"]))))
+         ;;(Posterior (map car people) ((list=? string=?) names ["A", "Mary", "Alex", "A"]))))
+         (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) people)
+                           ((list=? string=?)
+                            names
+                            ["Jordan B. Fisher", "J. Fisher", "JCF", "AKL", "Jesse"]) 10)))
+
+(define (trunc-geom n m)
+  (match n
+    O => (Pair true m)
+    S k => (if (flip 0.3) (Pair false m) (trunc-geom k (S m)))))
+
+(define (generate-mentions n people-so-far)
+  (match n
+    O => (Pair (Nil) people-so-far)
+    S m =>
+    (let
+     ((idx (trunc-geom (length people-so-far) 0))
+      (need-new? (fst idx))
+      (person (if need-new? (random-person) (index (snd idx) people-so-far)))
+      (new-mention (render-person person))
+      (others (generate-mentions m (if need-new? (Cons person people-so-far) people-so-far))))
+      (Pair (Cons new-mention (fst others)) (snd others)))))
+
+(query people-2
+       (let
+        ((obs ["JBF", "Jacob", "JCF", "J. Fry"])
+         (mentions (generate-mentions (length obs) (Nil))))
+         ;;(Posterior people ((list=? string=?) names ["John", "Mary", "Alex", "A"]))))
+        ;;  (Posterior (map car people) ((list=? string=?) names ["A", "Mary", "Alex", "A"]))))
+        ;; (Posterior (length (snd mentions)) ((list=? string=?) (fst mentions) obs))))
+         (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) (snd mentions))
+                           ((list=? string=?) (fst mentions)
+                                              obs) 10)))
+
+(query people-hard
+       (let
+        ((num-people 3)
+         (indices (map (fn -> (uniform 0 1 2)) (range 5)))
+         (people (map random-person (range num-people)))
+         (refs (map (fn i -> (index i people)) indices))
+         (names (map render-person refs))
+         (mentions (map (fn name -> (append (random-printable-string) (Cons (car " ") (append name (Cons (car " ") (random-printable-string)))))) names)))
+         (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) people)
+                           ((list=? string=?)
+                            mentions
+                            ["so I talked to Jordan B. Fisher yesterday",
+                             "If J. Fisher were here",
+                             "when I met MBJ it was summer",
+                             "a Book Signed By Michael B. Jordan and Sold For Millions",
+                             "it was Josh Tenenbaum who The Company saw first"]) 10)))
+

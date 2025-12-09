@@ -66,7 +66,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
         end
     end
     stop!(get_timer(state))
-    bdd_stop_ite_limit(state.manager)
+    # bdd_stop_ite_limit(state.manager)
 
     if state.stats.hit_limit
         worlds = []
@@ -79,7 +79,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     # expand IntDists into their 2^N possible values
     if length(worlds) == 1 && worlds[1] isa IntDist
         (val, bdd) = worlds[1]
-        worlds = enumerate_int_dist(val, bdd)
+        worlds = enumerate_int_dist(val, bdd, state.manager)
     end
 
     if state.cfg.show_bdd_size
