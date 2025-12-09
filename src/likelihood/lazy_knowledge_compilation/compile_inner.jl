@@ -10,12 +10,11 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
         f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
         res = with_stacktrace(state, f.origin) do
-            traced_compile_inner(f.expr, new_env, path_condition, state, 2)
-        end
-        for (val, _) in res[1]
+            val = traced_compile_inner(f.expr, new_env, path_condition, state, 2)
             if val isa Closure
                 val.origin = f.origin
             end
+            val
         end
         return res
     end
@@ -113,12 +112,11 @@ end
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # Execute Defined with a blanked out environment.
     res = with_stacktrace(state, expr) do
-        traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
-    end
-    for (val, _) in res[1]
+        val = traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
         if val isa Closure
             val.origin = expr
         end
+        val
     end
     return res
 end
