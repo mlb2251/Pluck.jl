@@ -186,7 +186,7 @@ function find_ending_paren(tokens)
     return end_idx-1
 end
 
-function parse_and_process_query(tokens, defs; silent=false, base_dir=pwd())
+function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
     @assert tokens[1] == "(" "Expected opening paren at start of query"
     tokens = view(tokens, 2:length(tokens))
     end_idx = find_ending_paren(tokens)
@@ -204,16 +204,11 @@ function parse_and_process_query(tokens, defs; silent=false, base_dir=pwd())
     end
 
     query_expr, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
-    @assert length(rest_query_tokens) == 1 "Expected empty rest_query_tokens"
+    @assert length(rest_query_tokens) == 1 && query_tokens[end] == ")" "Expected closing paren and nothing else, got $(detokenize(rest_query_tokens))"
 
-    @assert tokens[end_idx] == ")" "Expected closing paren"
-
-    # Process the query and get result
-    result = process_query(query_expr, display_str; silent=silent)
-
-    return (:query, query_expr, result), view(tokens, end_idx+1:length(tokens))
-
+    return query_expr, display_str, view(tokens, end_idx+1:length(tokens))
 end
+
 
 
 # Modify eval_form to handle queries
@@ -229,14 +224,18 @@ function eval_form(tokens, defs; silent=false, base_dir=pwd())
 
     # Peek at what follows the opening paren
     if tokens[2] == "query"
-        return parse_and_process_query(tokens, defs; silent=silent, base_dir=base_dir)
+        query_expr, display_str, rest = parse_query_expr(tokens, defs; silent=silent, base_dir=base_dir)
+        silent = false
+    else
+        # Regular expression in parentheses - wrap in Marginal
+        expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
+        query_expr = Construct(:Marginal)(expr)
+        display_str = string(expr)
+        silent = true
     end
     
-    # Regular expression in parentheses - wrap in Marginal
-    expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
-    query_expr = Construct(:Marginal)(expr)
-    result = process_query(query_expr; silent=true)
-    return (:expr, expr, result), rest
+    result = process_query(query_expr, display_str; silent=silent)
+    return (:query, query_expr, result), rest
 end
 
 # Parse and process a sequence of top-level forms
