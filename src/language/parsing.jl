@@ -303,7 +303,6 @@ function parse_expr_inner(tokens, state)
             
             # Return IncludeOp with path as ConstNative
             return IncludeOp()(ConstNative(full_path)()), view(tokens, 2:length(tokens))
-            
         elseif token == "define-type"
             # Special parsing for define-type: (define-type name (Constructor1 args...) ...)
             tokens = view(tokens, 2:length(tokens))
@@ -329,7 +328,6 @@ function parse_expr_inner(tokens, state)
             
             # Return DefineTypeOp with type name and constructors as ConstNative
             return DefineTypeOp()(ConstNative(type_name)(), ConstNative(constructors)()), view(tokens, 2:length(tokens))
-            
         elseif token == "define"
             # Special parsing for define: (define (fname args...) body) or (define x expr)
             tokens = view(tokens, 2:length(tokens))
@@ -392,6 +390,9 @@ function parse_expr_inner(tokens, state)
                 # Return DefineOp with name as ConstNative
                 return DefineOp()(ConstNative(name)(), expr), view(tokens, 2:length(tokens))
             end
+        elseif token == "query"
+            tokens = view(tokens, 2:length(tokens))
+            return parse_query_expr(tokens, state.defs, base_dir=state.base_dir)
         elseif has_prim(token) && !haskey(state.defs, Symbol(token))
             head_type = lookup_prim(token)
             arity = prim_arity(head_type)
@@ -582,4 +583,30 @@ function detokenize(tokens)
         end
     end
     return result_str
+end
+
+function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
+    # @assert tokens[1] == "(" "Expected opening paren at start of query"
+    # tokens = view(tokens, 2:length(tokens))
+    end_idx = find_ending_paren(tokens)
+    # Skip past "query"
+    # @assert tokens[1] == "query" "Expected query keyword"
+    query_tokens = view(tokens, 1:end_idx)
+
+    if findfirst(t -> t == "(", query_tokens) == 1
+        # Name is the entire expression
+        name_expr = parse_expr("\"$(replace(detokenize(query_tokens), "\"" => "\""))\"")
+    else
+        # Name followed by expression
+        name = String(query_tokens[1])[2:end]
+        name_expr = parse_expr("\"$name\"")
+        query_tokens = view(query_tokens, 2:length(query_tokens))
+    end
+
+    query_body, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
+    @assert length(rest_query_tokens) == 1 && query_tokens[end] == ")" "Expected closing paren and nothing else, got $(detokenize(rest_query_tokens))"
+
+    query_expr = QueryOp()(name_expr, query_body)
+
+    return query_expr, view(tokens, end_idx+1:length(tokens))
 end

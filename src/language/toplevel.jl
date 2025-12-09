@@ -202,33 +202,6 @@ function find_ending_paren(tokens)
     return end_idx-1
 end
 
-function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
-    @assert tokens[1] == "(" "Expected opening paren at start of query"
-    tokens = view(tokens, 2:length(tokens))
-    end_idx = find_ending_paren(tokens)
-    # Skip past "query"
-    @assert tokens[1] == "query" "Expected query keyword"
-    query_tokens = view(tokens, 2:end_idx)
-
-    if findfirst(t -> t == "(", query_tokens) == 1
-        # Name is the entire expression
-        name_expr = parse_expr("\"$(replace(detokenize(query_tokens), "\"" => "\""))\"")
-    else
-        # Name followed by expression
-        name = String(query_tokens[1])[2:end]
-        println("name: $name")
-        name_expr = parse_expr("\"$name\"")
-        query_tokens = view(query_tokens, 2:length(query_tokens))
-    end
-
-    query_body, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
-    @assert length(rest_query_tokens) == 1 && query_tokens[end] == ")" "Expected closing paren and nothing else, got $(detokenize(rest_query_tokens))"
-
-    query_expr = QueryOp()(name_expr, query_body)
-
-    return query_expr, view(tokens, end_idx+1:length(tokens))
-end
-
 
 
 # Modify eval_form to handle queries
@@ -244,7 +217,7 @@ function eval_form(tokens, defs; silent=false, base_dir=pwd())
 
     # Peek at what follows the opening paren
     if tokens[2] == "query"
-        query_expr, rest = parse_query_expr(tokens, defs; silent=silent, base_dir=base_dir)
+        query_expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
         silent = false
     else
         # Regular expression in parentheses - wrap in Marginal
