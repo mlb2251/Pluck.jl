@@ -20,20 +20,7 @@ function Base.hash(x::Closure, h::UInt)
     return h
 end
 function Base.show(io::IO, c::Closure)
-    print(io, "[Closure [from $(c.origin)] ((λ", c.name, " -> ", c.expr, ")]")
-    # env = c.env
-    # while env isa EnvCons
-    #     if env.val === c
-    #         print(io, "[recursive reference to this closure]")
-    #     else
-    #         print(io, env.val)
-    #     end
-    #     if env.tail isa EnvCons
-    #         print(io, ", ")
-    #     end
-    #     env = env.tail
-    # end
-    # print(io, "]")
+    print(io, "(Closure from $(c.origin) name=$(c.name) body=$(c.expr))")
 end
 
 function make_self_loop(body, env, recname, nonrecname, origin)

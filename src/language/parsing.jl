@@ -73,7 +73,7 @@ function tokenize(s)
             push!(tokens, "->")
             i = nextind(s, nextind(s, i))
             continue
-        elseif c in ('(', ')', '{', '}', '[', ']', ',', '~', '`')
+        elseif c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', 'λ')
             push!(tokens, string(c))
             i = nextind(s, i)
             continue
@@ -81,7 +81,7 @@ function tokenize(s)
             start = i
             while i <= lastindex(s)
                 c = s[i]
-                if isspace(c) || c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', '"')
+                if isspace(c) || c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', '"', 'λ')
                     break
                 elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
                     break
