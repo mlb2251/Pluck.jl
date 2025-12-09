@@ -34,10 +34,35 @@ end
 
 **Critical insight**: Only evaluate the first argument (the name symbol), store the second argument (expression) unevaluated.
 
-#### 2. Toplevel Define Desugaring
+#### 2. Special Parsing for Define
+**File**: `src/language/parsing.jl` (lines 275-330)
+
+The `define` builtin has special parsing logic (not using `define_parser!`) that mirrors toplevel syntax:
+
+```julia
+elseif token == "define"
+    tokens = view(tokens, 2:length(tokens))
+
+    if tokens[1] == "("
+        # Function definition: (define (fname args...) body)
+        # Parse fname and args, construct lambda, return DefineOp()(ConstNative(fname)(), lambda)
+        ...
+    else
+        # Value definition: (define x expr)
+        # Parse name and expr, return DefineOp()(ConstNative(name)(), expr)
+        ...
+    end
+end
+```
+
+This allows using define in expressions with the same syntax as toplevel:
+- `(define (myadd a b) (+ a b))` instead of `(define 'myadd (fn a b -> (+ a b)))`
+- `(define x 5)` instead of `(define 'x 5)`
+
+#### 3. Toplevel Define Desugaring
 **File**: `src/language/toplevel.jl` (lines 277-354)
 
-Toplevel `(define x expr)` now desugars to `(query x-def (Marginal (define 'x expr)))`:
+Toplevel `(define x expr)` now desugars to `(query x-def (Marginal (define x expr)))`:
 
 ```julia
 # Function definitions:
@@ -53,7 +78,7 @@ process_query(query_expr, string(name) * "-def"; silent=true)
 
 This provides a unified implementation - single code path for both toplevel and builtin defines.
 
-#### 3. Define-Type Builtin Implementation
+#### 4. Define-Type Builtin Implementation
 **Files**:
 - `src/language/pexpr.jl` (lines 332-333): DefineTypeOp head definition
 - `src/likelihood/lazy_knowledge_compilation/compile_inner.jl` (lines 262-275): Builtin implementation
@@ -88,7 +113,7 @@ process_query(query_expr, string(type_name) * "-type-def"; silent=true)
 
 **Important**: Type definitions happen at both parse time (so constructors are available to the parser) and runtime (via the builtin query execution).
 
-#### 4. Auto-Marginal Wrapping
+#### 5. Auto-Marginal Wrapping
 **File**: `src/language/toplevel.jl` (lines 387-421)
 
 Any standalone parenthesized expression at toplevel automatically executes as a Marginal query:
@@ -112,14 +137,21 @@ end
 
 #### Conditional Defines (Key Use Case)
 ```scheme
-;; Define different values based on a flip
+;; Define different values based on a flip - using new syntax!
 (query test-conditional-define
   (let ((coin (flip 0.5)))
     (match (if coin
-             (define 'result 100)
-             (define 'result 200))
+             (define result 100)
+             (define result 200))
       Unit => (Marginal (lookup 'result)))))
 ;; Output: result → 100 (p=0.5), 200 (p=0.5)
+
+;; Function definition in expression context - much nicer now!
+(query test-function
+  (match (define (myadd a b) (+ a b))
+    Unit => (let ((add (lookup 'myadd)))
+              (Marginal (add 10 20)))))
+;; Output: 30
 ```
 
 #### Auto-Wrapped Expressions
@@ -140,25 +172,31 @@ end
 
 1. **Lazy Evaluation**: Defines must be forced to evaluate. Use pattern matching:
    ```scheme
-   (match (define 'z 42)
+   (match (define z 42)
      Unit => (Marginal (lookup 'z)))
    ```
 
 2. **Runtime-Defined Names**: Names defined via the builtin at runtime aren't available to the parser. Access them via `(lookup 'name)`:
    ```scheme
-   (match (define 'multiply (lambda a b -> (* a b)))
+   (match (define (multiply a b) (* a b))
      Unit => (let ((mult (lookup 'multiply)))
                (Marginal (mult 6 7))))
    ```
 
-3. **Toplevel vs Builtin**: Toplevel `(define x 5)` updates parser state immediately. Builtin `(define 'x 5)` only updates runtime DEFINITIONS.
+3. **New Define Syntax**: The builtin now uses the same syntax as toplevel:
+   - Function: `(define (fname args...) body)` - no quotes, no explicit lambda
+   - Value: `(define x expr)` - no quotes
+   - This is parsed specially to create `DefineOp()(ConstNative(name)(), expr_or_lambda)`
 
-4. **Define-Type at Parse and Runtime**: `define-type` executes at both parse time (to make constructors available to the parser) and runtime (via the builtin). This dual execution ensures constructors work correctly in all contexts.
+4. **Toplevel vs Builtin**: Toplevel `(define x 5)` updates parser state immediately. Builtin `(define x 5)` only updates runtime DEFINITIONS.
+
+5. **Define-Type at Parse and Runtime**: `define-type` executes at both parse time (to make constructors available to the parser) and runtime (via the builtin). This dual execution ensures constructors work correctly in all contexts.
 
 ### Test Files
 
 **Define builtin tests:**
 - `programs/dec9-refactor.pluck` - Comprehensive tests for define builtin
+- `programs/test-define-new-syntax.pluck` - Tests for new define syntax (without quotes)
 - `programs/demo-new-features.pluck` - Demo of define and auto-wrapping features
 
 **Define-type builtin tests:**

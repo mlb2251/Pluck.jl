@@ -272,6 +272,62 @@ function parse_expr_inner(tokens, state)
                 error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(detokenize(tokens))")
             end
             return Construct(constructor)(args...), view(tokens, 2:length(tokens))
+        elseif token == "define"
+            # Special parsing for define: (define (fname args...) body) or (define x expr)
+            tokens = view(tokens, 2:length(tokens))
+
+            if tokens[1] == "("
+                # Function definition: (define (fname args...) body)
+                tokens = view(tokens, 2:length(tokens))
+                fname = Symbol(tokens[1])
+                tokens = view(tokens, 2:length(tokens))
+
+                # Collect args
+                args = Symbol[]
+                new_env = []
+                while tokens[1] != ")"
+                    arg = Symbol(tokens[1])
+                    push!(args, arg)
+                    new_env = [tokens[1], new_env...]
+                    tokens = view(tokens, 2:length(tokens))
+                end
+                tokens = view(tokens, 2:length(tokens))
+
+                # For zero-argument case, add dummy unit variable
+                if isempty(args)
+                    new_env = ["_", new_env...]
+                end
+
+                # Parse body with updated environment
+                body, tokens = parse_expr_inner(tokens, ParseState(state.defs, new_env))
+
+                # Construct lambda expression
+                expr = body
+                if isempty(args)
+                    expr = Abs(Symbol("_"))(expr)
+                else
+                    for arg in reverse(args)
+                        expr = Abs(arg)(expr)
+                    end
+                end
+
+                @assert tokens[1] == ")" "Expected closing paren in define"
+
+                # Return DefineOp with fname as ConstNative and lambda as expr
+                return DefineOp()(ConstNative(fname)(), expr), view(tokens, 2:length(tokens))
+            else
+                # Value definition: (define x expr)
+                name = Symbol(tokens[1])
+                tokens = view(tokens, 2:length(tokens))
+
+                # Parse expression
+                expr, tokens = parse_expr_inner(tokens, state)
+
+                @assert tokens[1] == ")" "Expected closing paren in define"
+
+                # Return DefineOp with name as ConstNative
+                return DefineOp()(ConstNative(name)(), expr), view(tokens, 2:length(tokens))
+            end
         elseif has_prim(token) && !haskey(state.defs, Symbol(token))
             head_type = lookup_prim(token)
             arity = prim_arity(head_type)

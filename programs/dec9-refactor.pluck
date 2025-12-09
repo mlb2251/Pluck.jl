@@ -4,9 +4,9 @@
 ;; For toplevel definitions, still use the regular syntax:
 (define x 5)
 (define y (+ 3 2))
-;; (define (myadd a b) (+ a b))
+;; Now we can use the define builtin with nice syntax!
 
-(query (Marginal (define 'myadd (fn a b -> (+ a b)))))
+(query (Marginal (define (myadd a b) (+ a b))))
 
 ;; Test that regular toplevel defines still work
 (query test-x (Marginal x))
@@ -15,12 +15,12 @@
 
 ;; Test 1: Basic define builtin - force evaluation by matching on the Unit result
 (query test-define-builtin
-  (match (define 'z 42)
+  (match (define z 42)
     Unit => (Marginal (lookup 'z))))
 
-;; Test 2: Define function using the builtin
+;; Test 2: Define function using the builtin with new syntax!
 (query test-define-function
-  (match (define 'multiply (lambda a b -> (* a b)))
+  (match (define (multiply a b) (* a b))
     Unit => (let ((mult (lookup 'multiply)))
               (Marginal (mult 6 7)))))
 
@@ -28,12 +28,12 @@
 (query test-conditional-define
   (let ((coin (flip 0.5)))
     (match (if coin
-             (define 'result 100)
-             (define 'result 200))
+             (define result 100)
+             (define result 200))
       Unit => (Marginal (lookup 'result)))))
 
 ;; Test 4: Define based on computed value
 (query test-computed-define
   (let ((value (+ 10 20)))
-    (match (define 'computed value)
+    (match (define computed value)
       Unit => (Marginal (lookup 'computed)))))

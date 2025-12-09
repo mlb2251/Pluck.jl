@@ -1,0 +1,26 @@
+;; Test the new define syntax in expressions
+
+;; First test: function definition using new syntax
+(query test-function-define
+  (match (define (myadd a b) (+ a b))
+    Unit => (let ((add (lookup 'myadd)))
+              (Marginal (add 10 20)))))
+
+;; Second test: value definition using new syntax
+(query test-value-define
+  (match (define myvalue 42)
+    Unit => (Marginal (lookup 'myvalue))))
+
+;; Third test: conditional define with new syntax
+(query test-conditional-define
+  (let ((coin (flip 0.5)))
+    (match (if coin
+             (define result 100)
+             (define result 200))
+      Unit => (Marginal (lookup 'result)))))
+
+;; Fourth test: zero-argument function
+(query test-zero-arg-function
+  (match (define (get-constant) 99)
+    Unit => (let ((getter (lookup 'get-constant)))
+              (Marginal (getter (Unit))))))

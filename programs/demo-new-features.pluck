@@ -23,5 +23,5 @@
 ;; === The define builtin can be used for metaprogramming ===
 (query dynamic-define
   (let ((value (if (flip 0.5) 42 99)))
-    (match (define 'computed value)
+    (match (define computed value)
       Unit => (Marginal (lookup 'computed)))))
