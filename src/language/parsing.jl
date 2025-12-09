@@ -272,6 +272,32 @@ function parse_expr_inner(tokens, state)
                 error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(detokenize(tokens))")
             end
             return Construct(constructor)(args...), view(tokens, 2:length(tokens))
+        elseif token == "define-type"
+            # Special parsing for define-type: (define-type name (Constructor1 args...) ...)
+            tokens = view(tokens, 2:length(tokens))
+            
+            # Get the type name
+            type_name = Symbol(tokens[1])
+            tokens = view(tokens, 2:length(tokens))
+            
+            # Parse each constructor definition
+            constructors = Dict{Symbol,Vector{Symbol}}()
+            while tokens[1] != ")"
+                # Each constructor is a parenthesized list
+                end_idx = findfirst(t -> t == ")", tokens)
+                constructor, args = parse_constructor(tokens[1:end_idx])
+                constructors[constructor] = args
+                tokens = view(tokens, end_idx+1:length(tokens))
+            end
+            
+            # Define the type immediately at parse time so constructors are available
+            define_type!(type_name, constructors)
+            
+            @assert tokens[1] == ")" "Expected closing paren in define-type"
+            
+            # Return DefineTypeOp with type name and constructors as ConstNative
+            return DefineTypeOp()(ConstNative(type_name)(), ConstNative(constructors)()), view(tokens, 2:length(tokens))
+            
         elseif token == "define"
             # Special parsing for define: (define (fname args...) body) or (define x expr)
             tokens = view(tokens, 2:length(tokens))
@@ -299,11 +325,10 @@ function parse_expr_inner(tokens, state)
                 end
 
                 # Set up dummy binding so the body can reference the function recursively
-                # new_defs = copy(state.defs)
                 state.defs[fname] = Definition(fname, DUMMY_EXPRESSION)
 
-                # Parse body with updated environment
-                body, tokens = parse_expr_inner(tokens, ParseState(state.defs, new_env))
+                # Parse body with updated environment using parse_with_env to preserve env_stack
+                body, tokens = parse_with_env(tokens, state, new_env)
 
                 # Construct lambda expression
                 expr = body
@@ -325,11 +350,10 @@ function parse_expr_inner(tokens, state)
                 tokens = view(tokens, 2:length(tokens))
 
                 # Set up dummy binding so the expression can reference the name recursively
-                new_defs = copy(state.defs)
-                new_defs[name] = Definition(name, DUMMY_EXPRESSION)
+                state.defs[name] = Definition(name, DUMMY_EXPRESSION)
 
-                # Parse expression
-                expr, tokens = parse_expr_inner(tokens, ParseState(new_defs, state.env))
+                # Parse expression - just use current state which already has the right env_stack
+                expr, tokens = parse_expr_inner(tokens, state)
 
                 @assert tokens[1] == ")" "Expected closing paren in define"
 
