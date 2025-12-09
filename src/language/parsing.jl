@@ -284,8 +284,7 @@ function parse_expr_inner(tokens, state)
             # Resolve relative paths using the base directory of the current file
             full_path = isabspath(rel_path) ? rel_path : joinpath(state.base_dir, rel_path)
             
-            # Load the file immediately so definitions are available to the parser
-            load_pluck_file(full_path)
+            # Don't load at parse time - let it happen at eval time
             
             tokens = view(tokens, 2:length(tokens))
             @assert tokens[1] == ")" "Expected closing paren in include"
