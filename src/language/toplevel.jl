@@ -148,7 +148,7 @@ function process_query(expr::PExpr{QueryOp}, query_str::AbstractString=string(ex
 
     state = LazyKCState(; kwargs...)
 
-    # this is a little weird – we dont allow name compilation to affect body
+    # this is a little weird – we dont allow name compilation to affect body – but also why would you want that.
     name = compile_deterministic(expr.args[1])
     body = traced_compile_deterministic(expr.args[2], env, state, 1)
 
