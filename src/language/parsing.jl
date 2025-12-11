@@ -20,7 +20,7 @@ end
 
 # Parse a single constructor definition of form (Constructor arg1 arg2 ...)
 function parse_constructor(tokens)
-    @assert tokens[1] == "(" "Expected opening paren in constructor definition"
+    @assert tokens[1] == "(" "Expected opening paren in constructor definition at $(detokenize(tokens))"
     @assert tokens[end] == ")" "Expected closing paren in constructor definition"
 
     # Get constructor name and args (if any)
