@@ -13,6 +13,12 @@
     )
 )
 
+(define (rand-mytype) 
+    (if (flip 0.5)
+        (MyNat)
+        (MyList (rand-mytype))))
+
+
 ;; typeof is a little unusual - it gives a distribution over types!
 (define (typeof x) (match x
     S _ => (MyNat)
@@ -21,10 +27,6 @@
     Nil => (MyList (rand-mytype))
 ))
 
-(define (rand-mytype) 
-    (if (flip 0.5)
-        (MyNat)
-        (MyList (rand-mytype))))
 
 
 (define (rand-myvalue type)
