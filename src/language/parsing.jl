@@ -193,7 +193,7 @@ function parse_expr_inner(tokens, state)
             guards = CaseOfGuard[]
             branches = PExpr[]
             while tokens[1] != ")"
-                @assert tokens[1] != "(" "unnecessary parens around pattern match guard at $(detokenize(tokens))" # common mistake
+                tokens[1] != "(" || parse_error(state, tokens, "unnecessary parens around pattern match guard") # common mistake
                 if tokens[1] == "|"
                     tokens = view(tokens, 2:length(tokens))
                 end
@@ -551,12 +551,12 @@ function parse_expr_inner(tokens, state)
     elseif haskey(state.defs, Symbol(token))
         return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
-        parse_error(state, "unknown token: $token", tokens)
+        parse_error(state, tokens, "unknown token: $token")
     end
 end
 
 
-function parse_error(state, msg, tokens)
+function parse_error(state, tokens, msg)
     context = detokenize(tokens)
     context = context[1:min(length(context), 50)]
     printstyled("Pluck Parse Error: ", color=:red)
