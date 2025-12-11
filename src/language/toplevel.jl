@@ -191,7 +191,7 @@ function eval_query(val, state::LazyKCState)
 end
 
 # Modify eval_form to handle queries
-function eval_form(tokens, defs; silent=false, base_dir=pwd())
+function eval_form(tokens, defs; silent=false, base_dir=pwd(), source="", filename="<unknown>")
     if length(tokens) == 0
         error("unexpected end of input")
     end
@@ -201,7 +201,8 @@ function eval_form(tokens, defs; silent=false, base_dir=pwd())
         error("Expected opening paren at start of toplevel form, got: $token")
     end
 
-    query_expr, rest = parse_expr_inner(tokens, ParseState(defs, [], base_dir))
+    state = ParseState(defs, [], base_dir, source, filename)
+    query_expr, rest = parse_expr_inner(tokens, state)
     if tokens[2] != "query"
         # implicitly wrap in a Marginal Query
         name_expr = ConstNative(Symbol(string(query_expr)))()
@@ -209,16 +210,16 @@ function eval_form(tokens, defs; silent=false, base_dir=pwd())
         query_expr = QueryOp()(name_expr, body_expr)
         silent = true
     end
-    
+
     result = process_query(query_expr; silent=silent)
     return (:query, query_expr, result), rest
 end
 
 # Parse and process a sequence of top-level forms
-function eval_forms(s::String, defs=DEFINITIONS; silent=false, base_dir=pwd())
+function eval_forms(s::String, defs=DEFINITIONS; silent=false, base_dir=pwd(), filename="<unknown>")
     tokens = tokenize(s)
     while !isempty(tokens)
-        _, tokens = eval_form(tokens, defs; silent=silent, base_dir=base_dir)
+        _, tokens = eval_form(tokens, defs; silent=silent, base_dir=base_dir, source=s, filename=filename)
     end
     nothing
 end
@@ -226,5 +227,5 @@ end
 # Load and process definitions from a file
 function load_pluck_file(filename::String)
     content = read(filename, String)
-    eval_forms(content; base_dir=dirname(abspath(filename)))
+    eval_forms(content; base_dir=dirname(abspath(filename)), filename=filename)
 end

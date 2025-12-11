@@ -10,18 +10,52 @@ macro expr_str(str)
     :(parse_expr($(esc(str))))
 end
 
+"""
+Token with source position information for better error messages.
+"""
+struct Token
+    value::String
+    line::Int      # 1-indexed line number
+    col::Int       # 1-indexed column number (character position in line)
+    offset::Int    # 0-indexed byte offset in source
+end
+
+# Make Token comparable with String for backward compatibility
+Base.:(==)(t::Token, s::String) = t.value == s
+Base.:(==)(s::String, t::Token) = s == t.value
+Base.:(==)(t1::Token, t2::Token) = t1.value == t2.value
+Base.getindex(t::Token, i) = t.value[i]
+Base.firstindex(t::Token) = firstindex(t.value)
+Base.lastindex(t::Token) = lastindex(t.value)
+Base.startswith(t::Token, s::String) = startswith(t.value, s)
+Base.endswith(t::Token, s::String) = endswith(t.value, s)
+Base.String(t::Token) = t.value
+Base.Symbol(t::Token) = Symbol(t.value)
+Base.show(io::IO, t::Token) = print(io, t.value)
+Base.length(t::Token) = length(t.value)
+Base.all(pred, t::Token) = all(pred, t.value)
+Base.parse(::Type{T}, t::Token) where T = parse(T, t.value)
+Base.in(t::Token, collection) = t.value in collection
+Base.isdigit(t::Token) = all(isdigit, t.value)
+Base.isidentifier(t::Token) = Base.isidentifier(t.value)
+Base.nextind(t::Token, i::Int) = nextind(t.value, i)
+Base.prevind(t::Token, i::Int) = prevind(t.value, i)
+
 mutable struct ParseState
     defs
     env_stack
     query
     base_dir
-    ParseState(defs, env, base_dir=pwd()) = new(defs, [env], nothing, base_dir)
+    source::String      # Original source code
+    filename::String    # Source filename for error messages
+    ParseState(defs, env, base_dir=pwd(), source="", filename="<unknown>") =
+        new(defs, [env], nothing, base_dir, source, filename)
 end
 
 # Parse a single constructor definition of form (Constructor arg1 arg2 ...)
-function parse_constructor(tokens)
-    @assert tokens[1] == "(" "Expected opening paren in constructor definition at $(detokenize(tokens))"
-    @assert tokens[end] == ")" "Expected closing paren in constructor definition"
+function parse_constructor(tokens, state)
+    tokens[1] == "(" || parse_error(state, tokens, "expected opening paren in constructor definition")
+    tokens[end] == ")" || parse_error(state, view(tokens, length(tokens):length(tokens)), "expected closing paren in constructor definition")
 
     # Get constructor name and args (if any)
     constructor = Symbol(tokens[2])
@@ -31,12 +65,12 @@ function parse_constructor(tokens)
 end
 
 
-function parse_expr(s::String; defs=DEFINITIONS, env=[])
+function parse_expr(s::String; defs=DEFINITIONS, env=[], filename="<unknown>")
     tokens = tokenize(s)
-    state = ParseState(defs, env)
+    state = ParseState(defs, env, pwd(), s, filename)
     state.query = s
     expr, rest = parse_expr_inner(tokens, state)
-    @assert isempty(rest)
+    isempty(rest) || parse_error(state, rest, "unexpected tokens after end of expression")
     return expr
 end
 
@@ -51,7 +85,7 @@ const_to_expr(v::Bool) =
 
 # Parse from Scheme notation (string) into PExpr
 function tokenize(s)
-    # First remove line comments
+    # First remove line comments, but keep track of line positions
     lines = split(s, '\n')
     processed_lines = String[]
     for line in lines
@@ -64,34 +98,68 @@ function tokenize(s)
     end
     s = join(processed_lines, "\n")
 
-    tokens = String[]
+    tokens = Token[]
     i = firstindex(s)
+    line = 1
+    col = 1
+
     while i <= lastindex(s)
         c = s[i]
-        if isspace(c)
+        if c == '\n'
+            # Track newlines
+            line += 1
+            col = 1
             i = nextind(s, i)
             continue
-        elseif c == '"'
-            start = i
+        elseif isspace(c)
+            # Track column position through whitespace
+            col += 1
             i = nextind(s, i)
+            continue
+        end
+
+        # Record token start position
+        token_line = line
+        token_col = col
+        token_offset = i - 1  # 0-indexed byte offset
+
+        if c == '"'
+            # String literal
+            start = i
+            start_col = col
+            i = nextind(s, i)
+            col += 1
             while i <= lastindex(s) && s[i] != '"'
+                if s[i] == '\n'
+                    line += 1
+                    col = 1
+                else
+                    col += 1
+                end
                 i = nextind(s, i)
             end
             i <= lastindex(s) || error("unterminated string literal")
-            token = s[start:i]
-            push!(tokens, token)
+            token_value = s[start:i]
+            push!(tokens, Token(token_value, token_line, token_col, token_offset))
+            col += 1
             i = nextind(s, i)
             continue
         elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
-            push!(tokens, "->")
+            # Arrow token
+            push!(tokens, Token("->", token_line, token_col, token_offset))
+            col += 2
             i = nextind(s, nextind(s, i))
             continue
         elseif c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', 'λ')
-            push!(tokens, string(c))
+            # Single character token
+            push!(tokens, Token(string(c), token_line, token_col, token_offset))
+            col += 1
             i = nextind(s, i)
             continue
         else
+            # Identifier or number
             start = i
+            start_col = col
             while i <= lastindex(s)
                 c = s[i]
                 if isspace(c) || c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', '"', 'λ')
@@ -99,9 +167,11 @@ function tokenize(s)
                 elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
                     break
                 end
+                col += 1
                 i = nextind(s, i)
             end
-            push!(tokens, s[start:prevind(s, i)])
+            token_value = s[start:prevind(s, i)]
+            push!(tokens, Token(token_value, token_line, token_col, token_offset))
         end
     end
     return tokens
@@ -117,7 +187,7 @@ end
 function parse_expr_inner(tokens, state)
     env = state.env_stack[1]
     if length(tokens) == 0
-        error("unexpected end of input")
+        parse_error(state, tokens, "unexpected end of input")
     end
     token = tokens[1]
     if token == "("
@@ -137,14 +207,14 @@ function parse_expr_inner(tokens, state)
                 # Add dummy unit variable to environment
                 env = ["_", env...]
                 body, tokens = parse_with_env(tokens, state, env)
-                tokens[1] != ")" && error("expected closing paren")
+                tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after lambda body")
                 return Abs(Symbol("_"))(body), view(tokens, 2:length(tokens))
             end
 
             # Handle regular lambda cases
             while true
                 name = tokens[1]
-                @assert Base.isidentifier(name) "expected identifier for lambda argument, got $name"
+                Base.isidentifier(name) || parse_error(state, tokens, "expected identifier for lambda argument, got $name")
                 env = [name, env...]
                 num_args += 1
                 tokens = view(tokens, 2:length(tokens))
@@ -160,7 +230,7 @@ function parse_expr_inner(tokens, state)
             for i ∈ 1:num_args
                 body = Abs(Symbol(env[i]))(body)
             end
-            tokens[1] != ")" && error("expected closing paren")
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after lambda body")
             return body, view(tokens, 2:length(tokens))
         elseif token == "if"
             # Parse an if
@@ -168,7 +238,7 @@ function parse_expr_inner(tokens, state)
             cond, tokens = parse_expr_inner(tokens, state)
             then_expr, tokens = parse_expr_inner(tokens, state)
             else_expr, tokens = parse_expr_inner(tokens, state)
-            tokens[1] != ")" && error("expected closing paren")
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after if expression")
             # Parse as a CaseOf expression.
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
             return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
@@ -182,13 +252,13 @@ function parse_expr_inner(tokens, state)
                 x, tokens = parse_expr_inner(tokens, state)
                 e = App()(e, x)
             end
-            tokens[1] != ")" && error("expected closing paren")
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after Y combinator")
             return e, view(tokens, 2:length(tokens))
         elseif token == "case" || token == "match"
             # case e1 of Cons => (λ_->(λ_->e2)) | Nil => e3
             tokens = view(tokens, 2:length(tokens))
             scrutinee, tokens = parse_expr_inner(tokens, state)
-            @assert tokens[1] == "of" || token == "match"
+            (tokens[1] == "of" || token == "match") || parse_error(state, tokens, "expected 'of' after match scrutinee")
             tokens[1] == "of" && (tokens = view(tokens, 2:length(tokens)))
             guards = CaseOfGuard[]
             branches = PExpr[]
@@ -219,7 +289,7 @@ function parse_expr_inner(tokens, state)
                     body, tokens = parse_with_env(tokens, state, new_env)
                     # Wrap body in Abs for each argument, in the proper order.
                 end
-                @assert !any(g -> g.constructor == constructor, guards) "duplicate constructor $constructor in case..of"
+                any(g -> g.constructor == constructor, guards) && parse_error(state, tokens, "duplicate constructor $constructor in match expression")
 
                 guard = CaseOfGuard(constructor, args)
                 push!(guards, guard)
@@ -232,7 +302,7 @@ function parse_expr_inner(tokens, state)
         elseif token == "let"
             # Parse a let expression
             tokens = view(tokens, 2:length(tokens))
-            @assert tokens[1] == "(" || tokens[1] == "[" "Expected opening parenthesis or open bracket after 'let' at $(detokenize(tokens))"
+            (tokens[1] == "(" || tokens[1] == "[") || parse_error(state, tokens, "expected opening parenthesis or bracket after 'let'")
             close_token = tokens[1] == "(" ? ")" : "]"
             tokens = view(tokens, 2:length(tokens))
 
@@ -247,7 +317,7 @@ function parse_expr_inner(tokens, state)
                     var = tokens[1]
                     tokens = view(tokens, 2:length(tokens))
                     val, tokens = parse_with_env(tokens, state, env)
-                    @assert tokens[1] == ")" "Expected closing parenthesis in let binding"
+                    tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis in let binding")
                     tokens = view(tokens, 2:length(tokens))  # Skip closing paren
                 else
                     # Flat list format
@@ -261,7 +331,7 @@ function parse_expr_inner(tokens, state)
             tokens = view(tokens, 2:length(tokens))  # Skip closing paren of bindings list
             body, tokens = parse_with_env(tokens, state, env)
 
-            @assert tokens[1] == ")" "Expected closing parenthesis at end of let expression"
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis at end of let expression")
 
             # Desugar to nested lambdas and applications
             expr = body
@@ -281,51 +351,49 @@ function parse_expr_inner(tokens, state)
                     arg, tokens = parse_expr_inner(tokens, state)
                 push!(args, arg)
             end
-            if length(args) != length(args_of_constructor[constructor])
-                error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(detokenize(tokens))")
-            end
+            length(args) == length(args_of_constructor[constructor]) || parse_error(state, tokens, "wrong number of arguments for constructor $constructor: expected $(length(args_of_constructor[constructor])), got $(length(args))")
             return Construct(constructor)(args...), view(tokens, 2:length(tokens))
         elseif token == "include"
             # Special parsing for include: (include "path/to/file.pluck")
             tokens = view(tokens, 2:length(tokens))
-            
+
             path_token = tokens[1]
-            @assert startswith(path_token, "\"") && endswith(path_token, "\"") "include expects a string literal path"
+            (startswith(path_token, "\"") && endswith(path_token, "\"")) || parse_error(state, tokens, "include expects a string literal path")
             rel_path = path_token[2:end-1]
-            
+
             # Resolve relative paths using the base directory of the current file
             full_path = isabspath(rel_path) ? rel_path : joinpath(state.base_dir, rel_path)
-            
+
             # Don't load at parse time - let it happen at eval time
-            
+
             tokens = view(tokens, 2:length(tokens))
-            @assert tokens[1] == ")" "Expected closing paren in include"
-            
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in include")
+
             # Return IncludeOp with path as ConstNative
             return IncludeOp()(ConstNative(full_path)()), view(tokens, 2:length(tokens))
         elseif token == "define-type"
             # Special parsing for define-type: (define-type name (Constructor1 args...) ...)
             tokens = view(tokens, 2:length(tokens))
-            
+
             # Get the type name
             type_name = Symbol(tokens[1])
             tokens = view(tokens, 2:length(tokens))
-            
+
             # Parse each constructor definition
             constructors = Dict{Symbol,Vector{Symbol}}()
             while tokens[1] != ")"
                 # Each constructor is a parenthesized list
                 end_idx = findfirst(t -> t == ")", tokens)
-                constructor, args = parse_constructor(tokens[1:end_idx])
+                constructor, args = parse_constructor(tokens[1:end_idx], state)
                 constructors[constructor] = args
                 tokens = view(tokens, end_idx+1:length(tokens))
             end
-            
+
             # Define the type immediately at parse time so constructors are available
             define_type!(type_name, constructors)
-            
-            @assert tokens[1] == ")" "Expected closing paren in define-type"
-            
+
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in define-type")
+
             # Return DefineTypeOp with type name and constructors as ConstNative
             return DefineTypeOp()(ConstNative(type_name)(), ConstNative(constructors)()), view(tokens, 2:length(tokens))
         elseif token == "define"
@@ -370,7 +438,7 @@ function parse_expr_inner(tokens, state)
                     end
                 end
 
-                @assert tokens[1] == ")" "Expected closing paren in define"
+                tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in define")
 
                 # Return DefineOp with fname as ConstNative and lambda as expr
                 return DefineOp()(ConstNative(fname)(), expr), view(tokens, 2:length(tokens))
@@ -385,16 +453,16 @@ function parse_expr_inner(tokens, state)
                 # Parse expression - just use current state which already has the right env_stack
                 expr, tokens = parse_expr_inner(tokens, state)
 
-                @assert tokens[1] == ")" "Expected closing paren in define"
+                tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in define")
 
                 # Return DefineOp with name as ConstNative
                 return DefineOp()(ConstNative(name)(), expr), view(tokens, 2:length(tokens))
             end
         elseif token == "query"
             tokens = view(tokens, 2:length(tokens))
-            return parse_query_expr(tokens, state.defs, base_dir=state.base_dir)
-        elseif has_prim(token) && !haskey(state.defs, Symbol(token))
-            head_type = lookup_prim(token)
+            return parse_query_expr(tokens, state.defs, base_dir=state.base_dir, source=state.source, filename=state.filename)
+        elseif has_prim(String(token)) && !haskey(state.defs, Symbol(token))
+            head_type = lookup_prim(String(token))
             arity = prim_arity(head_type)
             tokens = view(tokens, 2:length(tokens))
             head = head_type()
@@ -403,39 +471,39 @@ function parse_expr_inner(tokens, state)
                 arg, tokens = parse_expr_inner(tokens, state)
                 push!(args, arg)
             end
-            tokens[1] != ")" && error("too few arguments for primitive $token, expected $arity, got $(length(args)) at: $(detokenize(tokens))")
+            tokens[1] == ")" || parse_error(state, tokens, "wrong number of arguments for primitive $token: expected $arity, got $(length(args))")
             return head(args...), view(tokens, 2:length(tokens))
         elseif token == "discrete"
             # Parse (discrete (e1 p1) (e2 p2) ...)
             tokens = view(tokens, 2:length(tokens))
-            
+
             options = PExpr[]
             probabilities = Float64[]
-            
+
             while tokens[1] != ")"
-                @assert tokens[1] == "(" "Expected opening paren in discrete distribution pair"
+                tokens[1] == "(" || parse_error(state, tokens, "expected opening paren in discrete distribution pair")
                 tokens = view(tokens, 2:length(tokens))
-                
+
                 # Parse the expression
                 expr, tokens = parse_expr_inner(tokens, state)
                 push!(options, expr)
-                
+
                 # Parse the probability (must be a literal number)
                 prob_str = tokens[1]
-                @assert all(c -> isdigit(c) || c == '.' || c =='e' || c == '-', prob_str) "Probability must be a literal number in discrete distribution, got $prob_str"
+                all(c -> isdigit(c) || c == '.' || c =='e' || c == '-', prob_str) || parse_error(state, tokens, "probability must be a literal number in discrete distribution, got $prob_str")
                 prob = parse(Float64, prob_str)
                 push!(probabilities, prob)
-                
+
                 tokens = view(tokens, 2:length(tokens))  # Skip probability and closing paren
-                @assert tokens[1] == ")" "Expected closing paren in discrete distribution pair"
+                tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in discrete distribution pair")
                 tokens = view(tokens, 2:length(tokens))
             end
-            
+
             # Generate the nested if-expression using the discrete function
             expr_str = discrete(options, probabilities)
             expr, rest = parse_expr_inner(tokenize(expr_str), state)
-            @assert isempty(rest)
-            
+            isempty(rest) || parse_error(state, rest, "unexpected tokens after discrete expression")
+
             return expr, view(tokens, 2:length(tokens))
         elseif token == "uniform"
             # Parse (uniform e1 e2 e3 ...)
@@ -445,15 +513,15 @@ function parse_expr_inner(tokens, state)
                 expr, tokens = parse_expr_inner(tokens, state)
                 push!(options, expr)
             end
-            
+
             n = length(options)
             probabilities = fill(1.0/n, n)
-            
+
             # Generate the nested if-expression using the discrete function
             expr_str = discrete(options, probabilities)
             expr, rest = parse_expr_inner(tokenize(expr_str), state)
-            @assert isempty(rest)
-            
+            isempty(rest) || parse_error(state, rest, "unexpected tokens after uniform expression")
+
             return expr, view(tokens, 2:length(tokens))
         else
             # Parse an application
@@ -482,7 +550,7 @@ function parse_expr_inner(tokens, state)
     elseif startswith(token, "0c") && length(token) == 3
         # byte literal: 0cX for a single ASCII byte X
         inner = token[3]
-        @assert ncodeunits(string(inner)) == 1 "byte literal must be exactly one byte, got \"$inner\""
+        ncodeunits(string(inner)) == 1 || parse_error(state, tokens, "byte literal must be exactly one byte, got \"$inner\"")
         byte = Int(codeunit(string(inner), 1))
         bitwidth = ConstNative(8)()
         val = ConstNative(byte)()
@@ -556,28 +624,183 @@ function parse_expr_inner(tokens, state)
 end
 
 
+"""
+Format a Rust-style error message with source context.
+
+Shows:
+- Filename and line:column location
+- 2 lines of context before and after the error
+- Line numbers in gutter
+- Visual highlight (^^^) under the error location
+- Rust-style colors: red for errors, blue for line numbers
+"""
+function format_parse_error(state::ParseState, tokens, msg::String)
+    # Handle empty tokens
+    if isempty(tokens)
+        io = IOBuffer()
+        printstyled(io, "error", color=:red, bold=true)
+        println(io, ": ", msg)
+        printstyled(io, "  --> ", color=:blue)
+        println(io, state.filename)
+        return String(take!(io))
+    end
+
+    # Get the first token's position
+    token = tokens[1]
+    line = token.line
+    col = token.col
+
+    # Split source into lines
+    source_lines = split(state.source, '\n')
+
+    # Calculate range of lines to show (2 lines before/after)
+    context_lines = 2
+    start_line = max(1, line - context_lines)
+    end_line = min(length(source_lines), line + context_lines)
+
+    # Build error message
+    io = IOBuffer()
+
+    # Header: error: message
+    printstyled(io, "error", color=:red, bold=true)
+    println(io, ": ", msg)
+
+    # Location: --> filename:line:col
+    printstyled(io, "  --> ", color=:blue)
+    println(io, state.filename, ":", line, ":", col)
+    println(io)
+
+    # Gutter width (for line numbers)
+    gutter_width = length(string(end_line))
+
+    # Print context lines
+    for i in start_line:end_line
+        # Line number gutter
+        if i == line
+            printstyled(io, lpad(i, gutter_width), " | ", color=:blue, bold=true)
+        else
+            printstyled(io, lpad(i, gutter_width), " | ", color=:blue)
+        end
+
+        # Source line
+        println(io, source_lines[i])
+
+        # Highlight line (^^^) for error line
+        if i == line
+            printstyled(io, repeat(" ", gutter_width), " | ", color=:blue, bold=true)
+            # Calculate token length for highlighting
+            token_len = length(token.value)
+            # Adjust for multi-character start
+            highlight_col = col - 1
+            printstyled(io, repeat(" ", highlight_col), repeat("^", max(1, token_len)), "\n", color=:red, bold=true)
+        end
+    end
+
+    return String(take!(io))
+end
+
 function parse_error(state, tokens, msg)
-    context = detokenize(tokens)
-    context = context[1:min(length(context), 50)]
-    printstyled("Pluck Parse Error: ", color=:red)
-    println(msg)
-    println("Context: $context")
-    println("Env: ", state.env_stack[1])
-    println("Query: ", state.query)
+    # Use new Rust-style formatter if we have source info
+    if !isempty(state.source) && !isempty(tokens)
+        # Print directly to stderr with colors instead of building a string
+        format_parse_error_to_stderr(state, tokens, msg)
+    else
+        # Fallback to old format
+        context = detokenize(tokens)
+        context = context[1:min(length(context), 50)]
+        printstyled("Pluck Parse Error: ", color=:red)
+        println(msg)
+        println("Context: $context")
+        println("Env: ", state.env_stack[1])
+        println("Query: ", state.query)
+    end
     throw(ErrorException("Pluck Parse Error"))
 end
+
+"""
+Print a Rust-style error message directly to stderr with colors.
+"""
+function format_parse_error_to_stderr(state::ParseState, tokens, msg::String)
+    # Handle empty tokens
+    if isempty(tokens)
+        printstyled(stderr, "error", color=:red, bold=true)
+        println(stderr, ": ", msg)
+        printstyled(stderr, "  --> ", color=:blue)
+        println(stderr, state.filename)
+        return
+    end
+
+    # Get the first token's position
+    token = tokens[1]
+    line = token.line
+    col = token.col
+
+    # Split source into lines
+    source_lines = split(state.source, '\n')
+
+    # Calculate range of lines to show (2 lines before/after)
+    context_lines = 2
+    start_line = max(1, line - context_lines)
+    end_line = min(length(source_lines), line + context_lines)
+
+    # Header: error: message
+    printstyled(stderr, "error", color=:red, bold=true)
+    println(stderr, ": ", msg)
+
+    # Location: --> filename:line:col
+    printstyled(stderr, "  --> ", color=:blue)
+    println(stderr, state.filename, ":", line, ":", col)
+    println(stderr)
+
+    # Gutter width (for line numbers)
+    gutter_width = length(string(end_line))
+
+    # Print context lines
+    for i in start_line:end_line
+        # Line number gutter
+        if i == line
+            printstyled(stderr, lpad(i, gutter_width), " | ", color=:blue, bold=true)
+        else
+            printstyled(stderr, lpad(i, gutter_width), " | ", color=:blue)
+        end
+
+        # Source line
+        println(stderr, source_lines[i])
+
+        # Highlight line (^^^) for error line
+        if i == line
+            printstyled(stderr, repeat(" ", gutter_width), " | ", color=:blue, bold=true)
+            # Calculate token length for highlighting
+            token_len = length(token.value)
+            # Adjust for multi-character start
+            highlight_col = col - 1
+            printstyled(stderr, repeat(" ", highlight_col), repeat("^", max(1, token_len)), "\n", color=:red, bold=true)
+        end
+    end
+end
+
+# function get_context(tokens::SubArray)
+#     full_context = tokens.parent
+#     start = tokens.indices[1].start
+#     stop = t
+#     # stop = tokens.indices[1].stop
+
+# end
+
 
 function detokenize(tokens)
     result_str = ""
     for (i, token) in enumerate(tokens)
-        if token == "(" || token == ")"
-            result_str *= token
-            if token == ")" && i < length(tokens) && tokens[i+1] == "("
+        # Convert Token to String if needed
+        token_str = String(token)
+        if token_str == "(" || token_str == ")"
+            result_str *= token_str
+            if token_str == ")" && i < length(tokens) && String(tokens[i+1]) == "("
                 result_str *= " "
             end
         else
-            result_str *= token
-            if i < length(tokens) && tokens[i+1] != ")"
+            result_str *= token_str
+            if i < length(tokens) && String(tokens[i+1]) != ")"
                 result_str *= " "
             end
         end
@@ -585,7 +808,7 @@ function detokenize(tokens)
     return result_str
 end
 
-function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
+function parse_query_expr(tokens, defs; silent=false, base_dir=pwd(), source="", filename="<unknown>")
     # @assert tokens[1] == "(" "Expected opening paren at start of query"
     # tokens = view(tokens, 2:length(tokens))
     end_idx = find_ending_paren(tokens)
@@ -603,8 +826,9 @@ function parse_query_expr(tokens, defs; silent=false, base_dir=pwd())
         query_tokens = view(query_tokens, 2:length(query_tokens))
     end
 
-    query_body, rest_query_tokens = parse_expr_inner(query_tokens, ParseState(defs, [], base_dir))
-    @assert length(rest_query_tokens) == 1 && query_tokens[end] == ")" "Expected closing paren and nothing else, got $(detokenize(rest_query_tokens))"
+    state = ParseState(defs, [], base_dir, source, filename)
+    query_body, rest_query_tokens = parse_expr_inner(query_tokens, state)
+    length(rest_query_tokens) == 1 && query_tokens[end] == ")" || parse_error(state, rest_query_tokens, "expected closing paren and nothing else")
 
     query_expr = QueryOp()(name_expr, query_body)
 
