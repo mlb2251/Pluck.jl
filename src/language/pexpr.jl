@@ -325,22 +325,9 @@ define_parser!("error", ErrorOp, 1)
 struct LookupOp <: Head end
 define_parser!("lookup", LookupOp, 1)
 
-struct DefineOp <: Head end
-define_parser!("define", DefineOp, 2)
-# DefineOp has special parsing - see parse_expr_inner in parsing.jl
-
-struct DefineTypeOp <: Head end
-define_parser!("define-type", DefineTypeOp, 2)
-
-# IncludeOp has special parsing - see parse_expr_inner in parsing.jl
-struct IncludeOp <: Head end
-define_parser!("include", IncludeOp, 1)
-
 struct PExprFromValueOp <: Head end
 define_parser!("pexpr_from_value", PExprFromValueOp, 1)
 
-struct QueryOp <: Head end
-define_parser!("query", QueryOp, 2)
 
 
 

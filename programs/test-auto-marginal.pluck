@@ -1,21 +1,21 @@
-;; Test automatic Marginal wrapping for standalone expressions
+;; ;; Test automatic Marginal wrapping for standalone expressions
 
-(define x 5)
-(define (double n) (* n 2))
+;; (define x 5)
+;; (define (double n) (* n 2))
 
-;; These should all automatically become Marginal queries:
+;; ;; These should all automatically become Marginal queries:
 
-;; Simple expression
-(+ x 3)
+;; ;; Simple expression
+;; (+ x 3)
 
-;; Another one
-(* 2 4)
+;; ;; Another one
+;; (* 2 4)
 
-;; With flip - probabilistic!
-(if (flip 0.5) 10 20)
+;; ;; With flip - probabilistic!
+;; (if (flip 0.5) 10 20)
 
-;; Function call
-(double 21)
+;; ;; Function call
+;; (double 21)
 
-;; Nested
-(+ (double x) 7)
+;; ;; Nested
+;; (+ (double x) 7)

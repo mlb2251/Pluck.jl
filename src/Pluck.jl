@@ -33,11 +33,10 @@ include("likelihood/LPSMC.jl")
 include("likelihood/eager_knowledge_compilation.jl")
 include("likelihood/posterior_sampling.jl")
 
+include("toplevel/parsing.jl")
 include("toplevel/toplevel.jl")
 include("toplevel/eval.jl")
 include("toplevel/printing.jl")
-include("toplevel/parsing.jl")
-include("toplevel/iexpr.jl")
 
 include("util/bdd_viz.jl")
 include("util/tests.jl")
