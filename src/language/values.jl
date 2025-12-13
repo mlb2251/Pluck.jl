@@ -265,18 +265,6 @@ function bools_to_uint8(bits::AbstractVector)
 end
 
 
-function JSON.lower(x::Value)
-    # v, concrete = from_value(x)
-    # !(v isa Value) && return string(v)
-    # return [x.constructor, x.args...]
-    OrderedDict("type" => "Value", "constructor" => x.constructor, "args" => x.args)
-end
-
-function JSON.lower(x::NativeValue)
-    OrderedDict("type" => "NativeValue", "value" => x.value)
-end
-
-
 Base.@kwdef mutable struct StateVars
     fuel::Int = 0 # 0 means infinite
 end

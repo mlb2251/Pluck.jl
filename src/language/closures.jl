@@ -31,14 +31,3 @@ function make_self_loop(body, env, recname, nonrecname, origin)
 end
 
 is_self_loop(x::Closure) = !isempty(x.env) && fst(x.env) === x
-
-function JSON.lower(x::Closure)
-    env =
-        is_self_loop(x) ? vcat(["[recursive reference to this closure]"], x.env[2:end]) :
-        x.env
-    Dict(
-        "type" => "Closure",
-        "expr" => x.expr,
-        "env" => [var_is_free(x.expr, i + 1) ? v : "unused" for (i, v) in enumerate(env)], # +1 bc of shifting when prepending the closure arg
-    )
-end

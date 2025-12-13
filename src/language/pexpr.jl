@@ -38,7 +38,6 @@ function bottomup_descendants(e::PExpr)
 end
 
 # default PExpr methods
-JSON.lower(e::PExpr) = string(e)
 shortname(e::PExpr) = string(e.head)
 function Base.show(io::IO, e::PExpr)
     print(io, "(", e.head)
