@@ -158,7 +158,4 @@ function parse_toplevel(tokens, state)
     else
         parse_error(state, tokens, "unexpected token at toplevel: $token")
     end
-
-    
-
 end

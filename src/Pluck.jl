@@ -34,7 +34,7 @@ include("likelihood/eager_knowledge_compilation.jl")
 include("likelihood/posterior_sampling.jl")
 
 include("toplevel/parsing.jl")
-include("toplevel/toplevel.jl")
+include("toplevel/query.jl")
 include("toplevel/eval.jl")
 include("toplevel/printing.jl")
 
