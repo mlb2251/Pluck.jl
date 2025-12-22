@@ -1,4 +1,4 @@
-export load_pluck_file, eval_forms, sample_output
+export load_pluck_file, eval_forms, sample_output, run_toplevel
 
 mutable struct ToplevelEvalState
     defs::Dict{Symbol, Definition}
@@ -7,10 +7,14 @@ mutable struct ToplevelEvalState
 end
 
 # Load and process definitions from a file
-function load_pluck_file(filename::String; defs=DEFINITIONS, silent=false)
-    content = read(filename, String)
-    tokens = tokenize(content)
-    parser = ParseState(defs, [], dirname(abspath(filename)), content, filename)
+function load_pluck_file(filename::String; kwargs...)
+    s = read(filename, String)
+    run_toplevel(s; filename, kwargs...)
+end
+
+function run_toplevel(s::String; filename="<unknown>", defs=DEFINITIONS, silent=false)
+    tokens = tokenize(s)
+    parser = ParseState(defs, [], dirname(abspath(filename)), s, filename)
     toplevel_state = ToplevelEvalState(defs, parser, silent)
 
     while !isempty(tokens)
