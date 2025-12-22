@@ -54,6 +54,7 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     bdd_start_ite_limit(state.manager, cfg.ite_limit)
 
     path_condition = isnothing(cfg.path_condition) ? state.manager.BDD_TRUE : cfg.path_condition
+    threw_error = false
 
     try 
         worlds, used_information = traced_compile_inner((expr), cfg.env, path_condition, state, 0)
@@ -62,12 +63,19 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
             println("StackOverflowError in pluck when compiling $expr")
             worlds = []
             state.stats.hit_limit = true
+        elseif e isa PluckError
+            threw_error=true
+            # dont throw error here or stack trace will be really long
         else
             rethrow(e)
         end
     end
     stop!(get_timer(state))
     # bdd_stop_ite_limit(state.manager)
+
+    if threw_error
+        throw("Pluck Error")
+    end
 
     if state.stats.hit_limit
         worlds = []

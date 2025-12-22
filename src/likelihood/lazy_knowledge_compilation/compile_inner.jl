@@ -9,20 +9,22 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
-        res = with_stacktrace(state, f.origin) do
-            val = traced_compile_inner(f.expr, new_env, path_condition, state, 2)
-            if val isa Closure
-                val.origin = f.origin
+        with_stacktrace(state, f.origin) do
+            bind_compile(f.expr, new_env, path_condition, state, 2) do val, path_condition
+                if val isa Closure
+                    val.origin = f.origin
+                end
+                pure_monad(val, path_condition, state)
             end
-            val
         end
-        return res
     end
 end
 
 function compile_inner(expr::PExpr{Abs}, env, path_condition, state)
     # A lambda term deterministically evaluates to a closure.
-    return pure_monad(Closure(expr.args[1], env, expr.head.var, expr), path_condition, state)
+    with_stacktrace(state, expr) do
+        pure_monad(Closure(expr.args[1], env, expr.head.var, expr), path_condition, state)
+    end
 end
 
 function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
@@ -42,23 +44,28 @@ function pluck_error(state, msg)
     if !isempty(state.stacktrace)
         print_stacktrace(state)
     else
-        println("Run with stacktrace=true to see the full Pluck stacktrace")
+        println("Compile with stacktrace=true to see the full Pluck stacktrace")
     end
 
     println()
-    throw(ErrorException("Pluck Error"))
+    throw(PluckError(state, msg))
+end
+
+struct PluckError <: Exception
+    state
+    msg::String
 end
 
 function print_stacktrace(state)
     println("Stacktrace:")
+    frame = 1
+
     for (i, e) in enumerate(reverse(state.stacktrace))
         ty = typeof(e).parameters[1]
-        if ty == Abs || ty == Defined
-            color = :blue
-        else
-            color = :white
+        if ty == Abs || ty == Defined || i == 1 || i == length(state.stacktrace)
+            printstyled("  [$frame] $e\n")
+            frame += 1
         end
-        printstyled("  [$i] $e :: $ty\n", color=color)
     end
 end
 
@@ -110,15 +117,16 @@ function compile_inner(expr::PExpr{Var}, env, path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
+    body = Pluck.lookup(expr.head.name).expr
     # Execute Defined with a blanked out environment.
-    res = with_stacktrace(state, expr) do
-        val = traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
-        if val isa Closure
-            val.origin = expr
+    with_stacktrace(state, expr) do
+        bind_compile(body, Pluck.EMPTY_ENV, path_condition, state, 0) do val, path_condition
+            if val isa Closure
+                val.origin = expr
+            end
+            pure_monad(val, path_condition, state)
         end
-        val
     end
-    return res
 end
 
 
