@@ -63,7 +63,14 @@ function print_stacktrace(state)
     for (i, e) in enumerate(reverse(state.stacktrace))
         ty = typeof(e).parameters[1]
         if ty == Abs || ty == Defined || i == 1 || i == length(state.stacktrace)
-            printstyled("  [$frame] $e\n")
+            print("  [$frame] ")
+            if ty == Defined
+                body = Pluck.lookup(e.head.name).expr
+                print("$e : $body")
+            else
+                print("$e")
+            end
+            println()
             frame += 1
         end
     end
@@ -140,7 +147,7 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
         # handle dual number mode
         if state.cfg.dual
-            println("p: $p expr: $expr")
+            # println("p: $p expr: $expr")
             if p isa Value
                 pluck_error(state, "FlipOp: expected NativeValue, got $(p) :: $(typeof(p)) in $expr")
             end
