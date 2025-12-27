@@ -123,6 +123,8 @@ mutable struct SampleValueState
     manager::Union{RSDD.Manager, Nothing}
     lazy::Bool
     thunks::Vector{LazyKCThunk}
+    call_frames::Vector{Any}
+    def_name_stack::Vector{Symbol}
 
     function SampleValueState(constraint=nothing, callstack=Int[], var_of_callstack=nothing, lazy=false, manager=nothing, thunks=nothing)
         thunks_vec = isnothing(thunks) ? LazyKCThunk[] : thunks
@@ -134,10 +136,18 @@ mutable struct SampleValueState
             manager,
             lazy,
             thunks_vec,
+            Any[],
+            Symbol[],
         )
         return state
     end
 end
+
+push_call_frame!(::SampleValueState, ::Symbol, ::Any; caller_expr=nothing) = nothing
+pop_call_frame!(::SampleValueState) = nothing
+
+push_strict_frame!(::SampleValueState, ::Symbol, ::Any; caller_expr=nothing) = nothing
+pop_strict_frame!(::SampleValueState) = nothing
 
 function traced_compile_inner(expr, env, null, state::SampleValueState, strict_order_index::Int)
     push!(state.callstack, strict_order_index)

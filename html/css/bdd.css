@@ -1,0 +1,33 @@
+
+path.edge {
+    fill: none;
+    stroke: rgb(0, 0, 0);
+    stroke-width: 2px;
+    marker-end: url(#arrowhead);
+}
+
+path.lo {
+    stroke-dasharray: 4;
+}
+
+path.hi {
+    
+}
+
+circle.ball_true {
+    fill: rgb(24, 208, 27);
+}
+
+circle.ball_false {
+    fill: rgb(205, 20, 20);
+}
+
+path.complement {
+    stroke: rgb(255, 18, 18);
+}
+
+circle.node {
+    fill: rgb(135, 104, 168);
+    stroke: black;
+    stroke-width: 1;
+}

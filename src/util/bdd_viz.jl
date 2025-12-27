@@ -145,6 +145,7 @@ function make_bdd_json(state::BDDStrictEvalState, bdd)
     callstack_of_label = Dict{Int, Vector{Symbol}}(i => [Symbol("$(i)")] for i = 1:biggest_var_index)
 
     json["callstack_of_label"] = callstack_of_label
+    json["callsite_of_label"] = Dict{Int, Any}()
     return json
 end
 
@@ -153,7 +154,7 @@ function make_bdd_json(state, bdd)
 
     callstack_of_label = Dict{Int, Vector{Symbol}}()
 
-    if state.use_strict_order
+    if state.cfg.use_strict_order
         nodes = deepcopy(json["nodes"])
         for (new_label, (old_label, callstack)) in enumerate(zip(state.sorted_var_labels, state.sorted_callstacks))
             # Wherever the old_label appears in json["nodes"], in nodes replace it with the new label.
@@ -174,6 +175,66 @@ function make_bdd_json(state, bdd)
     end
 
     json["callstack_of_label"] = callstack_of_label
+    # attach callsite metadata if available, remapping labels under strict order
+    json["callsite_of_label"] = Dict{Int, Any}()
+    if hasproperty(state, :callsite_of_var) && !isempty(state.callsite_of_var)
+        if state.cfg.use_strict_order && !isempty(state.sorted_var_labels)
+            for (new_label, old_label) in enumerate(state.sorted_var_labels)
+                if haskey(state.callsite_of_var, old_label)
+                    json["callsite_of_label"][new_label] = state.callsite_of_var[old_label]
+                end
+            end
+        else
+            for (label, meta) in state.callsite_of_var
+                json["callsite_of_label"][label] = meta
+            end
+        end
+
+        # include sources for any loc/span we emit
+        files = Set{String}()
+        for meta in values(state.callsite_of_var)
+            # stacktrace locs
+            stack = get(meta, "stacktrace", [])
+            for frame in stack
+                loc = get(frame, "loc", nothing)
+                loc === nothing || push!(files, loc["file"])
+            end
+            # call frames and strict call frames locs/spans
+            for frames_key in ("call_frames", "strict_call_frames")
+                frames = get(meta, frames_key, [])
+                for frame in frames
+                    loc = get(frame, "loc", nothing)
+                    loc === nothing || push!(files, loc["file"])
+                    span = get(frame, "span", nothing)
+                    if span !== nothing && haskey(span, "file")
+                        push!(files, span["file"])
+                    end
+                    cspan = get(frame, "called_from_span", nothing)
+                    if cspan !== nothing && haskey(cspan, "file")
+                        push!(files, cspan["file"])
+                    end
+                end
+            end
+            # origin
+            origin_loc = get(meta, "origin_loc", nothing)
+            origin_loc === nothing || push!(files, origin_loc["file"])
+            origin_span = get(meta, "origin_span", nothing)
+            if origin_span !== nothing && haskey(origin_span, "file")
+                push!(files, origin_span["file"])
+            end
+        end
+        if !isempty(files)
+            sources = Dict{String, String}()
+            for f in files
+                try
+                    sources[f] = read(f, String)
+                catch
+                    # ignore unreadable
+                end
+            end
+            json["sources"] = sources
+        end
+    end
     return json
 end
 
@@ -181,5 +242,5 @@ function record_bdd(state, bdd)
     json = make_bdd_json(state, bdd)
     out = joinpath(timestamp_dir(; base = "out/bdds/"), "bdd.json")
     write_out(json, out)
-    println(webaddress("html/bdd.html", out, false))
+    # println(webaddress("html/bdd.html", out, false))
 end

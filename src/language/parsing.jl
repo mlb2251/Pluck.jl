@@ -1,4 +1,4 @@
-export parse_expr, @expr_str
+export parse_expr, @expr_str, enable_location_tracking!, disable_location_tracking!, location_tracking_enabled, expr_location, expr_span
 
 """
 expr"..." is equivalent to parse_expr("...")
@@ -10,10 +10,169 @@ macro expr_str(str)
     :(parse_expr($(esc(str))))
 end
 
-function parse_expr(s::String; defs=DEFINITIONS, env=[])
-    tokens = tokenize(s)
+# ---------------------
+# Optional span tracking
+# ---------------------
+const _TRACK_LOCATIONS = Ref(false)
+const _TOKEN_LOCATIONS = IdDict{Any, Vector{Tuple{Int, Int}}}() # token collection -> [(line, col)]
+const _PEXPR_LOCATIONS = IdDict{PExpr, Tuple{String, Int, Int}}() # expr -> (file, line, col)
+const _PEXPR_SPANS = IdDict{PExpr, Tuple{String, Int, Int, Int, Int}}() # expr -> (file, start_line, start_col, end_line, end_col)
+const _CURRENT_SOURCE_NAME = Ref("<string>")
+
+enable_location_tracking!() = (_TRACK_LOCATIONS[] = true)
+disable_location_tracking!() = (_TRACK_LOCATIONS[] = false)
+location_tracking_enabled() = _TRACK_LOCATIONS[]
+
+expr_location(e::PExpr) = get(_PEXPR_LOCATIONS, e, nothing)
+expr_span(e::PExpr) = get(_PEXPR_SPANS, e, nothing)
+
+function _record_token_locs!(tokens, locs)
+    location_tracking_enabled() || return
+    _TOKEN_LOCATIONS[tokens] = locs
+end
+
+function _token_loc(tokens, idx)
+    location_tracking_enabled() || return nothing
+    locs = get(_TOKEN_LOCATIONS, tokens, nothing)
+    if locs !== nothing
+        return locs[idx]
+    end
+    # If this is a view, map back to parent locations.
+    try
+        parent_tokens = parent(tokens)
+        locs_parent = get(_TOKEN_LOCATIONS, parent_tokens, nothing)
+        locs_parent === nothing && return nothing
+        parent_range = parentindices(tokens)[1]
+        parent_idx = parent_range[idx]
+        return locs_parent[parent_idx]
+    catch
+        return nothing
+    end
+end
+
+function _record_expr_loc!(expr::PExpr, tokens, idx)
+    location_tracking_enabled() || return
+    loc = _token_loc(tokens, idx)
+    loc === nothing && return
+    _PEXPR_LOCATIONS[expr] = (_CURRENT_SOURCE_NAME[], loc[1], loc[2])
+end
+
+function _record_expr_span!(expr::PExpr, tokens, consumed)
+    location_tracking_enabled() || return
+    consumed < 1 && return
+    start_loc = _token_loc(tokens, 1)
+    start_loc === nothing && return
+    end_loc = _token_loc(tokens, consumed)
+    end_loc === nothing && return
+    tok_str = tokens[consumed]
+    end_col = end_loc[2] + length(tok_str) - 1
+    _PEXPR_SPANS[expr] = (_CURRENT_SOURCE_NAME[], start_loc[1], start_loc[2], end_loc[1], end_col)
+end
+
+"""
+Tokenize while also recording start line/column (1-based) for each token.
+Only used when location tracking is enabled to avoid overhead otherwise.
+"""
+function tokenize_with_locs(s::String)
+    tokens = String[]
+    locs = Tuple{Int, Int}[]
+
+    # First remove line comments (but keep line structure)
+    lines = split(s, '\n')
+    processed_lines = String[]
+    for line in lines
+        comment_start = findfirst(";;", line)
+        if isnothing(comment_start)
+            push!(processed_lines, line)
+        else
+            push!(processed_lines, line[1:comment_start.start-1])
+        end
+    end
+    s = join(processed_lines, "\n")
+
+    i = firstindex(s)
+    line = 1
+    col = 1
+    while i <= lastindex(s)
+        c = s[i]
+        if isspace(c)
+            if c == '\n'
+                line += 1
+                col = 1
+            else
+                col += 1
+            end
+            i = nextind(s, i)
+            continue
+        elseif c == '"'
+            start_i = i
+            start_col = col
+            i = nextind(s, i)
+            col += 1
+            while i <= lastindex(s) && s[i] != '"'
+                if s[i] == '\n'
+                    line += 1
+                    col = 1
+                else
+                    col += 1
+                end
+                i = nextind(s, i)
+            end
+            i <= lastindex(s) || error("unterminated string literal")
+            token = s[start_i:i]
+            push!(tokens, token)
+            push!(locs, (line, start_col))
+            i = nextind(s, i)
+            col += 1
+            continue
+        elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
+            push!(tokens, "->")
+            push!(locs, (line, col))
+            i = nextind(s, nextind(s, i))
+            col += 2
+            continue
+        elseif c in ('(', ')', '{', '}', '[', ']', ',', '~', '`')
+            push!(tokens, string(c))
+            push!(locs, (line, col))
+            i = nextind(s, i)
+            col += 1
+            continue
+        else
+            start = i
+            start_col = col
+            while i <= lastindex(s)
+                c = s[i]
+                if isspace(c) || c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', '"')
+                    break
+                elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
+                    break
+                end
+                i = nextind(s, i)
+                col += 1
+            end
+            push!(tokens, s[start:prevind(s, i)])
+            push!(locs, (line, start_col))
+        end
+    end
+    return tokens, locs
+end
+
+function parse_expr(s::String; defs=DEFINITIONS, env=[], source_name="<string>", track_locations=location_tracking_enabled())
+    old_track = location_tracking_enabled()
+    old_source = _CURRENT_SOURCE_NAME[]
+    _TRACK_LOCATIONS[] = track_locations
+    _CURRENT_SOURCE_NAME[] = source_name
+    tokens = if track_locations
+        ts, locs = tokenize_with_locs(s)
+        _record_token_locs!(ts, locs)
+        ts
+    else
+        tokenize(s)
+    end
     expr, rest = parse_expr_inner(tokens, defs, env)
     @assert isempty(rest)
+    _TRACK_LOCATIONS[] = old_track
+    _CURRENT_SOURCE_NAME[] = old_source
     return expr
 end
 
@@ -85,6 +244,13 @@ function tokenize(s)
 end
 
 function parse_expr_inner(tokens, defs, env)
+    start_tokens = tokens
+    record_and_return(expr, rest) = begin
+        _record_expr_loc!(expr, start_tokens, 1)
+        consumed = length(start_tokens) - length(rest)
+        _record_expr_span!(expr, start_tokens, consumed)
+        return expr, rest
+    end
     if length(tokens) == 0
         error("unexpected end of input")
     end
@@ -107,17 +273,17 @@ function parse_expr_inner(tokens, defs, env)
                 env = ["_", env...]
                 body, tokens = parse_expr_inner(tokens, defs, env)
                 tokens[1] != ")" && error("expected closing paren")
-                return Abs(Symbol("_"))(body), view(tokens, 2:length(tokens))
+                return record_and_return(Abs(Symbol("_"))(body), view(tokens, 2:length(tokens)))
             end
 
             # Handle regular lambda cases
             while true
                 name = tokens[1]
                 @assert Base.isidentifier(name) "expected identifier for lambda argument, got $name"
-                env = [name, env...]
-                num_args += 1
-                tokens = view(tokens, 2:length(tokens))
-                if tokens[1] == "," # optional comma
+            env = [name, env...]
+            num_args += 1
+            tokens = view(tokens, 2:length(tokens))
+            if tokens[1] == "," # optional comma
                     tokens = view(tokens, 2:length(tokens))
                 end
                 if tokens[1] == "->" # end of arg list
@@ -130,7 +296,7 @@ function parse_expr_inner(tokens, defs, env)
                 body = Abs(Symbol(env[i]))(body)
             end
             tokens[1] != ")" && error("expected closing paren")
-            return body, view(tokens, 2:length(tokens))
+            return record_and_return(body, view(tokens, 2:length(tokens)))
         elseif token == "if"
             # Parse an if
             tokens = view(tokens, 2:length(tokens))
@@ -140,7 +306,7 @@ function parse_expr_inner(tokens, defs, env)
             tokens[1] != ")" && error("expected closing paren")
             # Parse as a CaseOf expression.
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
-            return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
+            return record_and_return(CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens)))
         elseif token == "Y"
             # parse a Y
             tokens = view(tokens, 2:length(tokens))
@@ -152,7 +318,7 @@ function parse_expr_inner(tokens, defs, env)
                 e = App()(e, x)
             end
             tokens[1] != ")" && error("expected closing paren")
-            return e, view(tokens, 2:length(tokens))
+            return record_and_return(e, view(tokens, 2:length(tokens)))
         elseif token == "case" || token == "match"
             # case e1 of Cons => (λ_->(λ_->e2)) | Nil => e3
             tokens = view(tokens, 2:length(tokens))
@@ -194,7 +360,7 @@ function parse_expr_inner(tokens, defs, env)
                     tokens = view(tokens, 2:length(tokens))
                 end
             end
-            return CaseOf(guards)(scrutinee, branches...), view(tokens, 2:length(tokens))
+            return record_and_return(CaseOf(guards)(scrutinee, branches...), view(tokens, 2:length(tokens)))
         elseif token == "let"
             # Parse a let expression
             tokens = view(tokens, 2:length(tokens))
@@ -235,7 +401,7 @@ function parse_expr_inner(tokens, defs, env)
                 expr = App()(Abs(Symbol(var))(expr), val)
             end
 
-            return expr, view(tokens, 2:length(tokens))
+            return record_and_return(expr, view(tokens, 2:length(tokens)))
         elseif haskey(args_of_constructor, Symbol(token))
             # parse a sum product type constructor
             constructor = Symbol(token)
@@ -250,7 +416,7 @@ function parse_expr_inner(tokens, defs, env)
             if length(args) != length(args_of_constructor[constructor])
                 error("wrong number of arguments for constructor $constructor. Expected $(length(args_of_constructor[constructor])), got $(length(args)) at: $(detokenize(tokens))")
             end
-            return Construct(constructor)(args...), view(tokens, 2:length(tokens))
+            return record_and_return(Construct(constructor)(args...), view(tokens, 2:length(tokens)))
         elseif has_prim(token) && !haskey(defs, Symbol(token))
             head_type = lookup_prim(token)
             arity = prim_arity(head_type)
@@ -262,7 +428,7 @@ function parse_expr_inner(tokens, defs, env)
                 push!(args, arg)
             end
             tokens[1] != ")" && error("too few arguments for primitive $token, expected $arity, got $(length(args)) at: $(detokenize(tokens))")
-            return head(args...), view(tokens, 2:length(tokens))
+            return record_and_return(head(args...), view(tokens, 2:length(tokens)))
         elseif token == "discrete"
             # Parse (discrete (e1 p1) (e2 p2) ...)
             tokens = view(tokens, 2:length(tokens))
@@ -294,7 +460,7 @@ function parse_expr_inner(tokens, defs, env)
             expr, rest = parse_expr_inner(tokenize(expr_str), defs, env)
             @assert isempty(rest)
             
-            return expr, view(tokens, 2:length(tokens))
+            return record_and_return(expr, view(tokens, 2:length(tokens)))
         elseif token == "uniform"
             # Parse (uniform e1 e2 e3 ...)
             tokens = view(tokens, 2:length(tokens))
@@ -312,7 +478,7 @@ function parse_expr_inner(tokens, defs, env)
             expr, rest = parse_expr_inner(tokenize(expr_str), defs, env)
             @assert isempty(rest)
             
-            return expr, view(tokens, 2:length(tokens))
+            return record_and_return(expr, view(tokens, 2:length(tokens)))
         else
             # Parse an application
             f, tokens = parse_expr_inner(tokens, defs, env)
@@ -331,12 +497,12 @@ function parse_expr_inner(tokens, defs, env)
             for arg in args
                 expr = App()(expr, arg)
             end
-            return expr, view(tokens, 2:length(tokens))
+            return record_and_return(expr, view(tokens, 2:length(tokens)))
         end
     elseif token[1] == '\''
         # parse a symbol
         sym = Symbol(token[2:end])
-        return ConstNative(sym)(), view(tokens, 2:length(tokens))
+        return record_and_return(ConstNative(sym)(), view(tokens, 2:length(tokens)))
     elseif startswith(token, "0c") && length(token) == 3
         # byte literal: 0cX for a single ASCII byte X
         inner = token[3]
@@ -344,7 +510,7 @@ function parse_expr_inner(tokens, defs, env)
         byte = Int(codeunit(string(inner), 1))
         bitwidth = ConstNative(8)()
         val = ConstNative(byte)()
-        return MkIntOp()(bitwidth, val), view(tokens, 2:length(tokens))
+        return record_and_return(MkIntOp()(bitwidth, val), view(tokens, 2:length(tokens)))
     elseif startswith(token, "\"") && endswith(token, "\"")
         # string literal -> list of 8-bit ints
         # Use proper character indexing for UTF-8 safety
@@ -358,7 +524,7 @@ function parse_expr_inner(tokens, defs, env)
             val = ConstNative(Int(b))()
             expr = Construct(:Cons)(MkIntOp()(bitwidth, val), expr)
         end
-        return expr, view(tokens, 2:length(tokens))
+        return record_and_return(expr, view(tokens, 2:length(tokens)))
     elseif token == "["
         # parse a list: parse expressions until ]
         tokens = view(tokens, 2:length(tokens))
@@ -376,38 +542,38 @@ function parse_expr_inner(tokens, defs, env)
         for val in reverse(vals)
             expr = Construct(:Cons)(val, expr)
         end
-        return expr, tokens
+        return record_and_return(expr, tokens)
     elseif token[1] == '?'
         name = Symbol(token[2:end])
-        return GSymbol(name)(), view(tokens, 2:length(tokens))
+        return record_and_return(GSymbol(name)(), view(tokens, 2:length(tokens)))
     elseif token[1] == '#'
         # parse CFG symbol variable like "#int"
         type = Symbol(token[2:end])
-        return GVarSymbol(type)(), view(tokens, 2:length(tokens))
+        return record_and_return(GVarSymbol(type)(), view(tokens, 2:length(tokens)))
     elseif token[1] == '@'
         idx = parse(Int, token[2:end])
-        return ConstNative(idx)(), view(tokens, 2:length(tokens))
+        return record_and_return(ConstNative(idx)(), view(tokens, 2:length(tokens)))
     elseif all(isdigit, token)
         val = parse(Int, token)
-        return const_to_expr(val), view(tokens, 2:length(tokens))
+        return record_and_return(const_to_expr(val), view(tokens, 2:length(tokens)))
     elseif all(c -> isdigit(c) || c == '.', token)
         val = parse(Float64, token)
         res = const_to_expr(val)
-        return res, view(tokens, 2:length(tokens))
+        return record_and_return(res, view(tokens, 2:length(tokens)))
     elseif token == "true" || token == "false"
         val = parse(Bool, token)
-        return const_to_expr(val), view(tokens, 2:length(tokens))
+        return record_and_return(const_to_expr(val), view(tokens, 2:length(tokens)))
     elseif token == "nothing"
-        return Construct(:Unit)(), view(tokens, 2:length(tokens))
+        return record_and_return(Construct(:Unit)(), view(tokens, 2:length(tokens)))
     elseif token ∈ env || token[1] == '$' # leading with a $ forces variable parsing even if it isn't statically present in the environment
         # Parse a var by name like "foo"
         if token[1] == '$'
             @assert length(token) > 1 "expected variable name after \$ around $(detokenize(tokens))"
             token = token[2:end]
         end
-        return Var(Symbol(token))(), view(tokens, 2:length(tokens))
+        return record_and_return(Var(Symbol(token))(), view(tokens, 2:length(tokens)))
     elseif haskey(defs, Symbol(token))
-        return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
+        return record_and_return(Defined(Symbol(token))(), view(tokens, 2:length(tokens)))
     else
         context = detokenize(tokens)
         context = context[1:min(length(context), 30)]

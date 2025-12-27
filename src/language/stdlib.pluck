@@ -247,7 +247,8 @@
   (Posterior any bool)
   (PosteriorSamples any bool int)
   (SubproblemMonteCarlo int query)
-  (AdaptiveRejection any bool))
+  (AdaptiveRejection any bool)
+  (Visualize bool))
 
 ;; Binary integers
 (define-type int1 (Int1 bool))

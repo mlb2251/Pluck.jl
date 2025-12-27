@@ -9,13 +9,27 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
-        return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
+        frame_name = isnothing(f.display_name) ? f.name : f.display_name
+        push_call_frame!(state, frame_name, f.expr; caller_expr=expr)
+        push_strict_frame!(state, frame_name, f.expr; caller_expr=expr)
+        res = traced_compile_inner(f.expr, new_env, path_condition, state, 2)
+        pop_call_frame!(state)
+        pop_strict_frame!(state)
+        return res
     end
 end
 
 function compile_inner(expr::PExpr{Abs}, env, path_condition, state)
     # A lambda term deterministically evaluates to a closure.
-    return pure_monad(Closure(expr.args[1], env, expr.head.var), path_condition, state)
+    disp = Pluck.defined_name_for_expr(expr)
+    if isnothing(disp)
+        if !isempty(state.def_name_stack)
+            disp = state.def_name_stack[end]
+        else
+            disp = Symbol("lambda")
+        end
+    end
+    return pure_monad(Closure(expr.args[1], env, expr.head.var, disp), path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
@@ -102,7 +116,14 @@ function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # if state.cfg.stacktrace
     #     push!(state.stacktrace, expr)
     # end
-    res = traced_compile_inner(Pluck.lookup(expr.head.name).expr, Pluck.EMPTY_ENV, path_condition, state, 0)
+    def_expr = Pluck.lookup(expr.head.name).expr
+    push!(state.def_name_stack, expr.head.name)
+    push_call_frame!(state, expr.head.name, def_expr; caller_expr=expr)
+    push_strict_frame!(state, expr.head.name, def_expr; caller_expr=expr)
+    res = traced_compile_inner(def_expr, Pluck.EMPTY_ENV, path_condition, state, 0)
+    pop_call_frame!(state)
+    pop_strict_frame!(state)
+    pop!(state.def_name_stack)
     # if state.cfg.stacktrace
     #     pop!(state.stacktrace)
     # end
@@ -118,6 +139,7 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
     npartials = state.manager.vector_size
 
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
+        state.last_origin_expr = expr
         # handle dual number mode
         if state.cfg.dual
             metaparam = p.value isa Int ? p.value : nothing
@@ -162,6 +184,7 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
 
         RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
         pop!(state.callstack)
+        state.last_origin_expr = nothing
         return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
     end
 end
@@ -261,6 +284,7 @@ function compile_inner(expr::PExpr{UniformIntOp}, env, path_condition, state)
         bits = Vector{BDD}(undef, width)
         for i = 1:width
             push!(state.callstack, i)
+            state.last_origin_expr = expr
             if state.cfg.max_depth !== nothing &&
                 state.depth > state.cfg.max_depth &&
                 state.cfg.sample_after_max_depth &&
@@ -273,6 +297,7 @@ function compile_inner(expr::PExpr{UniformIntOp}, env, path_condition, state)
                 bits[i] = addr
             end
             pop!(state.callstack)
+            state.last_origin_expr = nothing
         end
 
         return pure_monad(IntDist(bits), pc1, state)
@@ -283,6 +308,7 @@ function compile_inner(expr::PExpr{UniformIntRangeOp}, env, path_condition, stat
     bind_compile(expr.args[1], env, path_condition, state, 0) do bitwidth, pc1
         bind_compile(expr.args[2], env, pc1, state, 1) do lo, pc2
             bind_compile(expr.args[3], env, pc2, state, 2) do hi, pc3
+                state.last_origin_expr = expr
                 width = bitwidth.value
                 start = lo.value
                 stop = hi.value
@@ -314,6 +340,7 @@ function compile_inner(expr::PExpr{UniformIntRangeOp}, env, path_condition, stat
                 end
 
                 encode_range(start, stop, state.manager.BDD_TRUE, 0)
+                state.last_origin_expr = nothing
                 return pure_monad(IntDist(bits), pc3, state)
             end
         end

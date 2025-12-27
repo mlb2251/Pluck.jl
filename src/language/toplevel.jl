@@ -1,4 +1,4 @@
-export load_pluck_file, parse_toplevel, sample_output, @pluck_str
+export load_pluck_file, parse_toplevel, sample_output, @pluck_str, reload_stdlib_with_locations!
 
 
 abstract type InferenceMode end
@@ -89,6 +89,19 @@ function print_query_results(results, query_str; save = false)
         end
         println("http://localhost:8000/html/factored/factored.html?path=$save")
         println("Wrote $save")
+    end
+end
+
+function visualize_query(val, state, mode::ExactInference)
+    state.cfg.record_callsite_metadata = true
+    state.cfg.stacktrace = true
+    Pluck.enable_location_tracking!()
+    ret, _ = evaluate(val.args[1], state.manager.BDD_TRUE, state)
+    bdd = get_true_result(ret, nothing)
+    if isnothing(bdd)
+        @warn "No true result found to visualize"
+    else
+        record_bdd(state, bdd)
     end
 end
 
@@ -187,6 +200,8 @@ function process_query(expr::PExpr, query_str::AbstractString=string(expr); sile
         # Print the sample
         silent || printstyled("$query_str:\n", color=:yellow, bold=true)
         silent || printstyled("  $results\n", bold=true)
+    elseif val.constructor == :Visualize
+        results = visualize_query(val, state, mode)
     else
         error("Expected Marginal, Posterior, or PosteriorSample query, got $(val.constructor)")
     end
@@ -316,6 +331,7 @@ function parse_and_process_define_function(tokens, defs)
 
     # Update the definition with the actual expression
     defs[fname] = Definition(fname, expr)
+    register_definition_expr(fname, expr)
 
     return (:define, fname, expr), view(tokens, 2:length(tokens))
 end
@@ -333,6 +349,7 @@ function parse_and_process_define_value(tokens, defs)
 
     # Update with actual expression
     defs[name] = Definition(name, expr)
+    register_definition_expr(name, expr)
 
     return (:define, name, expr), view(tokens, 2:length(tokens))
 end
@@ -403,8 +420,19 @@ function process_toplevel_form(tokens, defs; silent=false, base_dir=pwd())
 end
 
 # Parse and process a sequence of top-level forms
-function parse_toplevel(s::String, defs=DEFINITIONS; silent=false, base_dir=pwd())
-    tokens = tokenize(s)
+function parse_toplevel(s::String, defs=DEFINITIONS; silent=false, base_dir=pwd(), source_name="<string>", track_locations=location_tracking_enabled())
+    old_track = location_tracking_enabled()
+    old_source = _CURRENT_SOURCE_NAME[]
+    _TRACK_LOCATIONS[] = track_locations
+    _CURRENT_SOURCE_NAME[] = source_name
+
+    tokens = if track_locations
+        ts, locs = tokenize_with_locs(s)
+        _record_token_locs!(ts, locs)
+        ts
+    else
+        tokenize(s)
+    end
     forms = []
 
     while !isempty(tokens)
@@ -412,11 +440,19 @@ function parse_toplevel(s::String, defs=DEFINITIONS; silent=false, base_dir=pwd(
         push!(forms, form)
     end
 
+    _TRACK_LOCATIONS[] = old_track
+    _CURRENT_SOURCE_NAME[] = old_source
     forms
 end
 
 # Load and process definitions from a file
 function load_pluck_file(filename::String)
     content = read(filename, String)
-    parse_toplevel(content; base_dir=dirname(abspath(filename)))
+    parse_toplevel(content; base_dir=dirname(abspath(filename)), source_name=abspath(filename), track_locations=location_tracking_enabled())
+end
+
+# Reload the standard library with location tracking enabled (for richer viz/debug info).
+function reload_stdlib_with_locations!()
+    enable_location_tracking!()
+    load_pluck_file(joinpath(@__DIR__, "stdlib.pluck"))
 end

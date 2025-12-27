@@ -4,10 +4,12 @@ mutable struct Closure <: AbstractValue
     expr::Union{PExpr, Thunk}
     env::Env
     name::Symbol
+    display_name::Union{Nothing, Symbol}
 end
 
 function Base.:(==)(x::Closure, y::Closure)
     x.name == y.name || return false
+    x.display_name == y.display_name || return false
     x.expr == y.expr || return false
     is_self_loop(x) && is_self_loop(y) && return tailenv(x.env) == tailenv(y.env)
     x.env == y.env
@@ -15,11 +17,13 @@ end
 function Base.hash(x::Closure, h::UInt)
     h = hash(x.expr, h)
     h = hash(x.name, h)
+    h = hash(x.display_name, h)
     h = hash(length(x.env), h) # bleh having trouble stopping the self loops
     return h
 end
 function Base.show(io::IO, c::Closure)
-    print(io, "Closure((λ", c.name, " -> ", c.expr, "), env=[")
+    shown = isnothing(c.display_name) ? c.name : c.display_name
+    print(io, "Closure((λ", shown, " -> ", c.expr, "), env=[")
     env = c.env
     while env isa EnvCons
         if env.val === c
@@ -37,7 +41,7 @@ end
 
 function make_self_loop(body, env, recname, nonrecname)
     new_env = EnvCons(recname, missing, env)
-    closure = Closure(body, new_env, nonrecname)
+    closure = Closure(body, new_env, nonrecname, nothing)
     new_env.val = closure # overwrite the Missing with the closure itself
     closure
 end
@@ -51,6 +55,8 @@ function JSON.lower(x::Closure)
     Dict(
         "type" => "Closure",
         "expr" => x.expr,
+        "name" => x.name,
+        "display_name" => x.display_name,
         "env" => [var_is_free(x.expr, i + 1) ? v : "unused" for (i, v) in enumerate(env)], # +1 bc of shifting when prepending the closure arg
     )
 end

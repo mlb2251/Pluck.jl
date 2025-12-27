@@ -1,0 +1,164 @@
+body {
+    font-family: 'Atkinson Hyperlegible', 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+#frame-background {
+    fill: rgb(241, 241, 241);
+    stroke: gray;
+}
+
+circle.particle {
+    fill: darkblue;
+    cursor: pointer
+}
+
+rect.weight-bar-background {
+    fill: rgb(213, 210, 239);
+}
+
+rect.weight-bar-background.likelihood-zero {
+    /* fill: #EDD */
+    fill: rgb(221, 221, 221);
+}
+
+rect.weight-bar-background.likelihood-zero.highlighted {
+    /* fill: rgb(232, 200, 200) */
+    fill: rgb(199, 199, 199);
+}
+
+rect.weight-bar {
+    fill: darkblue;
+}
+
+rect.weight-bar.highlighted {
+    fill: rgb(216, 184, 0);
+}
+
+circle.particle.highlighted {
+    fill: rgb(216, 184, 0);
+}
+
+path.parentline {
+    fill: none;
+    stroke: #BBE;
+    stroke-width: 2px;
+    marker-end: url(#arrowhead)
+}
+
+path.parentline.rejuv {
+    stroke: #EBB;
+}
+
+path.parentline.highlighted {
+    stroke: rgb(216, 184, 0);
+    stroke-width: 3px;
+    /* opacity: .5; */
+    marker-end: none
+}
+
+text.program {
+    font-size: 18px;
+    font-family: 'Atkinson Hyperlegible', 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    /* fill: rgb(86, 86, 86); */
+    fill: darkblue;
+    cursor: pointer;
+}
+
+text.program.likelihood-zero {
+    /* fill: rgb(235, 185, 185) */
+    fill: rgb(185, 185, 185);
+}
+
+text.program.search-hit {
+    fill: rgb(147, 83, 207);
+}
+
+text.program.selected {
+    fill: rgb(35, 120, 42);
+}
+
+text.program.selected-ancestor {
+    fill: rgb(117, 102, 16);
+}
+
+text.program.selected-descendant {
+    fill: rgb(117, 102, 16);
+}
+
+tspan.modified-expr {
+    font-weight: bold;
+}
+
+text.program.highlighted {
+    fill: rgb(117, 102, 16);
+}
+
+text.program.highlighted.likelihood-zero {
+    fill: rgb(160, 160, 160);
+}
+
+
+line.dotted {
+    stroke: #777;
+    stroke-dasharray: 2, 6;
+}
+
+line.dotted.highlighted {
+    stroke: rgb(117, 102, 16);
+    stroke-width: 2px;
+    stroke-dasharray: 4, 6;
+}
+
+
+
+
+text.program.hover {
+    font-size: 10px;
+    font-family: 'Atkinson Hyperlegible', 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+rect.hover_rect {
+    fill: rgb(238, 238, 238);
+    stroke: black;
+    stroke-width: 1;
+    rx: 5;
+    ry: 5;
+}
+
+rect.hover_rect_header {
+    stroke: none;
+    rx: 5;
+    ry: 5;
+}
+
+line.highlight {
+    stroke: blue;
+    stroke-width: 2px;
+    opacity: .5;
+}
+
+text {
+    font-size: 18px;
+    font-family: 'Atkinson Hyperlegible', 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+text.program.hover {
+    /* font: 10px monospace; */
+    font-size: 10px;
+    font-family: 'Atkinson Hyperlegible', 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    /* fill: black; */
+}
+
+.hover_background {
+    fill: rgb(238, 238, 238);
+    stroke: black;
+    stroke-width: 1;
+    rx: 5;
+    ry: 5;
+}
+
+.hover_header {
+    stroke: none;
+    rx: 5;
+    ry: 5;
+}

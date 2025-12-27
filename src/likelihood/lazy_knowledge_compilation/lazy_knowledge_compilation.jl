@@ -31,6 +31,7 @@ Base.@kwdef mutable struct LazyKCConfig
     stacktrace::Bool = true
     vector_size::Int = 0
     dual::Bool = false
+    record_callsite_metadata::Bool = false
 end
 
 set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
@@ -154,6 +155,11 @@ mutable struct LazyKCState
     timer::Ttimer
     query::Union{Nothing, PExpr}
     stacktrace::Vector{PExpr}
+    callsite_of_var::Dict{Int, Any}
+    call_frames::Vector{Any}
+    strict_call_frames::Vector{Any}
+    def_name_stack::Vector{Symbol}
+    last_origin_expr::Union{Nothing, PExpr}
 end
 
 struct CompileResult
@@ -187,7 +193,12 @@ function LazyKCState(cfg::LazyKCConfig)
         Dict{Int, Int}(),
         Ttimer(),
         nothing,
-        PExpr[]
+        PExpr[],
+        Dict{Int, Any}(),
+        Any[],
+        Any[],
+        Symbol[],
+        nothing
     )
 
     if cfg.record_json
@@ -301,7 +312,45 @@ function current_address(state::LazyKCState, p::Float64)
         insert!(state.sorted_var_labels, i, Int(bdd_topvar(addr)))
     end
     state.var_of_callstack[(callstack, p)] = addr
+    state.cfg.record_callsite_metadata && _record_callsite_metadata!(state, addr, p)
     return addr
+end
+
+function _record_callsite_metadata!(state::LazyKCState, addr::BDD, p::Float64)
+    label = Int(bdd_topvar(addr))
+    haskey(state.callsite_of_var, label) && return
+
+    origin = state.last_origin_expr
+    origin_span = origin === nothing ? nothing : expr_span(origin)
+
+    stack = [
+        Dict(
+            "expr" => string(e),
+            "loc" => begin
+                loc = expr_location(e)
+                isnothing(loc) ? nothing : Dict("file" => loc[1], "line" => loc[2], "col" => loc[3])
+            end
+        ) for e in state.stacktrace
+    ]
+
+    state.callsite_of_var[label] = Dict(
+        "callstack" => copy(state.callstack),
+        "p" => p,
+        "stacktrace" => stack,
+        "has_locs" => any(frame -> frame["loc"] !== nothing, stack),
+        "call_frames" => copy(state.call_frames),
+        "strict_call_frames" => copy(state.strict_call_frames),
+        "origin_expr" => (origin === nothing ? nothing : string(origin)),
+        "origin_loc" => begin
+            if origin === nothing
+                nothing
+            else
+                loc = expr_location(origin)
+                isnothing(loc) ? nothing : Dict("file" => loc[1], "line" => loc[2], "col" => loc[3])
+            end
+        end,
+        "origin_span" => origin_span === nothing ? nothing : Dict("file" => origin_span[1], "start_line" => origin_span[2], "start_col" => origin_span[3], "end_line" => origin_span[4], "end_col" => origin_span[5])
+    )
 end
 
 
@@ -315,6 +364,56 @@ end
 const VERBOSE = Ref{Bool}(false)
 setlog!(verbose::Bool) = (VERBOSE[] = verbose)
 getlog()::Bool = VERBOSE[]
+
+push_call_frame!(state::LazyKCState, name::Symbol, expr; caller_expr=nothing) = begin
+    state.cfg.record_callsite_metadata || return
+    loc = expr_location(expr)
+    disp_name = Pluck.defined_name_for_expr(expr)
+    if isnothing(disp_name) && !isempty(state.def_name_stack)
+        disp_name = state.def_name_stack[end]
+    end
+    called_span = isnothing(caller_expr) ? nothing : expr_span(caller_expr)
+    frame_span = expr_span(expr)
+    push!(state.call_frames, Dict(
+        "name" => String(isnothing(disp_name) ? name : disp_name),
+        "loc" => isnothing(loc) ? nothing : Dict("file" => loc[1], "line" => loc[2], "col" => loc[3]),
+        "span" => frame_span === nothing ? nothing : Dict("file" => frame_span[1], "start_line" => frame_span[2], "start_col" => frame_span[3], "end_line" => frame_span[4], "end_col" => frame_span[5]),
+        "expr" => string(expr),
+        "called_from_expr" => isnothing(caller_expr) ? nothing : string(caller_expr),
+        "called_from_loc" => begin
+            l = isnothing(caller_expr) ? nothing : expr_location(caller_expr)
+            isnothing(l) ? nothing : Dict("file" => l[1], "line" => l[2], "col" => l[3])
+        end,
+        "called_from_span" => called_span === nothing ? nothing : Dict("file" => called_span[1], "start_line" => called_span[2], "start_col" => called_span[3], "end_line" => called_span[4], "end_col" => called_span[5])
+    ))
+end
+pop_call_frame!(state::LazyKCState) = (state.cfg.record_callsite_metadata && !isempty(state.call_frames) && pop!(state.call_frames); nothing)
+
+
+push_strict_frame!(state::LazyKCState, name::Symbol, expr; caller_expr=nothing) = begin
+    state.cfg.record_callsite_metadata || return
+    loc = expr_location(expr)
+    # prefer the defined name if available
+    disp_name = Pluck.defined_name_for_expr(expr)
+    if isnothing(disp_name) && !isempty(state.def_name_stack)
+        disp_name = state.def_name_stack[end]
+    end
+    called_span = isnothing(caller_expr) ? nothing : expr_span(caller_expr)
+    frame_span = expr_span(expr)
+    push!(state.strict_call_frames, Dict(
+        "name" => String(isnothing(disp_name) ? name : disp_name),
+        "loc" => isnothing(loc) ? nothing : Dict("file" => loc[1], "line" => loc[2], "col" => loc[3]),
+        "span" => frame_span === nothing ? nothing : Dict("file" => frame_span[1], "start_line" => frame_span[2], "start_col" => frame_span[3], "end_line" => frame_span[4], "end_col" => frame_span[5]),
+        "expr" => string(expr),
+        "called_from_expr" => isnothing(caller_expr) ? nothing : string(caller_expr),
+        "called_from_loc" => begin
+            l = isnothing(caller_expr) ? nothing : expr_location(caller_expr)
+            isnothing(l) ? nothing : Dict("file" => l[1], "line" => l[2], "col" => l[3])
+        end,
+        "called_from_span" => called_span === nothing ? nothing : Dict("file" => called_span[1], "start_line" => called_span[2], "start_col" => called_span[3], "end_line" => called_span[4], "end_col" => called_span[5])
+    ))
+end
+pop_strict_frame!(state::LazyKCState) = (state.cfg.record_callsite_metadata && !isempty(state.strict_call_frames) && pop!(state.strict_call_frames); nothing)
 
 function print_enter(expr, env, state)
     getlog() || expr isa PExpr{PrintOp} || return
