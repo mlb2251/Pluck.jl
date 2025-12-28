@@ -23,13 +23,20 @@ include("likelihood/enumeration/thunks.jl")
 include("likelihood/enumeration/monad.jl")
 include("likelihood/enumeration/compile_inner.jl")
 include("likelihood/int_dists.jl")
+include("likelihood/error.jl")
+
+include("likelihood/compile_inner_defaults/core_ops.jl")
+include("likelihood/compile_inner_defaults/int_dist_ops.jl")
+include("likelihood/compile_inner_defaults/native_ops.jl")
+include("likelihood/compile_inner_defaults/experimental_ops.jl")
+
 
 include("likelihood/lazy_knowledge_compilation/lazy_knowledge_compilation.jl")
 include("likelihood/lazy_knowledge_compilation/thunks.jl")
 include("likelihood/lazy_knowledge_compilation/monad.jl")
 include("likelihood/lazy_knowledge_compilation/optimize.jl")
 include("likelihood/lazy_knowledge_compilation/compile_inner.jl")
-include("likelihood/lazy_knowledge_compilation/full_dist.jl")
+include("likelihood/full_dist.jl")
 
 
 include("likelihood/LPSMC.jl")
