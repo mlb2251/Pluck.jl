@@ -182,4 +182,5 @@ function record_bdd(state, bdd)
     out = joinpath(timestamp_dir(; base = "out/bdds/"), "bdd.json")
     write_out(json, out)
     println(webaddress("html/bdd.html", out, false))
+    return out
 end

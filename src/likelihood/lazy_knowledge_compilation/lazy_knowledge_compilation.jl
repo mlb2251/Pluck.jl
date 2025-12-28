@@ -64,8 +64,8 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
             worlds = []
             state.stats.hit_limit = true
         elseif e isa PluckError
+            # dont throw error here or stack trace will be really long, just set flag
             threw_error=true
-            # dont throw error here or stack trace will be really long
         else
             rethrow(e)
         end
@@ -74,11 +74,12 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     # bdd_stop_ite_limit(state.manager)
 
     if threw_error
+        # throw error here so the stack trace isn't super long
         throw("Pluck Error")
     end
 
     if state.stats.hit_limit
-        worlds = []
+        worlds, used_information = inference_error_worlds(state)
     end
 
     if state.cfg.full_dist
