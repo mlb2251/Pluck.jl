@@ -16,7 +16,6 @@ include("language/values.jl")
 include("language/closures.jl")
 include("language/define.jl")
 include("language/json.jl")
-include("language/meta.jl")
 
 
 include("likelihood/enumeration/enumeration.jl")

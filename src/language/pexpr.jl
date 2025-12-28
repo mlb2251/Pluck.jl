@@ -325,10 +325,6 @@ define_parser!("error", ErrorOp, 1)
 struct LookupOp <: Head end
 define_parser!("lookup", LookupOp, 1)
 
-struct PExprFromValueOp <: Head end
-define_parser!("pexpr_from_value", PExprFromValueOp, 1)
-
-
 
 
 

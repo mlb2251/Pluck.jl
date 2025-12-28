@@ -283,18 +283,6 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
 end
 
 """
-When compiling a thunk, we assume it is a Thunk that will return a NativeValue{PExpr}, so
-we first evaluate that thunk (callstack doesnt matter) then use the result to compile the PExpr
-at the given callstack / strict_order_index.
-"""
-function compile_inner(thunk::Thunk, env, path_condition, state)
-    bind_evaluate(thunk, env, path_condition, state) do e, path_condition
-        @assert e isa NativeValue && e.value isa PExpr "Thunk must be evaluated to a NativeValue{PExpr}, got $(e) :: $(typeof(e))"
-        return compile_inner(e.value, env, path_condition, state)
-    end
-end
-
-"""
 Returns the single-variable BDD corresponding to the current callstack and probability, creating
 the variable if it doesn't exist yet.
 """

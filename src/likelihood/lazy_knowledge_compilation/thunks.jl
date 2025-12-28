@@ -35,21 +35,6 @@ function make_thunk(expr, env, strict_order_index, state::LazyKCState)
     return thunk
 end
 
-"""
-this thunk returns a NativeValue{PExpr} so say it might look like (quote ...)
-though of course it might also return more than one expression.
-We'd like to effectively make a thunk that goes (eval (quote ...))
-
-(eval #1)
-
-"""
-# function make_thunk(thunk::Thunk, env, strict_order_index, state::LazyKCState)
-#     bind_evaluate(thunk, env, path_condition, state) do e, path_condition
-#         @assert e isa NativeValue && e.value isa PExpr "Thunk must be evaluated to a NativeValue{PExpr}, got $(e) :: $(typeof(e))"
-#         return make_thunk(e.value, env, strict_order_index, state)
-#     end
-# end
-
 struct LazyKCThunkUnion <: Thunk
     thunks::Vector{Tuple{LazyKCThunk, BDD}}
     function LazyKCThunkUnion(worlds::Vector{Tuple{T, BDD}}, state) where T
@@ -114,21 +99,7 @@ function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
     old_stacktrace = state.stacktrace
     state.stacktrace = thunk.stacktrace
 
-    expr = thunk.expr
-    if expr isa LazyKCThunk
-        # if the .expr is a Thunk, we need to evaluate it first to get a PExprValue
-        return bind_evaluate(expr, thunk.env, path_condition, state) do e, path_condition
-            @assert false # im pretty sure we're not doing this anymore
-            # @assert e isa PExprValue "LazyKCThunk must be evaluated to a PExprValue, got $(e) :: $(typeof(e))"
-            @assert e isa NativeValue && e.value isa PExpr "LazyKCThunk must be evaluated to a NativeValue{PExpr{T}}, got $(e) :: $(typeof(e))"
-            result = traced_compile_inner(e.value, thunk.env, path_condition, state, thunk.strict_order_index)
-            state.callstack = old_callstack
-            state.stacktrace = old_stacktrace
-            print_thunk_exit(thunk, result, state)
-            return result
-        end
-    end
-    result = traced_compile_inner(expr, thunk.env, path_condition, state, thunk.strict_order_index)
+    result = traced_compile_inner(thunk.expr, thunk.env, path_condition, state, thunk.strict_order_index)
 
     state.callstack = old_callstack
     state.stacktrace = old_stacktrace
@@ -264,25 +235,6 @@ function find_first_thunk(val::Value, path::Vector{Int} = Int[])
     return nothing
 end
 
-function find_first_thunk(val::NativeValue{PExpr{T}}, path::Vector{Int} = Int[]) where T <: Head
-    return find_first_thunk(val.value, path)
-end
-
-function find_first_thunk(val::PExpr{T}, path = Int[]) where T <: Head
-    for (i, arg) in enumerate(val.args)
-        if arg isa Thunk
-            push!(path, i)
-            return path
-        end
-        sub_path = find_first_thunk(arg, copy(path))
-        if !isnothing(sub_path)
-            pushfirst!(sub_path, i)
-            return sub_path
-        end
-    end
-    return nothing
-end
-
 
 find_first_thunk(val, path = Int[]) = nothing
 
@@ -331,10 +283,6 @@ function get_value_at_path(val, path)
     get_value_at_path(val, view(path, 2:length(path)))
 end
 
-function get_value_at_path(val::NativeValue{PExpr{T}}, path) where T <: Head
-    return get_value_at_path(val.value, path)
-end
-
 
 
 function replace_at_path(val::IntDist, path::Vector{Int}, new_val)
@@ -360,21 +308,6 @@ function replace_at_path(val::Value, path::Vector{Int}, new_val)
     end
     
     return Value(val.constructor, new_args)
-end
-
-function replace_at_path(val::NativeValue{PExpr{T}}, path::Vector{Int}, new_val) where T <: Head
-    return NativeValue(replace_at_path(val.value, path, new_val))
-end
-
-function replace_at_path(val::PExpr{T}, path::Vector{Int}, new_val) where T <: Head
-    isempty(path) && return new_val
-    new_args = copy(val.args)
-    if length(path) == 1
-        new_args[path[1]] = new_val
-    else
-        new_args[path[1]] = replace_at_path(val.args[path[1]], path[2:end], new_val)
-    end
-    return PExpr(val.head, new_args)
 end
 
 

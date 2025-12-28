@@ -380,14 +380,6 @@ function force_value(v::Value, env, state::SampleValueState)
     return v
 end
 
-function force_value(v::PExpr, env, state::SampleValueState)
-    v.args = [traced_force_value(arg, env, state) for arg in v.args]
-    return v
-end
-
-function force_value(v::NativeValue{PExpr{T}}, env, state::SampleValueState) where T <: Head
-    return traced_force_value(v.value, env, state)
-end
 
 
 """
