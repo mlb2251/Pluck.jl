@@ -23,13 +23,24 @@ include("likelihood/enumeration/thunks.jl")
 include("likelihood/enumeration/monad.jl")
 include("likelihood/enumeration/compile_inner.jl")
 include("likelihood/int_dists.jl")
+
 include("likelihood/lazy_knowledge_compilation/lazy_knowledge_compilation.jl")
 include("likelihood/lazy_knowledge_compilation/thunks.jl")
 include("likelihood/lazy_knowledge_compilation/monad.jl")
 include("likelihood/lazy_knowledge_compilation/optimize.jl")
 include("likelihood/lazy_knowledge_compilation/compile_inner.jl")
+include("likelihood/lazy_knowledge_compilation/full_dist.jl")
+
+
 include("likelihood/LPSMC.jl")
 include("likelihood/eager_knowledge_compilation.jl")
+
+include("likelihood/sample_value/sample_value.jl")
+include("likelihood/sample_value/force_value.jl")
+include("likelihood/sample_value/compile_inner.jl")
+include("likelihood/sample_value/thunks.jl")
+include("likelihood/sample_value/monad.jl")
+
 include("likelihood/posterior_sampling.jl")
 
 include("toplevel/parsing.jl")
