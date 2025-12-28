@@ -34,8 +34,11 @@ include("likelihood/compile_inner_defaults/experimental_ops.jl")
 include("likelihood/lazy_knowledge_compilation/lazy_knowledge_compilation.jl")
 include("likelihood/lazy_knowledge_compilation/thunks.jl")
 include("likelihood/lazy_knowledge_compilation/monad.jl")
-include("likelihood/optimize.jl")
 include("likelihood/lazy_knowledge_compilation/compile_inner.jl")
+include("likelihood/lazy_knowledge_compilation/logging.jl")
+
+
+include("likelihood/optimize.jl")
 include("likelihood/full_dist.jl")
 
 

@@ -12,7 +12,6 @@ Base.@kwdef mutable struct LazyKCConfig
     sample_after_max_depth::Bool = false
     use_strict_order::Bool = true
     use_reverse_order::Bool = false
-    # use_thunk_cache::Bool = false
     use_thunk_unions::Bool = true
     disable_used_information::Bool = false
     disable_path_conditions::Bool = false
@@ -36,8 +35,83 @@ Base.@kwdef mutable struct LazyKCConfig
     env = EMPTY_ENV
 end
 
+
 set_time_limit!(cfg::LazyKCConfig, time_limit::Float64) = (cfg.time_limit = time_limit)
 get_time_limit(cfg::LazyKCConfig) = cfg.time_limit
+
+
+mutable struct LazyKCStats
+    time::Union{TimeState, Nothing}
+    num_forward_calls::Int
+    hit_limit::Bool
+    num_recursive_calls::Int
+end
+LazyKCStats() = LazyKCStats(nothing, 0, false, 0)
+function Base.:+(a::LazyKCStats, b::LazyKCStats)
+    LazyKCStats(a.time + b.time, a.num_forward_calls + b.num_forward_calls, a.hit_limit || b.hit_limit, a.num_recursive_calls + b.num_recursive_calls)
+end
+
+function Base.show(io::IO, stats::LazyKCStats)
+    print(io, "LazyKCStats(time=$(stats.time), num_forward_calls=$(stats.num_forward_calls), hit_limit=$(stats.hit_limit), num_recursive_calls=$(stats.num_recursive_calls))")
+end
+
+mutable struct LazyKCState
+    callstack::Callstack
+    var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
+    sorted_callstacks::Vector{Tuple{Callstack, Float64}}
+    stacktrace_of_callstack::Dict{Tuple{Callstack, Float64}, Vector{PExpr}}
+    sorted_var_labels::Vector{Int}
+    manager::RSDD.Manager
+    depth::Int
+    thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, Any}
+    stats::LazyKCStats
+    viz::Any # Union{Nothing, BDDJSONLogger}
+    cfg::LazyKCConfig
+    var2metaparam::Dict{Int, Int}
+    timer::Ttimer
+    stacktrace::Vector{PExpr}
+end
+
+get_timer(state::LazyKCState) = state.timer
+
+function LazyKCState(;kwargs...)
+    cfg = LazyKCConfig(;kwargs...)
+    LazyKCState(cfg)
+end
+
+function LazyKCState(cfg::LazyKCConfig)
+    manager = RSDD.Manager(; vector_size=cfg.vector_size, dual=cfg.dual)
+    state = LazyKCState(
+        Callstack(),
+        Dict{Tuple{Callstack, Float64}, BDD}(),
+        Tuple{Callstack, Float64}[],
+        Dict{Tuple{Callstack, Float64}, Vector{PExpr}}(),
+        Int[],
+        manager,
+        0,
+        Dict{Tuple{PExpr, Env, Callstack}, Any}(),
+        LazyKCStats(),
+        nothing,
+        cfg,
+        Dict{Int, Int}(),
+        Ttimer(),
+        PExpr[]
+    )
+
+    if cfg.record_json
+        state.viz = BDDJSONLogger(state)
+    end
+    return state
+end
+
+get_config(state::LazyKCState) = state.cfg
+
+struct CompileResult
+    worlds
+    stats
+    raw_worlds
+    state
+end
 
 
 """
@@ -130,115 +204,25 @@ function compile(expr::PExpr, cfg::LazyKCConfig)
     return weighted_results
 end
 
-const global_lazykc_kwargs = Dict{Symbol, Any}()
-function set_config!(;kwargs...)
-    empty!(global_lazykc_kwargs)
-    for (k, v) in kwargs
-        global_lazykc_kwargs[k] = v
-    end
-end
-get_config() = global_lazykc_kwargs
-
-function set_outpath!()
-    set_config!(results_file = timestamp_path("results.json"))
-end
-
-mutable struct LazyKCStats
-    time::Union{TimeState, Nothing}
-    num_forward_calls::Int
-    hit_limit::Bool
-    num_recursive_calls::Int
-end
-LazyKCStats() = LazyKCStats(nothing, 0, false, 0)
-function Base.:+(a::LazyKCStats, b::LazyKCStats)
-    LazyKCStats(a.time + b.time, a.num_forward_calls + b.num_forward_calls, a.hit_limit || b.hit_limit, a.num_recursive_calls + b.num_recursive_calls)
-end
-
-function Base.show(io::IO, stats::LazyKCStats)
-    print(io, "LazyKCStats(time=$(stats.time), num_forward_calls=$(stats.num_forward_calls), hit_limit=$(stats.hit_limit), num_recursive_calls=$(stats.num_recursive_calls))")
-end
-
-mutable struct LazyKCState
-    callstack::Callstack
-    var_of_callstack::Dict{Tuple{Callstack, Float64}, BDD}
-    sorted_callstacks::Vector{Tuple{Callstack, Float64}}
-    stacktrace_of_callstack::Dict{Tuple{Callstack, Float64}, Vector{PExpr}}
-    sorted_var_labels::Vector{Int}
-    manager::RSDD.Manager
-    depth::Int
-    thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, Any}
-    stats::LazyKCStats
-    viz::Any # Union{Nothing, BDDJSONLogger}
-    cfg::LazyKCConfig
-    var2metaparam::Dict{Int, Int}
-    timer::Ttimer
-    stacktrace::Vector{PExpr}
-end
-
-struct CompileResult
-    worlds
-    stats
-    raw_worlds
-    state
-end
-
-get_timer(state::LazyKCState) = state.timer
-
-
-function LazyKCState(;kwargs...)
-    cfg = LazyKCConfig(;kwargs...)
-    LazyKCState(cfg)
-end
-
-function LazyKCState(cfg::LazyKCConfig)
-    manager = RSDD.Manager(; vector_size=cfg.vector_size, dual=cfg.dual)
-    state = LazyKCState(
-        Callstack(),
-        Dict{Tuple{Callstack, Float64}, BDD}(),
-        Tuple{Callstack, Float64}[],
-        Dict{Tuple{Callstack, Float64}, Vector{PExpr}}(),
-        Int[],
-        manager,
-        0,
-        Dict{Tuple{PExpr, Env, Callstack}, Any}(),
-        LazyKCStats(),
-        nothing,
-        cfg,
-        Dict{Int, Int}(),
-        Ttimer(),
-        PExpr[]
-    )
-
-    if cfg.record_json
-        state.viz = BDDJSONLogger(state)
-    end
-    return state
-end
-
-get_config(state::LazyKCState) = state.cfg
-
 function traced_compile_inner(expr, env, path_condition, state::LazyKCState, strict_order_index)
     # Check whether path_condition is false.
-    if !state.cfg.disable_used_information && bdd_is_false(path_condition)
+    if bdd_is_false(path_condition) &&!state.cfg.disable_used_information
         return false_path_condition_worlds(state)
     end
 
-    state.stats.hit_limit && return inference_error_worlds(state)
-
     if state.cfg.max_depth !== nothing && state.depth > state.cfg.max_depth && !state.cfg.sample_after_max_depth
         state.stats.hit_limit = true
-        return inference_error_worlds(state)
     end
 
     if check_time_limit_lower_bound(state.timer)
         state.stats.hit_limit = true
-        return inference_error_worlds(state)
     end
 
     if bdd_ite_limit_exceeded(state.manager)
         state.stats.hit_limit = true
-        return inference_error_worlds(state)
     end
+
+    state.stats.hit_limit && return inference_error_worlds(state)
 
     state.depth += 1
     push!(state.callstack, strict_order_index)
@@ -264,102 +248,20 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
     end
 
     pop!(state.callstack)
-    state.stats.num_forward_calls += 1
     state.depth -= 1
-
-    state.stats.hit_limit && return inference_error_worlds(state)
+    state.stats.num_forward_calls += 1
 
     if bdd_time_limit_exceeded(state.manager)
         state.stats.hit_limit = true
-        return inference_error_worlds(state)
     end
 
     if bdd_ite_limit_exceeded(state.manager)
         state.stats.hit_limit = true
-        return inference_error_worlds(state)
     end
+
+    state.stats.hit_limit && return inference_error_worlds(state)
 
     return result, used_information
-end
-
-"""
-Returns the single-variable BDD corresponding to the current callstack and probability, creating
-the variable if it doesn't exist yet.
-"""
-function current_address(state::LazyKCState, p::Float64)
-    if haskey(state.var_of_callstack, (state.callstack, p))
-        # @assert length(state.stacktrace_of_callstack[(state.callstack, p)]) == length(state.stacktrace)
-        # for (e1, e2) in zip(state.stacktrace_of_callstack[(state.callstack, p)], state.stacktrace)
-        #     @assert objectid(e1) == objectid(e2)
-        # end
-        return state.var_of_callstack[(state.callstack, p)]
-    end
-    callstack = copy(state.callstack)
-
-    if !state.cfg.use_strict_order
-        # Lazy order
-        addr = RSDD.bdd_new_var(state.manager, true)
-    else
-        # Strict order
-        # Find position in the variable order in which to create the new variable.
-        # This is based on where in state.sorted_callstacks this callstack should go.
-        # We want to do a binary search over the sorted list. The order on callstacks
-        # is lexicographic, so we can do this with a binary search.
-        i = searchsortedfirst(state.sorted_callstacks, (state.callstack, p); by = x -> x[1], rev = state.cfg.use_reverse_order)
-        # Insert the callstack in the sorted list.
-        addr = RSDD.bdd_new_var_at_position(state.manager, i - 1, true) # Rust uses 0-indexing
-        insert!(state.sorted_callstacks, i, (callstack, p))
-        insert!(state.sorted_var_labels, i, Int(bdd_topvar(addr)))
-    end
-    state.var_of_callstack[(callstack, p)] = addr
-    state.stacktrace_of_callstack[(callstack, p)] = copy(state.stacktrace)
-    return addr
-end
-
-
-function pretty_callstack(callstack, strict_order_index=nothing)
-    if !isnothing(strict_order_index)
-        callstack = vcat(callstack, strict_order_index)
-    end
-    return "." *join(callstack, ".")
-end
-
-const VERBOSE = Ref{Bool}(false)
-setlog!(verbose::Bool) = (VERBOSE[] = verbose)
-getlog()::Bool = VERBOSE[]
-
-function print_enter(expr, env, state)
-    getlog() || expr isa PExpr{PrintOp} || return
-    cs = pretty_callstack(state.callstack)
-    printstyled("$cs $expr :: $(typeof(expr))\n", color=:yellow)
-end
-
-function pretty_worlds(worlds::Vector; weights=false)
-    res = "["
-    for (i, (val, bdd)) in enumerate(worlds)
-        res *= string(val)
-        weights && (res *= " (P=" * @sprintf("%.1e", RSDD.bdd_wmc(bdd)) * ")")
-        i < length(worlds) && (res *= ", ")
-    end
-    return res * "]"
-end
-
-function pretty_result(result; weights=false)
-    if result isa Vector
-        return "-> " * pretty_worlds(result; weights=weights)
-    else
-        return "-> $result :: $(typeof(result))"
-    end
-end
-
-function print_exit(expr, result, env, state)
-    getlog() || expr isa PExpr{PrintOp} || return
-    cs = pretty_callstack(state.callstack)
-    green = "$cs $expr :: $(typeof(expr)) "
-    blue = pretty_result(result; weights=true)
-    printstyled(green, color=:green)
-    length(green) + length(blue) > 80 && print("\n")
-    printstyled(blue * "\n", color=:blue)
 end
 
 function with_stacktrace(f::F, state::LazyKCState, expr::Union{PExpr, Nothing}) where F <: Function

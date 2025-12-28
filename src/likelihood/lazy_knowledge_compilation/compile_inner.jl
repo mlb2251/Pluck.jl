@@ -53,3 +53,37 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
         return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
     end
 end
+
+"""
+Returns the single-variable BDD corresponding to the current callstack and probability, creating
+the variable if it doesn't exist yet.
+"""
+function current_address(state::LazyKCState, p::Float64)
+    if haskey(state.var_of_callstack, (state.callstack, p))
+        # @assert length(state.stacktrace_of_callstack[(state.callstack, p)]) == length(state.stacktrace)
+        # for (e1, e2) in zip(state.stacktrace_of_callstack[(state.callstack, p)], state.stacktrace)
+        #     @assert objectid(e1) == objectid(e2)
+        # end
+        return state.var_of_callstack[(state.callstack, p)]
+    end
+    callstack = copy(state.callstack)
+
+    if !state.cfg.use_strict_order
+        # Lazy order
+        addr = RSDD.bdd_new_var(state.manager, true)
+    else
+        # Strict order
+        # Find position in the variable order in which to create the new variable.
+        # This is based on where in state.sorted_callstacks this callstack should go.
+        # We want to do a binary search over the sorted list. The order on callstacks
+        # is lexicographic, so we can do this with a binary search.
+        i = searchsortedfirst(state.sorted_callstacks, (state.callstack, p); by = x -> x[1], rev = state.cfg.use_reverse_order)
+        # Insert the callstack in the sorted list.
+        addr = RSDD.bdd_new_var_at_position(state.manager, i - 1, true) # Rust uses 0-indexing
+        insert!(state.sorted_callstacks, i, (callstack, p))
+        insert!(state.sorted_var_labels, i, Int(bdd_topvar(addr)))
+    end
+    state.var_of_callstack[(callstack, p)] = addr
+    state.stacktrace_of_callstack[(callstack, p)] = copy(state.stacktrace)
+    return addr
+end
