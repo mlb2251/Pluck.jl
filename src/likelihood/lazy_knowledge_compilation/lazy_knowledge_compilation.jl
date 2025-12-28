@@ -46,7 +46,6 @@ Top-level compile function for lazy knowledge compilation.
 function compile(expr::PExpr, cfg::LazyKCConfig)
     state = cfg.state === nothing ? LazyKCState(cfg) : cfg.state
     state.cfg = cfg
-    state.query = expr
 
     tstart = ttime()
     start!(get_timer(state), cfg.time_limit)
@@ -173,7 +172,6 @@ mutable struct LazyKCState
     cfg::LazyKCConfig
     var2metaparam::Dict{Int, Int}
     timer::Ttimer
-    query::Union{Nothing, PExpr}
     stacktrace::Vector{PExpr}
 end
 
@@ -208,7 +206,6 @@ function LazyKCState(cfg::LazyKCConfig)
         cfg,
         Dict{Int, Int}(),
         Ttimer(),
-        nothing,
         PExpr[]
     )
 

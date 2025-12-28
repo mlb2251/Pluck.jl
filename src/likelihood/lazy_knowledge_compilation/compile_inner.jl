@@ -39,7 +39,6 @@ end
 function pluck_error(state, msg)
     printstyled("Pluck Error from $(typeof(state)): ", color=:red)
     println(msg)
-    println("\nDuring execution of $(state.query)\n")
 
     if !isempty(state.stacktrace)
         print_stacktrace(state)
@@ -280,7 +279,7 @@ end
 
 function compile_inner(expr::PExpr{GetConstructorOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
-        @assert val isa Value "getconstructor must be applied to a Value, not: $val :: $(typeof(val)) in $expr during execution of $(state.query)"
+        val isa Value || pluck_error(state, "getconstructor must be applied to a Value, not: $val :: $(typeof(val))")
         return pure_monad(NativeValue(val.constructor), path_condition, state)
     end
 end

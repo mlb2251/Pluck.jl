@@ -52,7 +52,7 @@ function compile_inner(expr::PExpr{Construct}, env, trace, state::LazyEnumerator
     # in strict semantics its safe to evaluate all arguments independently of each other.
     options_of_arg = []
     for (i, arg) in enumerate(expr.args)
-        push!(options_of_arg, traced_compile_inner(arg, env, Trace(), state, i))
+        push!(options_of_arg, traced_compile_inner(arg, env, Trace(), state, i)) # TODO this could be i-1
     end
     results = []
     for args in Iterators.product(options_of_arg...)

@@ -41,7 +41,6 @@ function posterior_sample(val, state)
             state.manager,
             shared_thunks,
         )
-        sample_state.query = query_thunk
     
         # Sample from the query under the evidence constraint
         sampled_value = evaluate(query_thunk, nothing, sample_state)
@@ -121,7 +120,6 @@ mutable struct SampleValueState
     constraint::Union{BDD, Nothing}
     callstack::Vector{Int}
     stacktrace::Vector{Union{PExpr, Nothing}}
-    query
     trace::Dict{Tuple{Vector{Int}, Float64}, Bool}
     var_of_callstack::Union{Dict{Tuple{Callstack, Float64}, BDD}, Nothing}
     manager::Union{RSDD.Manager, Nothing}
@@ -135,7 +133,6 @@ mutable struct SampleValueState
             constraint,
             callstack,
             [],
-            nothing,
             Dict{Tuple{Vector{Int}, Float64}, Bool}(),
             var_of_callstack,
             manager,
