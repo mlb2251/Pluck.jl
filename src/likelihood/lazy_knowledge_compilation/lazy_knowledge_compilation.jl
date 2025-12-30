@@ -231,17 +231,9 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
         record_forward!(state.viz, expr, env, path_condition, strict_order_index)
     end
 
-    if state.cfg.stacktrace
-        push!(state.stacktrace, expr)
-    end
-
     print_enter(expr, env, state)
     result, used_information = compile_inner(expr, env, path_condition, state)
     print_exit(expr, result, env, state)
-
-    if state.cfg.stacktrace
-        pop!(state.stacktrace)
-    end
 
     if state.cfg.record_json
         record_result!(state.viz, result, used_information)

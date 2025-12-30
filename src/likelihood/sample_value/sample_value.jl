@@ -28,11 +28,9 @@ end
 
 function traced_compile_inner(expr, env, null, state::SampleValueState, strict_order_index::Int)
     push!(state.callstack, strict_order_index)
-    push!(state.stacktrace, expr)
     print_enter(expr, env, state)
     result = compile_inner(expr, env, null, state)
     print_exit(expr, result, env, state)
-    pop!(state.stacktrace)
     pop!(state.callstack)
     return result
 end

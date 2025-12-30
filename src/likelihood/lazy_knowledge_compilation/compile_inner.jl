@@ -84,6 +84,6 @@ function current_address(state::LazyKCState, p::Float64)
         insert!(state.sorted_var_labels, i, Int(bdd_topvar(addr)))
     end
     state.var_of_callstack[(callstack, p)] = addr
-    state.stacktrace_of_callstack[(callstack, p)] = copy(state.stacktrace)
+    # state.stacktrace_of_callstack[(callstack, p)] = copy(state.stacktrace)
     return addr
 end
