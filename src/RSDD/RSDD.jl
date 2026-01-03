@@ -5,7 +5,7 @@ module RSDD
 
 include("../util/timing.jl")
 using .Timing
-export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded, bdd_deep_copy, bdd_wmc_raw, bdd_wmc
+export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded, bdd_deep_copy, bdd_wmc_raw, bdd_wmc, bdd_num_recursive_calls
 
 
 export WmcParams, 
@@ -309,9 +309,9 @@ bdd_topvar(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_topvar(bdd.ptr::Csize
 
 """
 Gets the number of recursive calls made by the BDD manager.
-Returns: UInt64
+Returns: Int
 """
-bdd_num_recursive_calls(manager::Manager) = @rsdd_timed @ccall librsdd_path.bdd_num_recursive_calls(manager.ptr::ManagerPtr)::UInt64
+bdd_num_recursive_calls(manager::Manager) = @rsdd_timed Int(@ccall librsdd_path.bdd_num_recursive_calls(manager.ptr::ManagerPtr)::UInt64)
 
 """
 Prints a BDD to a string.

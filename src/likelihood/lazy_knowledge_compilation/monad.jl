@@ -82,7 +82,33 @@ join :: M (M a) -> M a
 """
 function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
     nested_worlds, pre_used_info = nested_worlds
+    used_information = diffinfo(:ite, :join_used_information, () -> bdd_num_recursive_calls(state.manager)) do
+        join_used_information(nested_worlds, pre_used_info, state)
+    end
 
+    # Now lets join the resulting worlds.
+    join_results = Vector{World}()
+    index_of_result = Dict{AbstractValue, Int}()
+    results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
+    int_dist_results = Vector{Tuple{IntDist, BDD}}()
+
+    diffinfo(:ite, :join_values, () -> bdd_num_recursive_calls(state.manager)) do
+        join_values!(nested_worlds, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+    end
+
+    if state.cfg.use_thunk_unions
+        diffinfo(:ite, :join_thunk_unions, () -> bdd_num_recursive_calls(state.manager)) do
+            join_thunk_unions!(join_results, results_for_constructor, state)
+        end
+    end
+    if length(int_dist_results) > 0
+        push!(join_results, combine_int_dists(int_dist_results, state.manager))
+    end
+
+    return join_results, used_information
+end
+
+function join_used_information(nested_worlds, pre_used_info, state::LazyKCState)
     # first what is the total used information?
     used_information = pre_used_info
     for ((_, used_info), pre_guard) in nested_worlds
@@ -94,15 +120,10 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
         """
         used_information &= bdd_implies(pre_guard, used_info)
     end
+    return used_information
+end
 
-    """
-    Now lets join the resulting worlds.
-    """
-    join_results = Vector{World}()
-    index_of_result = Dict{AbstractValue, Int}()
-    results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
-    int_dist_results = Vector{Tuple{IntDist, BDD}}()
-
+function join_values!(nested_worlds, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
     for ((post_worlds, _), pre_guard) in nested_worlds
         for (post_val, post_guard) in post_worlds
             pre_and_post = post_guard & pre_guard
@@ -126,40 +147,35 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
             end
         end
     end
+end
 
-    if state.cfg.use_thunk_unions
-        for constructor in keys(results_for_constructor)
-            world_of_value = Dict{Value, World}()
-            for (post_val, pre_and_post) in results_for_constructor[constructor]
-                old_world = get(world_of_value, post_val, nothing)
-                old_guard = isnothing(old_world) ? state.manager.BDD_FALSE : old_world[2]
-                new_guard = old_guard | pre_and_post
-                world_of_value[post_val] = (post_val, new_guard)
-            end
-            if length(world_of_value) <= 1
-                append!(join_results, World[Tuple(world) for world in values(world_of_value)])
-                continue
-            end
-
-            # multiple worlds case
-            overall_guard = state.manager.BDD_FALSE
-            thunks_of_arg = [World[] for _ in 1:length(Pluck.args_of_constructor[constructor])]
-            for (post_val, pre_and_post) in values(world_of_value)
-                overall_guard |= pre_and_post
-                for (i, arg) in enumerate(post_val.args)
-                    push!(thunks_of_arg[i], (arg, pre_and_post))
-                end
-            end
-            overall_args = [LazyKCThunkUnion(thunks, state) for thunks in thunks_of_arg]
-            overall_value = Value(constructor, overall_args)
-            push!(join_results, (overall_value, overall_guard))
+function join_thunk_unions!(join_results, results_for_constructor, state::LazyKCState)
+    for constructor in keys(results_for_constructor)
+        world_of_value = Dict{Value, World}()
+        for (post_val, pre_and_post) in results_for_constructor[constructor]
+            old_world = get(world_of_value, post_val, nothing)
+            old_guard = isnothing(old_world) ? state.manager.BDD_FALSE : old_world[2]
+            new_guard = old_guard | pre_and_post
+            world_of_value[post_val] = (post_val, new_guard)
         end
-    end
-    if length(int_dist_results) > 0
-        push!(join_results, combine_int_dists(int_dist_results, state.manager))
-    end
+        if length(world_of_value) <= 1
+            append!(join_results, World[Tuple(world) for world in values(world_of_value)])
+            continue
+        end
 
-    return join_results, used_information
+        # multiple worlds case
+        overall_guard = state.manager.BDD_FALSE
+        thunks_of_arg = [World[] for _ in 1:length(Pluck.args_of_constructor[constructor])]
+        for (post_val, pre_and_post) in values(world_of_value)
+            overall_guard |= pre_and_post
+            for (i, arg) in enumerate(post_val.args)
+                push!(thunks_of_arg[i], (arg, pre_and_post))
+            end
+        end
+        overall_args = [LazyKCThunkUnion(thunks, state) for thunks in thunks_of_arg]
+        overall_value = Value(constructor, overall_args)
+        push!(join_results, (overall_value, overall_guard))
+    end
 end
 
 
