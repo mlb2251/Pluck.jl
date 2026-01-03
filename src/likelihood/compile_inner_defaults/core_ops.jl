@@ -6,7 +6,7 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
         f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
         with_stacktrace(state, f.origin) do
-            res = traced_compile_inner(f.expr, new_env, state.manager.BDD_TRUE, state, 2)
+            res = traced_compile_inner(f.expr, new_env, path_condition, state, 2)
             mutate_values(res) do val
                 if val isa Closure
                     val.origin = f.origin
