@@ -150,3 +150,58 @@ function format_prob(p)
     @assert !occursin("e", str)
     return str
 end
+
+struct LoggedInfo
+    values::Vector{Any}
+    LoggedInfo() = new(Vector{Any}())
+end
+
+struct InfoGlobal
+    info::Dict{Any, LoggedInfo}
+
+    InfoGlobal() = new(Dict{Any, LoggedInfo}())
+end
+info = InfoGlobal()
+
+function getinfo()
+    global info
+    return info.info
+end
+
+function clearinfo()
+    empty!(getinfo())
+end
+
+function getsymbol()
+    info = getinfo()
+    return info[symbol]
+end
+
+function getinfo(key)
+    get!(getinfo(), key) do
+        LoggedInfo()
+    end
+end
+
+function addinfo(key, value)
+    push!(getinfo(key).values, value)
+end
+
+mean(xs) = isempty(xs) ? nothing : sum(xs) / length(xs)
+
+function diffinfo(f, key, make_info; diff = -)
+    pre = make_info()
+    res = f()
+    post = make_info()
+    addinfo(key, diff(post, pre))
+    return res
+end
+
+function showinfo()
+    info = getinfo()
+    for key in sort(collect(keys(info)))
+        println("$key: total=$(sum(info[key].values)) count=$(length(info[key].values)) mean=$(mean(info[key].values))")
+    end
+end
+
+

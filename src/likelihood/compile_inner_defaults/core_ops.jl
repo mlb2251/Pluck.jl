@@ -5,16 +5,31 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
         f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
-        return traced_compile_inner(f.expr, new_env, path_condition, state, 2)
-        # bind_compile(f.expr, new_env, path_condition, state, 2) do val, path_condition
-        #     pure_monad(val, path_condition, state)
-        # end
+        with_stacktrace(state, f.origin) do
+            res = traced_compile_inner(f.expr, new_env, state.manager.BDD_TRUE, state, 2)
+            mutate_values(res) do val
+                if val isa Closure
+                    val.origin = f.origin
+                end
+            end
+        end
     end
 end
 
+function mutate_values(f::F, compile_result) where F <: Function
+    worlds, _ = compile_result
+    for (value, _) in worlds
+        f(value)
+    end
+    return compile_result
+end
+
+
 function compile_inner(expr::PExpr{Abs}, env, path_condition, state)
     # A lambda term deterministically evaluates to a closure.
-    pure_monad(Closure(expr.args[1], env, expr.head.var, expr), path_condition, state)
+    with_stacktrace(state, expr) do
+        pure_monad(Closure(expr.args[1], env, expr.head.var, expr), path_condition, state)
+    end
 end
 
 function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
@@ -66,8 +81,15 @@ end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     body = Pluck.lookup(expr.head.name).expr
-    # Execute Defined with a blanked out environment.
-    return traced_compile_inner(body, Pluck.EMPTY_ENV, path_condition, state, 0)
+    # Execute Defined with an empty environment.
+    with_stacktrace(state, expr) do
+        res = traced_compile_inner(body, Pluck.EMPTY_ENV, path_condition, state, 0)
+        mutate_values(res) do val
+            if val isa Closure
+                val.origin = expr
+            end
+        end
+    end
 end
 
 function compile_inner(expr::PExpr{Y}, env, path_condition, state)

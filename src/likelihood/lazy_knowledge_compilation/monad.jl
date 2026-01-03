@@ -82,9 +82,7 @@ join :: M (M a) -> M a
 """
 function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vector{Tuple{T, BDD}}, BDD}, BDD}} where T
     nested_worlds, pre_used_info = nested_worlds
-    used_information = diffinfo(:ite, :join_used_information, () -> bdd_num_recursive_calls(state.manager)) do
-        join_used_information(nested_worlds, pre_used_info, state)
-    end
+    used_information = join_used_information(nested_worlds, pre_used_info, state)
 
     # Now lets join the resulting worlds.
     join_results = Vector{World}()
@@ -92,15 +90,12 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
     results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
     int_dist_results = Vector{Tuple{IntDist, BDD}}()
 
-    diffinfo(:ite, :join_values, () -> bdd_num_recursive_calls(state.manager)) do
-        join_values!(nested_worlds, join_results, index_of_result, results_for_constructor, int_dist_results, state)
-    end
+    join_values!(nested_worlds, join_results, index_of_result, results_for_constructor, int_dist_results, state)
 
     if state.cfg.use_thunk_unions
-        diffinfo(:ite, :join_thunk_unions, () -> bdd_num_recursive_calls(state.manager)) do
-            join_thunk_unions!(join_results, results_for_constructor, state)
-        end
+        join_thunk_unions!(join_results, results_for_constructor, state)
     end
+
     if length(int_dist_results) > 0
         push!(join_results, combine_int_dists(int_dist_results, state.manager))
     end
