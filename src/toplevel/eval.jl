@@ -41,20 +41,14 @@ function sample_output(expr::String; kwargs...)
     process_query("(PosteriorSamples $expr true 1)"; silent=true, kwargs...)[1]
 end
 
-function traced_compile_deterministic(expr::PExpr, env::Env, state::LazyKCState, strict_order_index::Int)
-    res, _ = traced_compile_inner(expr, env, state.manager.BDD_TRUE, state, strict_order_index)
-    @assert length(res) == 1 "Expected deterministic compilation to return a single value, got $(res)"
-    @assert RSDD.bdd_is_true(res[1][2]) "Expected deterministic compilation to return a value with probability 1, got $(res[1][2])"
-    return res[1][1]
-end
-
 # Add this helper function to process queries
 function eval_toplevel(expr::PExpr{QueryOp}, toplevel_state)
     state = LazyKCState()
-    body = traced_compile_deterministic(expr.head.query, EMPTY_ENV, state, 0)
+    body = deterministic_world(toplevel_compile(expr.head.query; state))
     results = eval_query(body, state)
     if !toplevel_state.silent
         print_query_results_by_type(body, results, expr.head.name)
     end
+    free_state(state)
     return results
 end

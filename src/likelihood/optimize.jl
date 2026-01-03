@@ -77,8 +77,8 @@ end
 
 function optimize(exprs, η, init, n_steps; kwargs...)
     npartials = length(init)
-    cfg = LazyKCConfig(; kwargs..., vector_size=npartials, detailed_results=true, free_manager=false, free_weights=false, dual=true)
-    rets = [compile(e, cfg) for e in exprs]
+    cfg = LazyKCConfig(; kwargs..., vector_size=npartials, dual=true)
+    rets = [toplevel_compile(e; cfg) for e in exprs]
 
     # initialize metaparameters
     metaparam_vals = init
@@ -88,8 +88,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
 
     for _=1:n_steps
         # get gradients
-	all_true_results = [get_true_result(ret.raw_worlds, nothing) for ret in rets]
-	all_duals = [isnothing(bdd) ? (0.0, zeros(npartials)) : RSDD.bdd_wmc(bdd) for bdd in all_true_results]
+        all_duals = [bdd_wmc(true_bdd(ret)) for ret in rets]
         # logsumexp over all expressions, so we're maximizing the product of the likelihoods
         true_dual = expsumlog_dual(all_duals)
         # update metaparams
@@ -100,13 +99,11 @@ function optimize(exprs, η, init, n_steps; kwargs...)
         end
     end
     # get prob given metaparams
-    all_normalized_results = [get_true_result(ret.raw_worlds, ret.state.manager.BDD_FALSE) for ret in rets]
-    all_true_duals = [RSDD.bdd_wmc(bdd) for bdd in all_normalized_results]
+    all_true_duals = [bdd_wmc(true_bdd(ret)) for ret in rets]
     true_dual = expsumlog_dual(all_true_duals)
 
     for ret in rets
-        free_bdd_manager(ret.state.manager)
-        free_wmc_params(ret.state.manager.weights)
+        free_state(ret.state)
     end
     return true_dual, metaparam_vals
 end

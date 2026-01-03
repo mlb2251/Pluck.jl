@@ -9,7 +9,7 @@ mutable struct SampleValueState
     cache::IdDict{LazyKCThunk, Any}
     thunks::Vector{LazyKCThunk}
 
-    function SampleValueState(constraint=nothing, callstack=Int[], var_of_callstack=nothing, lazy=false, manager=nothing, thunks=nothing)
+    function SampleValueState(;constraint=nothing, callstack=Int[], var_of_callstack=nothing, lazy=false, manager=nothing, thunks=nothing)
         thunks_vec = isnothing(thunks) ? LazyKCThunk[] : thunks
         state = new(
             constraint,

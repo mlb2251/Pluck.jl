@@ -360,7 +360,7 @@ function bdd_forward(expr::PExpr{Defined}, env::Env, state::BDDStrictEvalState)
     return traced_bdd_forward(Pluck.lookup(expr.args[1]).expr, Pluck.EMPTY_ENV, state)
 end
 
-function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, record_bdd_json = false, state = BDDStrictEvalState())
+function bdd_forward_strict(expr; state = BDDStrictEvalState())
     if expr isa String
         expr = parse_expr(expr)
     end
@@ -376,26 +376,9 @@ function bdd_forward_strict(expr; show_bdd = false, show_bdd_size = false, recor
         end
     end
 
-    if show_bdd_size
-        summed_size = sum(Int(RSDD.bdd_size(bdd)) for (ret, (bdd)) in ret)
-        num_vars = length(state.sorted_callstacks)
-        printstyled("vars: $num_vars nodes: $summed_size\n"; color=:blue)
-        println("BDD sizes: $([(ret, Int(RSDD.bdd_size(bdd))) for (ret, (bdd)) in ret])")
-    end
-
-    if record_bdd_json
-        bdd = get_true_result(results, nothing)
-        if isnothing(bdd)
-            @warn "No true result found to record"
-        else
-            record_bdd(state, bdd)
-        end
-    end
-
     # Trying a model count of each possibility.
-    results = [(v, RSDD.bdd_wmc(bdd)) for (v, bdd) in ret]
+    results = [(v, bdd_wmc(bdd)) for (v, bdd) in ret]
 
-    free_bdd_manager(state.manager)
-    free_wmc_params(state.manager.weights)
+    free_state(state)
     return results
 end

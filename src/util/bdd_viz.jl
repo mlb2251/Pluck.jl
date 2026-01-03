@@ -70,7 +70,7 @@ function viz_lower(bdd::BDD, viz::BDDJSONLogger)
         "size" => RSDD.bdd_size(bdd),
         "bdd_is_true" => Bool(RSDD.bdd_is_true(bdd)),
         "bdd_is_false" => Bool(RSDD.bdd_is_false(bdd)),
-        "weight" => RSDD.bdd_wmc(bdd, viz.state.weights),
+        "weight" => bdd_wmc(bdd, viz.state.weights),
         "str" => string(bdd),
         "bdd_json" => make_bdd_json(viz.state, bdd),
     )
@@ -183,4 +183,10 @@ function record_bdd(state, bdd)
     write_out(json, out)
     println(webaddress("html/bdd.html", out, false))
     return out
+end
+
+function log_compile(viz)
+    dir = timestamp_dir(; base = "out/bdd")
+    write_out(viz, joinpath(dir, "compile_inner.json"))
+    println(webaddress("html/compile_inner.html", joinpath(dir, "compile_inner.json"), false))
 end

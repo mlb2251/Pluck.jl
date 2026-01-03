@@ -1,4 +1,4 @@
-export logaddexp, logsumexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path, compile_deterministic
+export logaddexp, logsumexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path
 
 using Dates
 using Printf
@@ -18,50 +18,6 @@ end
 
 function logsumexp(logweights)
     return reduce(logaddexp, logweights, init=-Inf)
-end
-
-function compile(expr::String, cfg::T) where T
-    expr = parse_expr(expr)
-    compile(expr, cfg)
-end
-compile(expr::String) = compile(expr, LazyKCConfig())
-compile(expr; kwargs...) = compile(expr, LazyKCConfig(; kwargs...))
-
-function compile_deterministic(expr; env=EMPTY_ENV, full_dist=true, kwargs...)::Union{Nothing, AbstractValue}
-    worlds = compile(expr; env, full_dist, kwargs...)
-    length(worlds) == 0 && return nothing
-    length(worlds) > 1 && error("Deterministic compilation returned 2+ worlds")
-    @assert isapprox(worlds[1][2], 1.0) "Deterministic compilation returned a world with probability not 1"
-    return worlds[1][1]
-end
-
-function normalize(results)
-    isempty(results) && return results
-    weights = [weight for (_, weight) in results]
-    total = sum(weights)
-    return [(world, weight / total) for (world, weight) in results]
-end
-
-function normalize_dual(results)
-    isempty(results) && return results
-    duals = [dual for (_, dual) in results]
-    primals = [primal for (primal, _) in duals]
-    derivs = [deriv for (_, deriv) in duals]
-    total_primal = sum(primals)
-    total_deriv = sum(derivs)
-
-    return [(world, (primal / total_primal, (total_primal*deriv - primal*total_deriv)/(total_primal^2))) for (world, (primal, deriv)) in results]
-end
-
-function get_true_result(results, default)
-    res = nothing
-    for (val, x) in results
-        if val == Pluck.TRUE_VALUE || (val isa Bool && val == true)
-            @assert isnothing(res) "Multiple true results found"
-            res = x
-        end
-    end
-    return isnothing(res) ? default : res
 end
 
 function timestamp_path(file; base = "out/res")

@@ -1,4 +1,4 @@
-export pluck_list, StateVars, Value, get_true_result, Thunk, EnvCons, EnvNil, from_value
+export pluck_list, StateVars, Value, Thunk, EnvCons, EnvNil, from_value
 using Printf
 
 abstract type Env end

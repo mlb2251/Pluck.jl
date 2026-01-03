@@ -1,7 +1,7 @@
 
 function evaluate(thunk::LazyKCThunk, null, state::SampleValueState)
     # we use a cache in the state instead of thunk because the same thunk gets
-    # used for multiple posterior samples
+    # used for multiple posterior samples so we don't want them all to share the same cache
     get!(state.cache, thunk) do 
         evaluate_no_cache(thunk, null, state)
     end

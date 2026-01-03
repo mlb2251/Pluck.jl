@@ -1,14 +1,14 @@
 """
-force_value is like infer_full_distribution but when you have a SampleValueState so there's no path condition
+force_thunk is like force_thunks but when you have a SampleValueState so there's no path condition
 to thread through and you know you'll only get one result.
 """
-function force_value(v::Thunk, env, state::SampleValueState)
-    return force_value(evaluate(v, nothing, state), env, state)
+function force_thunk(v::Thunk, state::SampleValueState)
+    return force_thunk(evaluate(v, nothing, state), state)
 end
 
-function force_value(v::Value, env, state::SampleValueState)
-    v.args = [force_value(arg, env, state) for arg in v.args]
+function force_thunk(v::Value, state::SampleValueState)
+    v.args = [force_thunk(arg, state) for arg in v.args]
     return v
 end
 
-force_value(v, env, state::SampleValueState) = v
+force_thunk(v, state::SampleValueState) = v

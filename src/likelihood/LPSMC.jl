@@ -21,72 +21,71 @@ export bdd_forward_with_suspension, bdd_forward_with_suspension_top_k, subproble
 
 
 function bdd_forward_with_suspension(expr; kwargs...)
-    s = LazyKCState(; kwargs..., free_manager=false)
+    state = LazyKCState(; kwargs...)
 
-    if expr isa String
-        expr = parse_expr(expr)
-    end
-
-    ret, used_info = compile_inner(expr, EMPTY_ENV, s.manager.BDD_TRUE, s)
+    ret = toplevel_compile(expr; state)
 
     true_probability = 0.0
     false_probability = 0.0
-    path_condition = s.manager.BDD_TRUE
+    path_condition = state.manager.BDD_TRUE
     multiplier = 1.0
     i = 0
-    more_to_do = true
-    while more_to_do
+    while true
         i += 1
-        more_to_do = false
-        # Now, the ret will contain a list of pairs (sb, bdd).
-        for (sb, guard) in ret
+        saw_suspend = false
+        # Now, the ret will contain a list of pairs (suspedible-bool, bdd).
+        for (sb, guard) in ret.worlds
             if sb.constructor == :FinallyTrue
-                true_probability += multiplier * RSDD.bdd_wmc(path_condition & guard)
+                true_probability += multiplier * bdd_wmc(path_condition & guard)
             elseif sb.constructor == :FinallyFalse
-                false_probability += multiplier * RSDD.bdd_wmc(path_condition & guard)
+                false_probability += multiplier * bdd_wmc(path_condition & guard)
             elseif sb.constructor == :Suspend
-                @assert !more_to_do # we should only have one :Suspend.
-                more_to_do = true
-                posterior_sample, posterior_probability = RSDD.weighted_sample(path_condition & guard)
+                @assert !saw_suspend # we should only have one :Suspend.
+                saw_suspend = true
+                thunk = sb.args[1]
+
+                posterior_sample, posterior_probability = bdd_weighted_sample(path_condition & guard)
                 path_condition = path_condition & posterior_sample
-                multiplier *= (1 / posterior_probability) # (total_guard / RSDD.bdd_wmc(path_condition))
-                ret, used_info = Pluck.evaluate(sb.args[1], path_condition, s)
+                multiplier *= (1 / posterior_probability) # (total_guard / bdd_wmc(path_condition))
+                ret = toplevel_evaluate(thunk, state; path_condition)
             else
                 error("Expected a suspended boolean, got $(sb).")
             end
         end
-        #println("Iteration $i: true => $(true_probability), false => $(false_probability)")
+
+        if !saw_suspend
+            break
+        end
     end
 
-    RSDD.free_bdd_manager(s.manager)
-    RSDD.free_wmc_params(s.manager.weights)
+    free_state(state)
 
     return (true => true_probability, false => false_probability)
 end
 
 function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
-    s = LazyKCState(; kwargs..., free_manager=false)
+    state = LazyKCState(; kwargs...)
 
-    ret, used_info = compile_inner(expr, Pluck.EMPTY_ENV, s.manager.BDD_TRUE, s)
+    ret = toplevel_compile(expr; state)
 
     true_probability = 0.0
     false_probability = 0.0
-    path_condition = s.manager.BDD_TRUE
+    path_condition = state.manager.BDD_TRUE
     multiplier = 1.0
     i = 0
-    more_to_do = true
-    while more_to_do
+    while true
         i += 1
-        more_to_do = false
+        saw_suspend = false
         # Now, the ret will contain a list of pairs (sb, bdd).
-        for (sb, guard) in ret
+        for (sb, guard) in ret.worlds
             if sb.constructor == :FinallyTrue
-                true_probability += multiplier * RSDD.bdd_wmc(path_condition & guard)
+                true_probability += multiplier * bdd_wmc(path_condition & guard)
             elseif sb.constructor == :FinallyFalse
-                false_probability += multiplier * RSDD.bdd_wmc(path_condition & guard)
+                false_probability += multiplier * bdd_wmc(path_condition & guard)
             elseif sb.constructor == :Suspend
-                @assert !more_to_do # we should only have one :Suspend.
-                more_to_do = true
+                @assert !saw_suspend # we should only have one :Suspend... and honestly thunk unions would group them even if we didnt so it shouldnt be possible to have multiple.
+                saw_suspend = true
+                thunk = sb.args[1]
 
                 # Create a "sum-and-sample" BDD.
                 path_condition = path_condition & guard
@@ -94,11 +93,11 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                 posterior_guard = path_condition & !top_k_bdd
                 if RSDD.bdd_is_false(posterior_guard)
                     # The top K paths contained all the available information. We can just recurse.
-                    ret, used_info = Pluck.evaluate(sb.args[1], path_condition, s)
+                    ret = toplevel_evaluate(thunk, state; path_condition)
                     continue
                 end
 
-                (sampled_bdd, sampled_probability) = RSDD.weighted_sample(posterior_guard)
+                (sampled_bdd, sampled_probability) = bdd_weighted_sample(posterior_guard)
 
                 # Likely unnecessary...
                 sampled_bdd = posterior_guard & sampled_bdd
@@ -117,23 +116,25 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                 mult_increment = 1 + (1 / sampled_probability)
                 multiplier *= mult_increment
                 # Now, if we were to just OR the sampled and top-k BDDs, we should get a model count that is the sum of the other model counts.
-                # println("wmc for sampled OR top-k: $(RSDD.bdd_wmc(sampled_bdd | top_k_bdd, s.weights))")
+                # println("wmc for sampled OR top-k: $(bdd_wmc(sampled_bdd | top_k_bdd, s.weights))")
                 # But, we are actually going to take a weighted average of the two, instead of a sum. 
-                new_variable = RSDD.bdd_new_var(s.manager, true) # this adds at *end* of variable order -- that might be bad?
+                new_variable = RSDD.bdd_new_var(state.manager, true) # this adds at *end* of variable order -- that might be bad?
                 new_bdd = RSDD.bdd_ite(new_variable, sampled_bdd, top_k_bdd)
                 new_variable_weight = 1 / mult_increment
-                RSDD.set_weight(s.manager, RSDD.bdd_topvar(new_variable), new_variable_weight, 1.0 - new_variable_weight)
+                RSDD.set_weight(state.manager, RSDD.bdd_topvar(new_variable), new_variable_weight, 1.0 - new_variable_weight)
                 path_condition = path_condition & new_bdd
-                ret, used_info = Pluck.evaluate(sb.args[1], path_condition, s)
+                ret = toplevel_evaluate(thunk, state; path_condition)
             else
                 error("Expected a suspended boolean, got $(sb).")
             end
         end
-        #println("Iteration $i: true => $(true_probability), false => $(false_probability)")
+
+        if !saw_suspend
+            break
+        end
     end
 
-    RSDD.free_bdd_manager(s.manager)
-    RSDD.free_wmc_params(s.manager.weights)
+    free_state(s)
 
     return (true => true_probability, false => false_probability)
 end
@@ -144,34 +145,28 @@ end
 # as its two constructors. We incrementally build up a BDD that represents an unbiased estimate of the 
 # marginal distribution on `Return`. Then a single additional bdd_forward on the thunk inside the Return
 # gives the distribution (but it will in general need to be normalized).
-function subproblem_monte_carlo(ret, k::Integer, state::LazyKCState)
+function subproblem_monte_carlo(ret::LazyKCResult, k::Integer)
+    state = ret.state
     return_thunk_union = LazyKCThunkUnion(Tuple{LazyKCThunk, BDD}[], state)
-    available_information = state.manager.BDD_TRUE
+    path_condition = state.manager.BDD_TRUE
 
-    return_bdd_normalizer = 1.0
     multiplier = 1.0
     i = 0
-    more_to_do = true
 
-    while more_to_do
-        println("i: $i, m: $multiplier, n: $return_bdd_normalizer")
+    while true
+        println("i: $i, m: $multiplier")
         i += 1
-        more_to_do = false
-        return_guard = nothing
-        return_value = nothing
-        for (sb, guard) in ret
-            if sb.constructor == :Return
-                return_guard = guard
-                return_value = sb.args[1]
-            end
-        end
-        if !isnothing(return_guard)
+        saw_suspend = false
+
+        return_idx = find_world(ret.worlds, :Return)
+        if !isnothing(return_idx)
+            return_value, return_guard = ret.worlds[return_idx]
             # How do you do "existing BDD + multiplier * new BDD" in BDD logic?
             # Make a new variable that chooses between the existing BDD and the new one.
             # The relative probability of new vs. existing is multiplier/(1+multiplier).
             # The normalizer gets multiplied by (1 + multiplier).
             # new_variable = RSDD.bdd_new_var(state.manager, true) # this adds at *end* of variable order -- that might be bad?
-            # new_guard = !new_variable & return_guard & available_information
+            # new_guard = !new_variable & return_guard & path_condition
             # old_guard = new_variable
             # return_thunk_union = BDDThunkUnion([(return_value, new_guard), (return_thunk_union, old_guard)], state)
             # # return_bdd = RSDD.bdd_ite(new_variable, return_guard, return_bdd)
@@ -187,7 +182,7 @@ function subproblem_monte_carlo(ret, k::Integer, state::LazyKCState)
             # exact thunk and we will try to merge. So the long-term solution is probably to either make a version of BDDThunkUnion 
             # that trakcs weights on the thunks, or switch to log space and do the renormalization trick as above.
             new_variable = RSDD.bdd_new_var(state.manager, true) # this adds at *end* of variable order -- that might be bad?
-            new_guard = new_variable & return_guard & available_information
+            new_guard = new_variable & return_guard & path_condition
             old_guard = !new_variable
             return_thunk_union = LazyKCThunkUnion([(return_value, new_guard), (return_thunk_union, old_guard)], state)
             # new_variable_weight = multiplier
@@ -195,27 +190,21 @@ function subproblem_monte_carlo(ret, k::Integer, state::LazyKCState)
             # return_bdd_normalizer *= (1 + multiplier)
         end
 
-        suspend_guard = nothing
-        suspend_value = nothing
-        for (sb, guard) in ret
-            if sb.constructor == :Suspend
-                suspend_guard = guard
-                suspend_value = sb.args[1]
-            end
-        end
-        if !isnothing(suspend_guard)
-            more_to_do = true
-            available_information = available_information & suspend_guard
-            top_k_bdd = RSDD.bdd_top_k_paths(available_information, k)
+        suspend_idx = find_world(ret.worlds, :Suspend)
+        if !isnothing(suspend_idx)
+            suspend_value, suspend_guard = ret.worlds[suspend_idx]
+            saw_suspend = true
+            path_condition = path_condition & suspend_guard
+            top_k_bdd = RSDD.bdd_top_k_paths(path_condition, k)
 
-            posterior_guard = available_information & !top_k_bdd
+            posterior_guard = path_condition & !top_k_bdd
             if RSDD.bdd_is_false(posterior_guard)
                 # The top K paths contained all the available information. We can just recurse.
-                ret, used_info = Pluck.evaluate(suspend_value, available_information, state)
+                ret = toplevel_evaluate(suspend_value, state; path_condition)
                 continue
             end
 
-            (sampled_bdd, sampled_probability) = RSDD.weighted_sample(posterior_guard) # , state.weights)
+            (sampled_bdd, sampled_probability) = bdd_weighted_sample(posterior_guard) # , state.weights)
             # Likely unnecessary...
             sampled_bdd = posterior_guard & sampled_bdd
 
@@ -230,17 +219,22 @@ function subproblem_monte_carlo(ret, k::Integer, state::LazyKCState)
             mult_increment = 1 + (1 / sampled_probability)
             multiplier *= mult_increment
             # Now, if we were to just OR the sampled and top-k BDDs, we should get a model count that is the sum of the other model counts.
-            # println("wmc for sampled OR top-k: $(RSDD.bdd_wmc(sampled_bdd | top_k_bdd, s.weights))")
+            # println("wmc for sampled OR top-k: $(bdd_wmc(sampled_bdd | top_k_bdd, s.weights))")
             # But, we are actually going to take a weighted average of the two, instead of a sum.
             new_variable = RSDD.bdd_new_var(state.manager, true) # this adds at *end* of variable order -- that might be bad?
             new_bdd = RSDD.bdd_ite(new_variable, sampled_bdd, top_k_bdd)
             new_variable_weight = 1 / mult_increment
             RSDD.set_weight(state.manager, RSDD.bdd_topvar(new_variable), new_variable_weight, 1.0 - new_variable_weight)
-            available_information = available_information & new_bdd
+            path_condition = path_condition & new_bdd
             
-            ret, used_info = Pluck.evaluate(suspend_value, available_information, state)
+            ret = toplevel_evaluate(suspend_value, state; path_condition)
         end
+
+        if !saw_suspend
+            break
+        end
+
     end
     
-    return return_thunk_union, return_bdd_normalizer
+    return return_thunk_union
 end

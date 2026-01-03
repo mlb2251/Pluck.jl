@@ -5,7 +5,7 @@ module RSDD
 
 include("../util/timing.jl")
 using .Timing
-export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded, free_wmc_params, bdd_deep_copy, bdd_wmc_raw
+export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded, bdd_deep_copy, bdd_wmc_raw, bdd_wmc
 
 
 export WmcParams, 
@@ -367,9 +367,9 @@ bdd_implies(a::BDD, b::BDD) = b | !a
 
 """
 Gets the size of a BDD.
-Returns: UInt64
+Returns: Int
 """
-bdd_size(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_size(bdd.ptr::Csize_t)::UInt64
+bdd_size(bdd::BDD) = @rsdd_timed Int(@ccall librsdd_path.bdd_size(bdd.ptr::Csize_t)::UInt64)
 
 """
 Checks if a BDD represents a variable.
@@ -578,7 +578,7 @@ end
 Performs weighted sampling on a BDD.
 Returns: Tuple of (BDD, Float64) representing the sampled BDD and its probability
 """
-function weighted_sample(bdd::BDD)
+function bdd_weighted_sample(bdd::BDD)
     result = @rsdd_timed @ccall librsdd_path.robdd_weighted_sample(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, bdd.manager.weights.ptr::Ptr{Cvoid})::WeightedSampleResult
 
     sample_bdd = BDD(bdd.manager, result.sample)
@@ -659,9 +659,8 @@ export free_bdd,
 free_bdd_manager, 
 free_wmc_params, 
 bdd_new_var_at_position, 
-weighted_sample, 
+bdd_weighted_sample, 
 bdd_top_k_paths, 
-free_wmc_params_dual,
 free_wmc_dual_derivatives,
 dual_number_get_size,
 dual_number_create,

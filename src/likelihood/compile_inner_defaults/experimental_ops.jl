@@ -14,9 +14,9 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state)
     @assert length(cond[1]) <= 2 "should only be true or false, at most one of each"
     for (world, guard) in cond[1]
         if world.constructor == :True
-            p_true = logaddexp(p_true, log(RSDD.bdd_wmc(guard)))
+            p_true = logaddexp(p_true, log(bdd_wmc(guard)))
         elseif world.constructor == :False
-            p_false = logaddexp(p_false, log(RSDD.bdd_wmc(guard)))
+            p_false = logaddexp(p_false, log(bdd_wmc(guard)))
         else
             error("PBoolOp: condition must be a boolean, got $(world)")
         end

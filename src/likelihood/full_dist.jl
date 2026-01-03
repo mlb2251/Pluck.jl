@@ -1,22 +1,24 @@
+force_thunks(res::LazyKCResult) = force_thunks(res.worlds, res.state)
+
 """
 Process thunks into fully resolved values.
 """
-function infer_full_distribution(initial_results, state)
+function force_thunks(worlds, state)
     # Queue of (value, bdd) pairs to process
-    queue = initial_results
+    queue = worlds
     # Final set of fully resolved (value, bdd) pairs
     resolved = Vector{Tuple{Any, BDD}}()
 
     while !isempty(queue)
-        (current_val, current_bdd) = pop!(queue)
-        bdd_is_false(current_bdd) && continue
+        (current_val, path_condition) = pop!(queue)
+        bdd_is_false(path_condition) && continue
         # Find first unresolved thunk or IntDist in the value tree
         thunk_path = find_first_thunk(current_val)
         intdist_path = isnothing(thunk_path) ? find_first_intdist(current_val) : nothing
         
         if isnothing(thunk_path) && isnothing(intdist_path)
             # No more thunks or IntDists - this value is fully resolved
-            bdd_is_false(current_bdd) || push!(resolved, (current_val, current_bdd))
+            bdd_is_false(path_condition) || push!(resolved, (current_val, path_condition))
             continue
         end
 
@@ -25,18 +27,18 @@ function infer_full_distribution(initial_results, state)
             thunk = get_value_at_path(current_val, thunk_path)
             
             # Evaluate the thunk
-            sub_results, _ = evaluate(thunk, current_bdd, state)
+            sub_results, _ = toplevel_evaluate(thunk, state; path_condition)
             
             # For each possible result of the thunk evaluation
             for (sub_val, sub_bdd) in sub_results
                 # Create a copy of the value with this thunk replaced
                 new_val = replace_at_path(current_val, thunk_path, sub_val)
                 # Add to queue with conjunction of bdds
-                push!(queue, (new_val, current_bdd & sub_bdd))
+                push!(queue, (new_val, path_condition & sub_bdd))
             end
         elseif !isnothing(intdist_path)
             intdist = get_value_at_path(current_val, intdist_path)::IntDist
-            sub_results = enumerate_int_dist(intdist, current_bdd, state.manager)
+            sub_results = enumerate_int_dist(intdist, path_condition, state.manager)
             for (sub_val, sub_bdd) in sub_results
                 new_val = replace_at_path(current_val, intdist_path, NativeValue(sub_val))
                 push!(queue, (new_val, sub_bdd))

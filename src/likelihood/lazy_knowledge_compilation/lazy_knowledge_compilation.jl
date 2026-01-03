@@ -1,4 +1,4 @@
-export normalize, compile, LazyKCState, LazyKCConfig, get_time_limit, set_time_limit!, LazyKCStats, CompileResult
+export normalize, compile, LazyKCState, LazyKCConfig, get_time_limit, set_time_limit!, LazyKCStats, CompileResult, deterministic_world, is_deterministic, wmc, find_world, find_true_world, true_weight, true_bdd, free_state, toplevel_compile, toplevel_evaluate, full_dist, force_thunks
 
 const Callstack = Vector{Int}
 const WorldT{T} = Tuple{T, BDD}
@@ -16,23 +16,12 @@ Base.@kwdef mutable struct LazyKCConfig
     disable_used_information::Bool = false
     disable_path_conditions::Bool = false
     singleton_cache::Bool = true
-    show_bdd_size::Bool = false
-    record_bdd_json::Bool = false
-    record_json::Bool = false
-    free_manager::Bool = true
-    free_weights::Bool = true
-    results_file::Union{Nothing, String} = nothing
+    log::Bool = false
     time_limit::Union{Nothing, Float64} = nothing
     ite_limit::Union{Nothing, Int} = nothing
-    state_vars::StateVars = StateVars()
-    full_dist::Bool = false
-    detailed_results::Bool = false
     stacktrace::Bool = true
     vector_size::Int = 0
     dual::Bool = false
-    state = nothing
-    path_condition = nothing
-    env = EMPTY_ENV
 end
 
 
@@ -98,111 +87,13 @@ function LazyKCState(cfg::LazyKCConfig)
         PExpr[]
     )
 
-    if cfg.record_json
+    if cfg.log
         state.viz = BDDJSONLogger(state)
     end
     return state
 end
 
 get_config(state::LazyKCState) = state.cfg
-
-struct CompileResult
-    worlds
-    stats
-    raw_worlds
-    state
-end
-
-
-"""
-Top-level compile function for lazy knowledge compilation.
-"""
-function compile(expr::PExpr, cfg::LazyKCConfig)
-    state = cfg.state === nothing ? LazyKCState(cfg) : cfg.state
-    state.cfg = cfg
-
-    tstart = ttime()
-    start!(get_timer(state), cfg.time_limit)
-    bdd_set_time_limit(state.manager, get_timer(state))
-    bdd_start_ite_limit(state.manager, cfg.ite_limit)
-
-    path_condition = isnothing(cfg.path_condition) ? state.manager.BDD_TRUE : cfg.path_condition
-    threw_error = false
-
-    try 
-        worlds, used_information = traced_compile_inner((expr), cfg.env, path_condition, state, 0)
-    catch e
-        if e isa StackOverflowError
-            println("StackOverflowError in pluck when compiling $expr")
-            worlds = []
-            state.stats.hit_limit = true
-        elseif e isa PluckError
-            # dont throw error here or stack trace will be really long, just set flag
-            threw_error=true
-        else
-            rethrow(e)
-        end
-    end
-    stop!(get_timer(state))
-    # bdd_stop_ite_limit(state.manager)
-
-    if threw_error
-        # throw error here so the stack trace isn't super long
-        throw("Pluck Error")
-    end
-
-    if state.stats.hit_limit
-        worlds, used_information = inference_error_worlds(state)
-    end
-
-    if state.cfg.full_dist
-        worlds = infer_full_distribution(worlds, state)
-    end
-
-    # expand IntDists into their 2^N possible values
-    if length(worlds) == 1 && worlds[1] isa IntDist
-        (val, bdd) = worlds[1]
-        worlds = enumerate_int_dist(val, bdd, state.manager)
-    end
-
-    if state.cfg.show_bdd_size
-        summed_size = sum(Int(RSDD.bdd_size(bdd)) for (val, bdd) in worlds)
-        num_vars = length(state.sorted_callstacks)
-        printstyled("vars & nodes: $num_vars & $summed_size\n"; color=:blue)
-        println("BDD sizes: $([(val, Int(RSDD.bdd_size(bdd))) for (val, bdd) in worlds])")
-    end
-
-    if state.cfg.record_bdd_json
-        bdd = get_true_result(worlds, nothing)
-        if isnothing(bdd)
-            @warn "No true result found to record"
-        else
-            record_bdd(state, bdd)
-        end
-    end
-
-    if state.cfg.record_json
-        dir = timestamp_dir(; base = "out/bdd")
-        write_out(state.viz, joinpath(dir, "compile_inner.json"))
-        println(webaddress("html/compile_inner.html", joinpath(dir, "compile_inner.json"), false))
-    end
-
-    # weighted model count to get the actual probabilities
-    weighted_results = [(val, RSDD.bdd_wmc(bdd)) for (val, bdd) in worlds]
-
-    state.stats.num_recursive_calls = bdd_num_recursive_calls(state.manager)
-    state.stats.time = ttime() - tstart
-
-    state.cfg.free_manager && free_bdd_manager(state.manager)
-    state.cfg.free_weights && free_wmc_params(state.manager.weights)
-
-    if state.cfg.detailed_results
-        worlds = state.cfg.free_manager ? nothing : worlds # they'd be invalid otherwise
-        return CompileResult(weighted_results, state.stats, worlds, state)
-    end
-
-    return weighted_results
-end
 
 function traced_compile_inner(expr, env, path_condition, state::LazyKCState, strict_order_index)
     # Check whether path_condition is false.
@@ -227,7 +118,7 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
     state.depth += 1
     push!(state.callstack, strict_order_index)
 
-    if state.cfg.record_json
+    if state.cfg.log
         record_forward!(state.viz, expr, env, path_condition, strict_order_index)
     end
 
@@ -235,7 +126,7 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
     result, used_information = compile_inner(expr, env, path_condition, state)
     print_exit(expr, result, env, state)
 
-    if state.cfg.record_json
+    if state.cfg.log
         record_result!(state.viz, result, used_information)
     end
 
@@ -265,4 +156,138 @@ end
 
 function with_stacktrace(f::F, state, expr::Union{PExpr, Nothing}) where F <: Function
     f() # no stacktrace implemented
+end
+
+struct LazyKCResult
+    worlds::Union{Nothing, Vector{Tuple{Any, BDD}}} # `Nothing` means some depth/time/etc limit was hit
+    used_information::BDD
+    state::LazyKCState
+end
+
+function toplevel_compile(expr::PExpr; cfg=LazyKCConfig(), state=LazyKCState(cfg), env=EMPTY_ENV, path_condition=state.manager.BDD_TRUE)::LazyKCResult
+    thunk = make_thunk(expr, env, 0, state)
+    toplevel_evaluate(thunk, state; path_condition)
+end
+
+function toplevel_compile(expr::String; kwargs...)
+    toplevel_compile(parse_expr(expr); kwargs...)
+end
+
+function toplevel_evaluate(thunk, state::LazyKCState; path_condition=state.manager.BDD_TRUE)
+
+    tstart = ttime()
+    start!(get_timer(state), state.cfg.time_limit)
+    bdd_set_time_limit(state.manager, get_timer(state))
+    bdd_start_ite_limit(state.manager, state.cfg.ite_limit)
+
+    pluck_error = nothing
+
+    try 
+        worlds, used_information = evaluate(thunk, path_condition, state)
+    catch e
+        if e isa StackOverflowError
+            println("StackOverflowError in pluck when compiling $thunk")
+            state.stats.hit_limit = true
+        elseif e isa PluckError
+            # dont throw error here or stack trace will be really long, just set flag
+            pluck_error = e
+        else
+            rethrow(e)
+        end
+    end
+    stop!(get_timer(state))
+    bdd_stop_ite_limit(state.manager)
+
+    if !isnothing(pluck_error)
+        # throw error here so the stack trace isn't super long
+        showerror(stderr, pluck_error)
+        throw("Pluck Error encountered during execution of $expr, see stack trace above for details")
+    end
+
+    if state.stats.hit_limit
+        worlds = nothing
+        used_information = state.manager.BDD_TRUE
+    end
+
+    state.stats.num_recursive_calls = bdd_num_recursive_calls(state.manager)
+    state.stats.time = ttime() - tstart
+
+    return LazyKCResult(worlds, used_information, state)
+end
+
+function free_state(state::LazyKCState)
+    RSDD.free_bdd_manager(state.manager)
+    RSDD.free_wmc_params(state.manager.weights)
+end
+
+
+function deterministic_world(ret::LazyKCResult)
+    return deterministic_world(ret.worlds)
+end
+
+function deterministic_world(worlds)
+    @assert length(worlds) == 1 "Expected a single deterministic world, got $(length(worlds)) worlds"
+    (val, bdd) = worlds[1]
+    @assert is_deterministic(bdd) "Expected either weight 1.0 or True BDD, got $bdd"
+    return val
+end
+
+function is_deterministic(bdd::BDD)
+    return bdd_is_true(bdd)
+end
+function is_deterministic(weight::Float64)
+    return isapprox(weight, 1.0)
+end
+
+function normalize(weighted_worlds)
+    isempty(weighted_worlds) && return weighted_worlds
+    weights = [weight for (_, weight) in weighted_worlds]
+    total = sum(weights)
+    return [(world, weight / total) for (world, weight) in weighted_worlds]
+end
+
+function normalize_dual(results)
+    isempty(results) && return results
+    duals = [dual for (_, dual) in results]
+    primals = [primal for (primal, _) in duals]
+    derivs = [deriv for (_, deriv) in duals]
+    total_primal = sum(primals)
+    total_deriv = sum(derivs)
+
+    return [(world, (primal / total_primal, (total_primal*deriv - primal*total_deriv)/(total_primal^2))) for (world, (primal, deriv)) in results]
+end
+
+
+
+function wmc(ret::LazyKCResult)
+    return wmc(ret.worlds)
+end
+function wmc(worlds::Vector{Tuple{Any, BDD}})
+    return Tuple{Any, Float64}[(val, bdd_wmc(bdd)) for (val, bdd) in worlds]
+end
+
+function find_world(worlds, constructor::Symbol)
+    for (i, (val, _)) in enumerate(worlds)
+        if val isa Value && val.constructor == constructor
+            return i
+        end
+    end
+    return nothing
+end
+
+function find_true_world(worlds)
+    return find_world(worlds, :True)
+end
+
+true_weight(ret::LazyKCResult) = true_weight(ret.worlds)
+function true_weight(worlds::Vector{Tuple{Any, Float64}})
+    index = find_true_world(worlds)
+    isnothing(index) && return 0.0
+    return worlds[index][2]
+end
+
+function true_bdd(ret::LazyKCResult)
+    index = find_true_world(ret.worlds)
+    isnothing(index) && return ret.state.manager.BDD_FALSE
+    return ret.worlds[index][2]
 end

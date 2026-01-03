@@ -19,7 +19,7 @@ function pretty_worlds(worlds::Vector; weights=false)
     res = "["
     for (i, (val, bdd)) in enumerate(worlds)
         res *= string(val)
-        weights && (res *= " (P=" * @sprintf("%.1e", RSDD.bdd_wmc(bdd)) * ")")
+        weights && (res *= " (P=" * @sprintf("%.1e", bdd_wmc(bdd)) * ")")
         i < length(worlds) && (res *= ", ")
     end
     return res * "]"

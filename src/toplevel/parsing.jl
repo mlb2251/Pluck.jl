@@ -15,7 +15,7 @@ struct IncludeOp <: ToplevelHead
 end
 
 struct QueryOp <: ToplevelHead
-    name::PExpr
+    name::String
     query::PExpr
 end
 
@@ -141,18 +141,17 @@ function parse_toplevel(tokens, state)
     
         if findfirst(t -> t == "(", query_tokens) == 1
             # Name is the entire expression
-            name_expr = parse_expr("\"$(replace(detokenize(query_tokens), "\"" => "\""))\"")
+            name = detokenize(query_tokens)
         else
             # Name followed by expression
             name = String(query_tokens[1])[2:end]
-            name_expr = parse_expr("\"$name\"")
             query_tokens = view(query_tokens, 2:length(query_tokens))
         end
     
         query_body, rest_query_tokens = parse_expr_inner(query_tokens, state)
         length(rest_query_tokens) == 1 && query_tokens[end] == ")" || parse_error(state, rest_query_tokens, "expected closing paren and nothing else")
     
-        query_expr = QueryOp(name_expr, query_body)()
+        query_expr = QueryOp(name, query_body)()
     
         return query_expr, view(tokens, end_idx+1:length(tokens))
     else
