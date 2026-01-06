@@ -27,10 +27,10 @@ function force_thunks(worlds, state)
             thunk = get_value_at_path(current_val, thunk_path)
             
             # Evaluate the thunk
-            sub_results, _ = toplevel_evaluate(thunk, state; path_condition)
+            sub_results = toplevel_evaluate(thunk, state; path_condition)
             
             # For each possible result of the thunk evaluation
-            for (sub_val, sub_bdd) in sub_results
+            for (sub_val, sub_bdd) in sub_results.worlds
                 # Create a copy of the value with this thunk replaced
                 new_val = replace_at_path(current_val, thunk_path, sub_val)
                 # Add to queue with conjunction of bdds

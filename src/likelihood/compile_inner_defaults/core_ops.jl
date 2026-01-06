@@ -7,7 +7,7 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
         new_env = EnvCons(f.name, thunked_argument, f.env)
         with_stacktrace(state, f.origin) do
             res = traced_compile_inner(f.expr, new_env, path_condition, state, 2)
-            mutate_values(res) do val
+            mutate_values(res, state) do val
                 if val isa Closure
                     val.origin = f.origin
                 end
@@ -16,7 +16,7 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     end
 end
 
-function mutate_values(f::F, compile_result) where F <: Function
+function mutate_values(f::F, compile_result, state) where F <: Function
     worlds, _ = compile_result
     for (value, _) in worlds
         f(value)
@@ -84,7 +84,7 @@ function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     # Execute Defined with an empty environment.
     with_stacktrace(state, expr) do
         res = traced_compile_inner(body, Pluck.EMPTY_ENV, path_condition, state, 0)
-        mutate_values(res) do val
+        mutate_values(res, state) do val
             if val isa Closure
                 val.origin = expr
             end

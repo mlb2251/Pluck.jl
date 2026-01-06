@@ -43,7 +43,7 @@ function posterior_sample(val, state::LazyKCState)
     
         # Sample from the query under the evidence constraint
         sampled_value = force_thunk(query_thunk, sample_state)
-        push!(samples, forced)
+        push!(samples, sampled_value)
     end
     return samples
 end

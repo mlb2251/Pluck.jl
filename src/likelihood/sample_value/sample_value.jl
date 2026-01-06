@@ -36,3 +36,7 @@ function traced_compile_inner(expr, env, null, state::SampleValueState, strict_o
 end
 
 
+function mutate_values(f::F, value, state::SampleValueState) where F <: Function
+    f(value)
+    return value
+end
