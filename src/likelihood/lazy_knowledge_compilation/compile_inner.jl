@@ -174,7 +174,7 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
         push!(state.callstack, 1)
         addr = current_address(state, p)
 
-        RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
+        RSDD.set_weight(state.manager, bdd_topvar(addr), log(1.0 - p), log(p))
         pop!(state.callstack)
         return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
     end
@@ -307,9 +307,9 @@ function compile_inner(expr::PExpr{PBoolOp}, env, path_condition, state)
     @assert length(cond[1]) <= 2 "should only be true or false, at most one of each"
     for (world, guard) in cond[1]
         if world.constructor == :True
-            p_true = logaddexp(p_true, log(RSDD.bdd_wmc(guard)))
+            p_true = logaddexp(p_true, RSDD.bdd_wmc(guard))  # Already in log-space
         elseif world.constructor == :False
-            p_false = logaddexp(p_false, log(RSDD.bdd_wmc(guard)))
+            p_false = logaddexp(p_false, RSDD.bdd_wmc(guard))  # Already in log-space
         else
             error("PBoolOp: condition must be a boolean, got $(world)")
         end

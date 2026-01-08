@@ -72,7 +72,7 @@ function adaptive_rejection_sampling(val, state)
                 insert!(sorted_callstacks, i, callstack)
                 insert!(sorted_var_labels, i, Int(bdd_topvar(addr)))
                 sample_state.var_of_callstack[callstack] = addr
-                RSDD.wmc_param_f64_set_weight(state.manager.weights, bdd_topvar(addr), 1.0 - callstack[2], callstack[2])
+                RSDD.wmc_param_f64_set_weight(state.manager.weights, bdd_topvar(addr), log(1.0 - callstack[2]), log(callstack[2]))
             end
             addr = sample_state.var_of_callstack[callstack]
             if result

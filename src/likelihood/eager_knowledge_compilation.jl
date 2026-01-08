@@ -247,7 +247,7 @@ function bdd_prim_forward(expr::PExpr{FlipOp}, env::Env, state::BDDStrictEvalSta
             # BDDs do not represent quantitative probabilities. Therefore, for each 
             # different probability `p`, we need to create a new variable in the BDD.
             addr = bdd_new_var(state.manager, true)
-            RSDD.set_weight(state.manager, bdd_topvar(addr), 1.0 - p, p)
+            RSDD.set_weight(state.manager, bdd_topvar(addr), log(1.0 - p), log(p))
             return [(Pluck.TRUE_VALUE, addr), (Pluck.FALSE_VALUE, !addr)]
         end
     end

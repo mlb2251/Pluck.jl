@@ -122,7 +122,7 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                 new_variable = RSDD.bdd_new_var(s.manager, true) # this adds at *end* of variable order -- that might be bad?
                 new_bdd = RSDD.bdd_ite(new_variable, sampled_bdd, top_k_bdd)
                 new_variable_weight = 1 / mult_increment
-                RSDD.set_weight(s.manager, RSDD.bdd_topvar(new_variable), new_variable_weight, 1.0 - new_variable_weight)
+                RSDD.set_weight(s.manager, RSDD.bdd_topvar(new_variable), log(new_variable_weight), log(1.0 - new_variable_weight))
                 path_condition = path_condition & new_bdd
                 ret, used_info = Pluck.evaluate(sb.args[1], path_condition, s)
             else

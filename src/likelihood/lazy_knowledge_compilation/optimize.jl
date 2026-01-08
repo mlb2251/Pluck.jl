@@ -116,14 +116,15 @@ function set_metaparams!(weights, var2metaparam, metaparam_vals)
         p = metaparam_vals[metaparam+1]
         partials_hi = zeros(Float64, length(metaparam_vals))
         partials_lo = zeros(Float64, length(metaparam_vals))
-        partials_hi[metaparam+1] = 1.0
-        partials_lo[metaparam+1] = -1.0
+        # Log-space derivatives: ∂(log(p))/∂p = 1/p, ∂(log(1-p))/∂p = -1/(1-p)
+        partials_hi[metaparam+1] = 1.0 / p
+        partials_lo[metaparam+1] = -1.0 / (1.0 - p)
         set_weight_deriv(
-            weights, 
-            unsigned(var), 
-            1.0 - p,
+            weights,
+            unsigned(var),
+            log(1.0 - p),
             partials_lo,
-            p,
+            log(p),
             partials_hi)
     end
 end

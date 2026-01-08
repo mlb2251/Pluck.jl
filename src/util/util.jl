@@ -193,3 +193,23 @@ function format_prob(p)
     @assert !occursin("e", str)
     return str
 end
+
+"""
+    bounded_geom(p, max_value)
+
+Generate a Pluck expression for a bounded geometric distribution.
+Uses O(log max_value) flips instead of O(max_value) flips.
+
+P(n) = (1-p) * p^n for n in 0..max_value, renormalized to sum to 1.
+"""
+function bounded_geom(p::Float64, max_value::Int)
+    # Compute geometric probabilities: P(n) = (1-p) * p^n
+    probs = [(1-p) * p^n for n in 0:max_value]
+    probs = probs ./ sum(probs)  # renormalize for truncation
+
+    # Options as native int literals
+    options = ["$n" for n in 0:max_value]
+
+    # Build O(log max_value) flip tree using discrete
+    discrete(options, probs)
+end
