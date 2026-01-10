@@ -74,27 +74,19 @@ function max_native_int_used(e::PExpr{ConstNative})
     e.head.val isa Int && return e.head.val
     return -1
 end
-
 function optimize(exprs, η, init, n_steps; kwargs...)
     npartials = length(init)
     cfg = LazyKCConfig(; kwargs..., vector_size=npartials, detailed_results=true, free_manager=false, free_weights=false, dual=true)
     rets = [compile(e, cfg) for e in exprs]
-
-    # initialize metaparameters
     metaparam_vals = init
     for ret in rets
         set_metaparams!(ret.state.manager.weights, ret.state.var2metaparam, metaparam_vals)
     end
-
     for _=1:n_steps
-        # get gradients
-	all_true_results = [get_true_result(ret.raw_worlds, nothing) for ret in rets]
-	all_duals = [isnothing(bdd) ? (0.0, zeros(npartials)) : RSDD.bdd_wmc(bdd) for bdd in all_true_results]
-        # logsumexp over all expressions, so we're maximizing the product of the likelihoods
-        true_dual = expsumlog_dual(all_duals)
-        # update metaparams
-        metaparam_vals = clamp.(metaparam_vals + η * true_dual[2], 0.0, 1.0)
-        # update bdd weights
+        all_true_results = [get_true_result(ret.raw_worlds, nothing) for ret in rets]
+        all_duals = [isnothing(bdd) ? (-Inf, zeros(npartials)) : RSDD.bdd_wmc(bdd) for bdd in all_true_results]
+        true_dual = sum_log_dual(all_duals)
+        metaparam_vals = min.(metaparam_vals + η * true_dual[2], -eps())
         for ret in rets
             set_metaparams!(ret.state.manager.weights, ret.state.var2metaparam, metaparam_vals)
         end
@@ -102,7 +94,7 @@ function optimize(exprs, η, init, n_steps; kwargs...)
     # get prob given metaparams
     all_normalized_results = [get_true_result(ret.raw_worlds, ret.state.manager.BDD_FALSE) for ret in rets]
     all_true_duals = [RSDD.bdd_wmc(bdd) for bdd in all_normalized_results]
-    true_dual = expsumlog_dual(all_true_duals)
+    true_dual = sum_log_dual(all_true_duals)
 
     for ret in rets
         free_bdd_manager(ret.state.manager)
@@ -113,12 +105,12 @@ end
 
 function set_metaparams!(weights, var2metaparam, metaparam_vals)
     for (var, metaparam) in var2metaparam
-        p = metaparam_vals[metaparam+1]
+        log_p = metaparam_vals[metaparam+1]  # θ = log(p)
+        p = exp(log_p)
         partials_hi = zeros(Float64, length(metaparam_vals))
         partials_lo = zeros(Float64, length(metaparam_vals))
-        # Log-space derivatives: ∂(log(p))/∂p = 1/p, ∂(log(1-p))/∂p = -1/(1-p)
-        partials_hi[metaparam+1] = 1.0 / p
-        partials_lo[metaparam+1] = -1.0 / (1.0 - p)
+        partials_hi[metaparam+1] = 1.0
+        partials_lo[metaparam+1] = -p / (1.0 - p)
         set_weight_deriv(
             weights,
             unsigned(var),

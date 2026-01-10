@@ -31,6 +31,7 @@ Base.@kwdef mutable struct LazyKCConfig
     stacktrace::Bool = true
     vector_size::Int = 0
     dual::Bool = false
+    geom_bitwidth::Int = 7  # Bitwidth for geom IntDist (max value = 2^7 - 1 = 127)
     state = nothing
     path_condition = nothing
 end

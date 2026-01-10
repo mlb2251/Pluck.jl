@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
+export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, GeomOp, NativeEqOp, MkIntOp, IntDistEqOp, IntDistGtOp, IntDistIncOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
 
 import DataStructures: OrderedDict
 
@@ -272,6 +272,9 @@ define_parser!("Y", Y, 1)
 struct FlipOp <: Head end
 define_parser!("flip", FlipOp, 1)
 
+struct GeomOp <: Head end
+define_parser!("geom", GeomOp, 1)  # (geom q) - geometric distribution with stopping prob q
+
 struct NativeEqOp <: Head end
 define_parser!("native_eq", NativeEqOp, 2)
 
@@ -292,6 +295,12 @@ define_parser!("mk_int", MkIntOp, 2)
 
 struct IntDistEqOp <: Head end
 define_parser!("int_dist_eq", IntDistEqOp, 2)
+
+struct IntDistGtOp <: Head end
+define_parser!("int_dist_gt", IntDistGtOp, 2)
+
+struct IntDistIncOp <: Head end
+define_parser!("int_dist_inc", IntDistIncOp, 1)
 
 struct PrintOp <: Head end
 define_parser!("print", PrintOp, 1)

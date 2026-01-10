@@ -11,57 +11,34 @@
 (define (iff a b) (if a b (not b)))
 
 ;; arithmetic
-(define (inc x) (S x))
-(define (dec x) (match x
+(define (inc x) (int_dist_inc x))
+(define (dec x) (match x ;; TODO: redefine for IntDist
                   S m => m
                   O => (O)))
-(define (+ x y)
+(define (+ x y) ;; TODO: redefine for IntDist
   (match y
     O => x
     S n => (S (+ x n))))
-(define (- x y)
+(define (- x y) ;; TODO: redefine for IntDist
   (match y
     O => x
     S m => (match x
              O => (O)
              S n => (- n m))))
-(define (* x y)
+(define (* x y) ;; TODO: redefine for IntDist
   (match x
     O => (O)
     S n => (+ y (* n y))))
 
-(define (iseven n)
+(define (iseven n) ;; TODO: redefine for IntDist
   (match n
     O => (True)
     S m => (match m
              O => (False)
              S k => (iseven k))))
-
-
-(define (== x y)
-  (match x
-    O => (match y
-          O => (True)
-          S _ => (False))
-    S n => (match y
-            O => (False)
-            S m => (== n m))))
-
-(define (> x y)
-  (match x
-    O => (False)
-    S n => (match y
-             O => (True)
-             S m => (> n m))))
-(define (< x y)
-  (match x
-    O => (match y
-           O => (False)
-           S n => (True))
-    S n => (match y
-             O => (False)
-             S m => (< n m))))
-
+(define (== x y) (int_dist_eq x y))
+(define (> x y) (int_dist_gt x y))
+(define (< x y) (int_dist_gt y x))
 (define (>= x y) (not (< x y)))
 (define (<= x y) (not (> x y)))
 
@@ -74,17 +51,11 @@
               O => (False)
               S y2 => (nat=? x2 y2))))
 
-(define (mod x y)
-  (if (>= x y)
-    (mod (- x y) y)
-    x))
+;; (define (mod x y)
+;;   (if (>= x y)
+;;     (mod (- x y) y)
+;;     x))
 
-;; geometric distribution
-(define (geom p)
-  (if (flip p)
-    (O)
-    (S (geom p))))
- 
 (define (randnat) (geom 0.5))
 (define (randnatlist) (if (flip 0.5) (Nil) (Cons (randnat) (randnatlist))))
 
@@ -118,7 +89,7 @@
          (Y (fn rec xs i ->
               (match xs
                 Nil => (Nil)
-                Cons x xs => (Cons (f x i) (rec xs (S i))))))))
+                Cons x xs => (Cons (f x i) (rec xs (inc i))))))))
     (helper xs 0)))
 
 (define (filter f xs)
@@ -142,7 +113,7 @@
          (Y (fn rec xs i ->
               (match xs
                 Nil => (Nil)
-                Cons x xs => (let (xs (rec xs (S i)))
+                Cons x xs => (let (xs (rec xs (inc i)))
                                (if (f x i) (Cons x xs) xs)))))))
     (helper xs 0)))
 
@@ -152,16 +123,17 @@
 (define (range n)
   (let ((helper
          (Y (fn rec m ->
-              (if (nat=? m n)
+              (if (== m n)
                 (Nil)
-                (Cons m (rec (S m))))))))
+                (Cons m (rec (inc m))))))))
     (helper 0)))
 
 (define (index n xs)
-  (match xs
-    Cons x xs => (match n
-                   O => x
-                   S m => (index m xs))))
+  (let ((helper
+         (Y (fn rec i xs ->
+              (match xs
+                Cons x xs => (if (== i n) x (rec (inc i) xs)))))))
+    (helper 0 xs)))
 
 (define (append xs ys)
   (match xs
@@ -204,7 +176,8 @@
 (define-type abstract_type
   (Value)
   (NativeValue type) ;; symbol representing the type
-  (Closure))
+  (Closure)
+  (IntDistValue))
 
 ;; generic abstract value equality, whether it's a value, native value, or closure
 (define (=? a b)
@@ -214,7 +187,8 @@
          (match ta
             Closure => false ;; closures are never equal for now
             NativeValue _ => (native_eq a b) ;; native equality
-            Value => (and (constructor=? a b) (list=? =? (get_args a) (get_args b)))))))
+            Value => (and (constructor=? a b) (list=? =? (get_args a) (get_args b)))
+            IntDistValue => (int_dist_eq a b)))))
 
 ;; generic adt equality
 (define (adt=? a b)

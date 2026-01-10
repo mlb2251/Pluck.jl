@@ -156,7 +156,7 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
         end
     end
     if length(int_dist_results) > 0
-        push!(join_results, combine_int_dists(int_dist_results, state))
+        push!(join_results, combine_int_dists(int_dist_results, state.manager))
     end
 
     return join_results, used_information

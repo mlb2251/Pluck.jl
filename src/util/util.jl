@@ -1,4 +1,4 @@
-export logaddexp, logsumexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path, compile_deterministic
+export logaddexp, logsumexp, timestamp_dir, set_server_addr, set_server_port, get_server_addr, get_server_port, get_server_base_url, write_out, normalize, get_true_result, timestamp_path, compile_deterministic, sum_log_dual
 
 using Dates
 using Printf
@@ -39,17 +39,6 @@ function normalize(results)
     weights = [weight for (_, weight) in results]
     total = sum(weights)
     return [(world, weight / total) for (world, weight) in results]
-end
-
-function normalize_dual(results)
-    isempty(results) && return results
-    duals = [dual for (_, dual) in results]
-    primals = [primal for (primal, _) in duals]
-    derivs = [deriv for (_, deriv) in duals]
-    total_primal = sum(primals)
-    total_deriv = sum(derivs)
-
-    return [(world, (primal / total_primal, (total_primal*deriv - primal*total_deriv)/(total_primal^2))) for (world, (primal, deriv)) in results]
 end
 
 function get_true_result(results, default)
@@ -118,26 +107,10 @@ function write_out(json_data, path; verbose = true)
     verbose && println("wrote $path [$kb KB]")
 end
 
-function log_dual(param)
-    primal, deriv = param  
-    log_deriv = x -> x / primal
-    return (log(primal), log_deriv.(deriv))
-end
-
-function exp_dual(param)
-    primal, deriv = param
-    exp_deriv = x -> x * exp(primal)
-    return (exp(primal), exp_deriv.(deriv))
-end
-
-function sum_dual(params::Vector)
-    primal_sum = sum(p for (p, _) in params)
-    dual_sum = sum(d for (_, d) in params)
-    return (primal_sum, dual_sum)
-end
-
-function expsumlog_dual(params::Vector)
-    return exp_dual(sum_dual(log_dual.(params)))
+function sum_log_dual(params::Vector)
+    log_primal_sum = sum(lp for (lp, _) in params)
+    deriv_sum = sum(d for (_, d) in params)
+    return (log_primal_sum, deriv_sum)
 end
 
 function discrete(options, probabilities)
@@ -194,14 +167,6 @@ function format_prob(p)
     return str
 end
 
-"""
-    bounded_geom(p, max_value)
-
-Generate a Pluck expression for a bounded geometric distribution.
-Uses O(log max_value) flips instead of O(max_value) flips.
-
-P(n) = (1-p) * p^n for n in 0..max_value, renormalized to sum to 1.
-"""
 function bounded_geom(p::Float64, max_value::Int)
     # Compute geometric probabilities: P(n) = (1-p) * p^n
     probs = [(1-p) * p^n for n in 0:max_value]

@@ -147,9 +147,9 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
             if !isnothing(metaparam)
                 state.var2metaparam[topvar] = metaparam
                 partials_hi[metaparam+1] = 1.0
-                partials_lo[metaparam+1] = -1.0
+                partials_lo[metaparam+1] = -p / (1.0 - p)
             end
-            set_weight_deriv(state.manager.weights, topvar, 1.0 - p, partials_lo, p, partials_hi)
+            set_weight_deriv(state.manager.weights, topvar, log(1.0 - p), partials_lo, log(p), partials_hi)
             pop!(state.callstack)
             return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
         end
@@ -178,6 +178,79 @@ function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
         pop!(state.callstack)
         return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
     end
+end
+
+function compile_inner(expr::PExpr{GeomOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do q_native, path_condition
+        bitwidth = state.cfg.geom_bitwidth
+
+        if state.cfg.dual
+            metaparam = q_native.value isa Int ? q_native.value : nothing
+            q = isnothing(metaparam) ? q_native.value : 0.5
+        else
+            q = q_native.value::Float64
+            metaparam = nothing
+        end
+
+        r = 1.0 - q  # Probability of continuing
+
+        powers = Vector{Float64}(undef, bitwidth)
+        powers[1] = r
+        for i in 2:bitwidth
+            powers[i] = powers[i-1] * powers[i-1]  # r^{2^{i-1}} = (r^{2^{i-2}})^2
+        end
+
+        result = bitwise_int_geom(bitwidth, powers, 1, state, metaparam)
+        return pure_monad(result, path_condition, state)
+    end
+end
+
+function bitwise_int_geom(remaining_bits, powers, depth, state, metaparam)
+    mgr = state.manager
+    bitwidth = length(powers)
+
+    if remaining_bits == 0
+        return IntDist(fill(mgr.BDD_FALSE, bitwidth))
+    end
+
+    r_power = powers[remaining_bits]
+    p_upper = r_power / (1.0 + r_power)
+
+    push!(state.callstack, depth)
+    addr = current_address(state, p_upper)
+    topvar = bdd_topvar(addr)
+
+    if state.cfg.dual && !isnothing(metaparam)
+        npartials = mgr.vector_size
+        partials_hi = zeros(Float64, npartials)
+        partials_lo = zeros(Float64, npartials)
+        state.var2metaparam[topvar] = metaparam
+        partials_hi[metaparam+1] = 1.0
+        partials_lo[metaparam+1] = -p_upper / (1.0 - p_upper)
+        set_weight_deriv(mgr.weights, topvar, log(1.0 - p_upper), partials_lo, log(p_upper), partials_hi)
+    else
+        RSDD.set_weight(mgr, topvar, log(1.0 - p_upper), log(p_upper))
+    end
+    pop!(state.callstack)
+
+    push!(state.callstack, 1)
+    upper_result = bitwise_int_geom(remaining_bits - 1, powers, depth + 1, state, metaparam)
+    pop!(state.callstack)
+
+    push!(state.callstack, 0)
+    lower_result = bitwise_int_geom(remaining_bits - 1, powers, depth + 1, state, metaparam)
+    pop!(state.callstack)
+
+    result_bits = Vector{BDD}(undef, bitwidth)
+    for i in 1:bitwidth
+        if i == remaining_bits
+            result_bits[i] = bdd_ite(addr, mgr.BDD_TRUE, mgr.BDD_FALSE)
+        else
+            result_bits[i] = bdd_ite(addr, upper_result.bits[i], lower_result.bits[i])
+        end
+    end
+
+    return IntDist(result_bits)
 end
 
 """
@@ -283,7 +356,7 @@ end
 function compile_inner(expr::PExpr{MkIntOp}, env, path_condition, state)
     bitwidth = expr.args[1]::ConstNative
     val = expr.args[2]::ConstNative
-    bools = digits(Bool, val.value, base = 2, pad = bitwidth.value)
+    bools = digits(Bool, val.val, base = 2, pad = bitwidth.val)
     bits = map(b -> b ? state.manager.BDD_TRUE : state.manager.BDD_FALSE, bools)
 
     return pure_monad(IntDist(bits), path_condition, state)
@@ -292,9 +365,25 @@ end
 function compile_inner(expr::PExpr{IntDistEqOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do first_int_dist, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do second_int_dist, path_condition
-            bdd = int_dist_eq(first_int_dist, second_int_dist, state)
+            bdd = int_dist_eq(first_int_dist, second_int_dist, state.manager)
             return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, bdd, path_condition, state)
         end
+    end
+end
+
+function compile_inner(expr::PExpr{IntDistGtOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do first_int_dist, path_condition
+        bind_compile(expr.args[2], env, path_condition, state, 1) do second_int_dist, path_condition
+            bdd = int_dist_gt(first_int_dist, second_int_dist, state.manager)
+            return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, bdd, path_condition, state)
+        end
+    end
+end
+
+function compile_inner(expr::PExpr{IntDistIncOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do int_dist, path_condition
+        result = int_dist_inc(int_dist, state.manager)
+        return pure_monad(result, path_condition, state)
     end
 end
 
@@ -344,8 +433,10 @@ function compile_inner(expr::PExpr{AbstractTypeOp}, env, path_condition, state)
             return pure_monad(Value(:NativeValue, [NativeValue(inner_type)]), path_condition, state)
         elseif val isa Closure
             return pure_monad(Value(:Closure), path_condition, state)
+        elseif val isa IntDist
+            return pure_monad(Value(:IntDistValue), path_condition, state)
         else
-            error("AbstractTypeOp: expected Value, NativeValue, or Closure, got $(val) :: $(typeof(val)) in $expr")
+            error("AbstractTypeOp: expected Value, NativeValue, Closure, or IntDist, got $(val) :: $(typeof(val)) in $expr")
         end
     end
 end

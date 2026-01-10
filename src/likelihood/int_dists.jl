@@ -41,6 +41,50 @@ function int_dist_eq(x::IntDist, y::IntDist, mgr::RSDD.Manager)::BDD
 end
 
 """
+Greater-than comparison for two int distributions.
+Returns a BDD representing when x > y.
+Compares from MSB to LSB: x > y if at some bit position i,
+x[i]=1 and y[i]=0, and all more significant bits are equal.
+"""
+function int_dist_gt(x::IntDist, y::IntDist, mgr::RSDD.Manager)::BDD
+    width = length(x.bits)
+    @assert width == length(y.bits)
+
+    result = mgr.BDD_FALSE
+    eq_so_far = mgr.BDD_TRUE
+
+    for i = width:-1:1
+        @inbounds x_gt_y_here = bdd_and(x.bits[i], bdd_negate(y.bits[i]))
+        x_gt_y_here = bdd_and(x_gt_y_here, eq_so_far)
+
+        result = bdd_or(result, x_gt_y_here)
+
+        @inbounds bits_equal = bdd_iff(x.bits[i], y.bits[i])
+        eq_so_far = bdd_and(eq_so_far, bits_equal)
+    end
+
+    return result
+end
+
+"""
+Increment an IntDist by 1.
+Uses binary addition: new_bit = bit XOR carry, new_carry = bit AND carry.
+"""
+function int_dist_inc(x::IntDist, mgr::RSDD.Manager)::IntDist
+    width = length(x.bits)
+    new_bits = Vector{BDD}(undef, width)
+    carry = mgr.BDD_TRUE  # Adding 1, so initial carry is TRUE
+
+    for i = 1:width
+        @inbounds bit = x.bits[i]
+        @inbounds new_bits[i] = bdd_xor(bit, carry)
+        carry = bdd_and(bit, carry)
+    end
+
+    return IntDist(new_bits)
+end
+
+"""
 Get the BDD for a given integer value of an IntDist
 """
 function int_dist_at_int(val::IntDist, i::Int)

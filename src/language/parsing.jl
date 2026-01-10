@@ -28,7 +28,8 @@ function parse_expr(s::String; defs=DEFINITIONS, env=[])
 end
 
 function const_to_expr(v::Int)
-    ConstNative(v)()  # Use native int for O(1) comparison
+    # Use MkIntOp to create IntDist for O(log n) comparison with geom results
+    MkIntOp()(ConstNative(7), ConstNative(v))
 end
 
 const_to_expr(v::Float64) = ConstNative(v)()
