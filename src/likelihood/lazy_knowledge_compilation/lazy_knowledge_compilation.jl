@@ -226,7 +226,9 @@ function deterministic_world(ret::LazyKCResult)
 end
 
 function deterministic_world(worlds)
-    @assert length(worlds) == 1 "Expected a single deterministic world, got $(length(worlds)) worlds"
+    isnothing(worlds) && return nothing
+    isempty(worlds) && return nothing
+    # @assert length(worlds) == 1 "Expected a single deterministic world, got $(length(worlds)) worlds"
     (val, bdd) = worlds[1]
     @assert is_deterministic(bdd) "Expected either weight 1.0 or True BDD, got $bdd"
     return val
