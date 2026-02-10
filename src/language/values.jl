@@ -187,7 +187,7 @@ end
 
 function Base.show(io::IO, x::Value)
     if is_all_native_int(x)
-        bytes = [UInt8(c.value) for c in to_list(x)]
+        bytes = UInt8[UInt8(c.value) for c in to_list(x)]
         str = String(bytes)
         print(io, "\"", str, "\"")
         return
