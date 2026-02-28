@@ -201,7 +201,7 @@ function toplevel_evaluate(thunk, state::LazyKCState; path_condition=state.manag
     if !isnothing(pluck_error)
         # throw error here so the stack trace isn't super long
         showerror(stderr, pluck_error)
-        throw("Pluck Error encountered during execution of $expr, see stack trace above for details")
+        throw("Pluck Error encountered during execution of $thunk, see stack trace above for details")
     end
 
     if state.stats.hit_limit
