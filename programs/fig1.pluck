@@ -13,7 +13,7 @@
            (j_) (k_) (l_) (m_) (n_) (o_) (p_) (q_) (r_)
            (s_) (t_) (u_) (v_) (w_) (x_) (y_) (z_)))
 
-;; list=? (defined in src/language/stdlib.pluck) takes as an argument 
+;; list=? (defined in src/language/stdlib/stdlib.pluck) takes as an argument 
 ;; a predicate for comparing two elements for equality.
 ;; Here, we use the built-in `constructor=?` which checks if two values 
 ;; of user-defined types have the same constructor.

@@ -1,0 +1,39 @@
+;;; assoc.pluck - Association lists and search operations
+
+;; assoc-set : (List (Pair k v), k, v) -> List (Pair k v)
+;; Add entry to front of association list
+(define (assoc-set xs k v) (Cons (Pair k v) xs))
+
+;; assoc-get : (List (Pair k v), k) -> Option v
+;; Look up key in association list (returns first match)
+(define (assoc-get xs key)
+    (match xs
+        Nil => (None)
+        Cons entry tail => (if (=? (fst entry) key) (Some (snd entry)) (assoc-get tail key))))
+
+;; in : (List a, a) -> Bool
+;; Check if element is in list (uses generic =? equality)
+(define (in xs x)
+    (any (?= x) xs))
+
+;; find-first : (a -> Bool, List a) -> Option a
+;; Find first element satisfying predicate
+(define (find-first p xs)
+    (match xs
+        Nil => (None)
+        Cons x xs => (if (p x) (Some x) (find-first p xs))))
+
+;; replace-at-index : (List a, Nat, a) -> List a
+;; Replace element at given index with new value
+(define (replace-at-index xs idx new-value)
+  (match xs
+    Nil => (Nil)
+    Cons x xs =>
+      (match idx
+        O => (Cons new-value xs)
+        S n => (Cons x (replace-at-index xs n new-value)))))
+
+;; sorted-insert-idx : (List Nat, Nat) -> Option Nat
+;; Find first index in sorted list where x should be inserted
+(define (sorted-insert-idx xs x)
+  (find-first (> x) xs))

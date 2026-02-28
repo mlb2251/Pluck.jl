@@ -1,0 +1,29 @@
+;;; core.pluck - Core utilities and boolean operations
+
+;; constructors_equal : (a, b) -> Bool
+;; Check if two values have the same constructor
+(define (constructors_equal a b) (native_eq (get_constructor a) (get_constructor b)))
+
+;; unreachable : () -> _
+;; Signal unreachable code (always errors)
+(define (unreachable) (error 'unreachable))
+
+;; error-shave-probability : () -> _
+;; Fail by matching Unit against no branch (impossible conditioning)
+(define (error-shave-probability) (match (Unit)))
+
+;; and : (Bool, Bool) -> Bool
+;; Logical conjunction (short-circuiting)
+(define (and a b) (if a b (False)))
+
+;; or : (Bool, Bool) -> Bool
+;; Logical disjunction (short-circuiting)
+(define (or a b) (if a (True) b))
+
+;; not : Bool -> Bool
+;; Logical negation
+(define (not a) (if a (False) (True)))
+
+;; iff : (Bool, Bool) -> Bool
+;; Logical biconditional (XNOR)
+(define (iff a b) (if a b (not b)))

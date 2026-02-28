@@ -1,0 +1,46 @@
+;;; conditioning.pluck - Suspendible computation types, conditioning, and query types
+
+(define-type suspendible-bool
+  (FinallyTrue)
+  (FinallyFalse)
+  (Suspend suspendible-bool))
+
+(define-type suspendible-computation
+  (Return any)
+  (Suspend suspendible-computation))
+
+;; suspendible-list=? : ((a, a) -> Bool, List a, List a) -> SuspendibleComputation Bool
+;; Lazy pairwise list equality with suspension between elements
+(define (suspendible-list=? elems=? xs ys)
+  (match xs
+    Nil => (match ys
+             Nil => (Return (True))
+             Cons y ys => (Return (False)))
+    Cons x xs => (match ys
+                   Nil => (Return (False))
+                   Cons y ys => (if (elems=? x y)
+                                  (Suspend (suspendible-list=? elems=? xs ys))
+                                  (Return (False))))))
+
+;; given : (Bool, a) -> a
+;; Condition on predicate being true (fails if false)
+(define (given p q)
+  (match p
+    True => q))
+
+;; given-suspend : (SuspendibleComputation Bool, a) -> a
+;; Condition with suspension support
+(define (given-suspend p q)
+  (match p
+    Suspend x => (Suspend (given-suspend x q))
+    Return x => (given x q)))
+
+(define-type query
+  (Marginal any)
+  (Posterior any bool)
+  (PosteriorSamples any bool int)
+  (SubproblemMonteCarlo int query)
+  (AdaptiveRejection any bool))
+
+(define-type named-query
+  (NamedQuery sym query))

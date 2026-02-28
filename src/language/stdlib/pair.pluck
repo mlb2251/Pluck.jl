@@ -1,0 +1,15 @@
+;;; pair.pluck - Pair type and accessors
+
+(define-type pair (Pair any any))
+
+;; fst : Pair a b -> a
+;; Extract first element of pair
+(define (fst p)
+  (match p
+    Pair x _ => x))
+
+;; snd : Pair a b -> b
+;; Extract second element of pair
+(define (snd p)
+  (match p
+    Pair _ y => y))

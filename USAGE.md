@@ -120,7 +120,7 @@ Open `programs/fig1.pluck`. It defines the `perturb` function from Figure 1 of t
            (j_) (k_) (l_) (m_) (n_) (o_) (p_) (q_) (r_)
            (s_) (t_) (u_) (v_) (w_) (x_) (y_) (z_)))
 
-;; list=? (defined in src/language/stdlib.pluck) takes as an argument 
+;; list=? (defined in src/language/stdlib/stdlib.pluck) takes as an argument 
 ;; a predicate for comparing two elements for equality.
 ;; Here, we use the built-in `constructor=?` which checks if two values 
 ;; of user-defined types have the same constructor.
@@ -407,7 +407,7 @@ An **expression** is one of:
   - `(uniform <expr-1> ... <expr-n>)`
   - `(discrete (<expr-1> <const-1>) ... (<expr-n> <const-n>))`, where the constants are floating-point numbers summing to 1.
 
-Expressions used inside the `(query <expr>)` form must evaluate to a value of type `query`, defined in `language/src/stdlib.pluck`. See detailed notes below.
+Expressions used inside the `(query <expr>)` form must evaluate to a value of type `query`, defined in `language/src/stdlib/stdlib.pluck`. See detailed notes below.
 
 ### Defining and Using Algebraic Datatypes
 

@@ -1,0 +1,12 @@
+;;; option.pluck - Option type for nullable values
+
+(define-type option
+    (Some value)
+    (None))
+
+;; Some.x : Option a -> a
+;; Unwrap option value (errors on None)
+(define (Some.x o)
+    (match o
+        Some value => value
+        None => (error 'unwrap-none)))

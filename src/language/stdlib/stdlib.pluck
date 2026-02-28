@@ -1,0 +1,14 @@
+;;; stdlib.pluck - Pluck standard library
+;;; Each include must come after its dependencies.
+
+(include "core.pluck")          ;; core utilities, boolean ops
+(include "nat.pluck")           ;; natural number arithmetic, comparison
+(include "pair.pluck")          ;; Pair type, fst, snd
+(include "option.pluck")        ;; Option type, Some.x
+(include "list.pluck")          ;; list operations
+(include "equality.pluck")      ;; constructor=?, =?, adt=?
+(include "distribution.pluck")  ;; geom, sampling utilities
+(include "conditioning.pluck")  ;; suspendible types, given, query types
+(include "metaprogramming.pluck") ;; PExpr type, make-apply
+(include "assoc.pluck")         ;; association lists, search
+(include "reflection.pluck")    ;; type reflection, Type type

@@ -63,5 +63,5 @@ include("util/tests.jl")
 
 export get_rsdd_time, clear_rsdd_time!, @rsdd_time
 
-load_pluck_file(joinpath(@__DIR__, "language", "stdlib.pluck"))
+load_pluck_file(joinpath(@__DIR__, "language", "stdlib", "stdlib.pluck"))
 end # module
