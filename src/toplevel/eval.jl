@@ -52,3 +52,38 @@ function eval_toplevel(expr::PExpr{QueryOp}, toplevel_state)
     free_state(state)
     return results
 end
+
+function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
+    state = LazyKCState()
+    body = deterministic_world(toplevel_compile(expr.head.query; state))
+    results = eval_query(body, state)
+    if !toplevel_state.silent
+        print_query_results_by_type(body, results, expr.head.name)
+    end
+    free_state(state)
+
+    # Check results against expected values
+    expected = expr.head.expected
+    all_passed = true
+    for (val_str, expected_prob) in expected
+        found = false
+        for (v, prob) in results
+            if string(v) == val_str
+                found = true
+                if !isapprox(prob, expected_prob; rtol=1e-6)
+                    all_passed = false
+                    printstyled("  FAIL: $(expr.head.name): value $val_str expected prob $expected_prob, got $prob\n"; color=:red)
+                end
+                break
+            end
+        end
+        if !found
+            all_passed = false
+            printstyled("  FAIL: $(expr.head.name): expected value $val_str not found in results\n"; color=:red)
+        end
+    end
+    if all_passed
+        printstyled("  PASS: $(expr.head.name) ($(length(expected)) assertions)\n"; color=:green)
+    end
+    return results
+end

@@ -19,6 +19,12 @@ struct QueryOp <: ToplevelHead
     query::PExpr
 end
 
+struct AssertQueryOp <: ToplevelHead
+    name::String
+    query::PExpr
+    expected::Vector{Tuple{String, Float64}}
+end
+
 
 # forbid compiling toplevel heads
 compile_inner(expr::PExpr{H}, env, path_condition, state) where H <: ToplevelHead = error("ToplevelHeads cannot be compiled")
@@ -154,6 +160,45 @@ function parse_toplevel(tokens, state)
         query_expr = QueryOp(name, query_body)()
     
         return query_expr, view(tokens, end_idx+1:length(tokens))
+    elseif token == "assert-query"
+        tokens = view(tokens, 2:length(tokens))
+
+        # Parse name (quoted symbol like 'name)
+        name = String(tokens[1])[2:end]
+        tokens = view(tokens, 2:length(tokens))
+
+        # Parse query expression
+        query_body, tokens = parse_expr_inner(tokens, state)
+
+        # Parse expected (value, probability) pairs until closing paren
+        expected = Tuple{String, Float64}[]
+        while tokens[1] != ")"
+            tokens[1] == "(" || parse_error(state, tokens, "expected opening paren for expected pair")
+            tokens = view(tokens, 2:length(tokens))
+
+            # Parse value: could be a parenthesized expression like (False) or a bare token
+            if tokens[1] == "("
+                end_idx = find_ending_paren(view(tokens, 2:length(tokens)))
+                val_str = detokenize(view(tokens, 1:end_idx+1))
+                tokens = view(tokens, end_idx+2:length(tokens))
+            else
+                val_str = String(tokens[1])
+                tokens = view(tokens, 2:length(tokens))
+            end
+
+            # Parse probability
+            prob = parse(Float64, tokens[1])
+            tokens = view(tokens, 2:length(tokens))
+
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren for expected pair")
+            tokens = view(tokens, 2:length(tokens))
+
+            push!(expected, (val_str, prob))
+        end
+
+        tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in assert-query")
+
+        return AssertQueryOp(name, query_body, expected)(), view(tokens, 2:length(tokens))
     else
         parse_error(state, tokens, "unexpected token at toplevel: $token")
     end
