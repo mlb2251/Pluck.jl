@@ -699,3 +699,39 @@ function find_ending_paren(tokens)
     end
     return end_idx-1
 end
+
+function find_ending_bracket(tokens)
+    depth = 1
+    end_idx = 1
+    while depth > 0 && end_idx <= length(tokens)
+        if tokens[end_idx] == "["
+            depth += 1
+        elseif tokens[end_idx] == "]"
+            depth -= 1
+        end
+        end_idx += 1
+    end
+    return end_idx-1
+end
+
+# Reconstruct a value string from tokens to match string(v) output exactly.
+# Rules: no space after ( or [, no space before ) or ] or comma, space after comma,
+# space between other adjacent tokens.
+function detokenize_value(tokens)
+    result = ""
+    for (i, token) in enumerate(tokens)
+        token_str = String(token)
+        result *= token_str
+        if i < length(tokens)
+            next_str = String(tokens[i+1])
+            if token_str in ("(", "[") || next_str in (")", "]", ",")
+                # no space
+            elseif token_str == ","
+                result *= " "
+            else
+                result *= " "
+            end
+        end
+    end
+    return result
+end

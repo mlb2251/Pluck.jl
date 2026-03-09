@@ -51,7 +51,7 @@
  ((True) 1.5922011260988487e-10))
 
 ;; Is "gat" more likely a typo of "goat" or "bat"?
-(query
+(assert-query
  'goat-or-bat
  (let ((original_string
         (if (flip 0.5)
@@ -68,7 +68,9 @@
     ;; Evidence -- B in "P(A | B)"
     (string=?
      (perturb original_string)
-     observed_string))))
+     observed_string)))
+ ([(g_), (o_), (a_), (t_)] 0.9615492686388217)
+ ([(b_), (a_), (t_)] 0.038450731361178284))
 
 ;; If a user intended to type "cat" and the third letter they type is an "a", what did they probably type?
 (query

@@ -176,10 +176,15 @@ function parse_toplevel(tokens, state)
             tokens[1] == "(" || parse_error(state, tokens, "expected opening paren for expected pair")
             tokens = view(tokens, 2:length(tokens))
 
-            # Parse value: could be a parenthesized expression like (False) or a bare token
+            # Parse value: could be a parenthesized expression like (False),
+            # a bracketed list like [2, 4, 6], or a bare token like 9 or "goat"
             if tokens[1] == "("
                 end_idx = find_ending_paren(view(tokens, 2:length(tokens)))
-                val_str = detokenize(view(tokens, 1:end_idx+1))
+                val_str = detokenize_value(view(tokens, 1:end_idx+1))
+                tokens = view(tokens, end_idx+2:length(tokens))
+            elseif tokens[1] == "["
+                end_idx = find_ending_bracket(view(tokens, 2:length(tokens)))
+                val_str = detokenize_value(view(tokens, 1:end_idx+1))
                 tokens = view(tokens, end_idx+2:length(tokens))
             else
                 val_str = String(tokens[1])
