@@ -4,6 +4,8 @@ julia-instantiate:
 	julia --project -e 'using Pkg; Pkg.instantiate()'
 test:
 	julia --project -e 'using Pluck; Pluck.run_examples()'
+check:
+	julia --project -e 'using Pluck; Pluck.run_check()'
 
 NAME=latest
 STABLE=stable

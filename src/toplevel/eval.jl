@@ -1,9 +1,12 @@
-export load_pluck_file, eval_forms, sample_output, run_toplevel
+export load_pluck_file, eval_forms, sample_output, run_toplevel, run_check
 
 mutable struct ToplevelEvalState
     defs::Dict{Symbol, Definition}
     parser::ParseState
     silent::Bool
+    check::Bool
+    fail_count::Ref{Int}
+    current_file::String
 end
 
 # Load and process definitions from a file
@@ -12,10 +15,10 @@ function load_pluck_file(filename::String; kwargs...)
     run_toplevel(s; filename, kwargs...)
 end
 
-function run_toplevel(s::String; filename="<unknown>", defs=DEFINITIONS, silent=false)
+function run_toplevel(s::String; filename="<unknown>", defs=DEFINITIONS, silent=false, check=false, fail_count=Ref(0))
     tokens = tokenize(s)
     parser = ParseState(defs, [], dirname(abspath(filename)), s, filename)
-    toplevel_state = ToplevelEvalState(defs, parser, silent)
+    toplevel_state = ToplevelEvalState(defs, parser, silent, check, fail_count, relpath(abspath(filename)))
 
     while !isempty(tokens)
         expr, tokens = parse_toplevel(tokens, parser)
@@ -32,7 +35,7 @@ function eval_toplevel(expr::PExpr{DefineTypeOp}, toplevel_state)
 end
 
 function eval_toplevel(expr::PExpr{IncludeOp}, toplevel_state)
-    load_pluck_file(expr.head.path; defs=toplevel_state.defs, silent=toplevel_state.silent)
+    load_pluck_file(expr.head.path; defs=toplevel_state.defs, silent=toplevel_state.silent, check=toplevel_state.check, fail_count=toplevel_state.fail_count)
 end
 
 
@@ -48,7 +51,7 @@ function eval_toplevel(expr::PExpr{QueryOp}, toplevel_state)
     t = time()
     results = eval_query(body, state)
     elapsed_ms = round((time() - t) * 1000; digits=2)
-    if !toplevel_state.silent
+    if !toplevel_state.silent && !toplevel_state.check
         print_query_results_by_type(body, results, expr.head.name; elapsed_ms)
     end
     free_state(state)
@@ -61,7 +64,7 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
     t = time()
     results = eval_query(body, state)
     elapsed_ms = round((time() - t) * 1000; digits=2)
-    if !toplevel_state.silent
+    if !toplevel_state.silent && !toplevel_state.check
         print_query_results_by_type(body, results, expr.head.name; elapsed_ms)
     end
     free_state(state)
@@ -76,18 +79,32 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
                 found = true
                 if !isapprox(prob, expected_prob; rtol=1e-6)
                     all_passed = false
-                    printstyled("  FAIL: $(expr.head.name): value $val_str expected prob $expected_prob, got $prob\n"; color=:red)
+                    if toplevel_state.check
+                        printstyled("FAIL: $(expr.head.name) $(elapsed_ms)ms ($(toplevel_state.current_file)): value $val_str expected prob $expected_prob, got $prob\n"; color=:red)
+                        toplevel_state.fail_count[] += 1
+                    else
+                        printstyled("  FAIL: $(expr.head.name): value $val_str expected prob $expected_prob, got $prob\n"; color=:red)
+                    end
                 end
                 break
             end
         end
         if !found
             all_passed = false
-            printstyled("  FAIL: $(expr.head.name): expected value $val_str not found in results\n"; color=:red)
+            if toplevel_state.check
+                printstyled("FAIL: $(expr.head.name) $(elapsed_ms)ms ($(toplevel_state.current_file)): expected value $val_str not found in results\n"; color=:red)
+                toplevel_state.fail_count[] += 1
+            else
+                printstyled("  FAIL: $(expr.head.name): expected value $val_str not found in results\n"; color=:red)
+            end
         end
     end
     if all_passed
-        printstyled("  PASS: $(expr.head.name) ($(length(expected)) assertions)\n"; color=:green)
+        if toplevel_state.check
+            printstyled("PASS: $(expr.head.name) $(elapsed_ms)ms ($(toplevel_state.current_file))\n"; color=:green)
+        else
+            printstyled("  PASS: $(expr.head.name) ($(length(expected)) assertions)\n"; color=:green)
+        end
     end
     return results
 end
