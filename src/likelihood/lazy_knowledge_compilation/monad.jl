@@ -38,13 +38,6 @@ function if_then_else_monad(val_if_true, val_if_false, condition, path_condition
 end
 
 """
-Condition every world in a set of worlds on a condition
-"""
-function condition_worlds(worlds, condition)
-    return World[(val, guard & condition) for (val, guard) in worlds]
-end
-
-"""
 GuardedWorldsT{X} = is a monad (M X)
 M X = GuardedWorldsT{X} = Tuple{Vector{WorldT{X}}, BDD}
 
@@ -177,19 +170,4 @@ end
 function bind_compile(cont::F, expr, env, path_condition, state, strict_order_index) where F <: Function
     pre_worlds = traced_compile_inner(expr, env, path_condition, state, strict_order_index)
     return bind_monad(cont, pre_worlds, path_condition, state)
-end
-
-function bind_evaluate(cont::F, thunk, env, path_condition, state) where F <: Function
-    pre_worlds = evaluate(thunk, path_condition, state)
-    return bind_monad(cont, pre_worlds, path_condition, state)
-end
-
-# Not tested or used right now.
-function bind_compile_many(cont::F, exprs::Vector{PExpr}, env, path_condition, state::LazyKCState, strict_order_indices::Vector{Int}) where F <: Function
-    isempty(exprs) && return cont(Any[], path_condition)
-    bind_compile(exprs[1], env, path_condition, state, strict_order_indices[1]) do head_val, path_condition
-        bind_compile_many(exprs[2:end], env, path_condition, state, strict_order_indices[2:end]) do tail_vals, path_condition
-            return cont(Any[head_val; tail_vals], path_condition)
-        end
-    end
 end

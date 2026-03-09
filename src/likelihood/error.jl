@@ -1,17 +1,6 @@
 function pluck_error(state, msg)
-    # printstyled("Pluck Error from $(typeof(state)): ", color=:red)
-    # println(msg)
-
-    # if !isempty(state.stacktrace)
-    #     print_stacktrace(state)
-    # else
-    #     println("Compile with stacktrace=true to see the full Pluck stacktrace")
-    # end
-
-    # println()
     throw(PluckError(state, msg))
 end
-
 
 struct PluckError <: Exception
     state
@@ -29,7 +18,6 @@ function print_stacktrace(io::IO, state)
 
     for (i, e) in enumerate(reverse(state.stacktrace))
         ty = typeof(e).parameters[1]
-        # if ty == Abs || ty == Defined || i == 1 || i == length(state.stacktrace)
         print(io, "  [$frame] ")
         if ty == Defined
             body = Pluck.DEFINITIONS[e.head.name].expr
@@ -39,6 +27,5 @@ function print_stacktrace(io::IO, state)
         end
         println(io)
         frame += 1
-        # end
     end
 end
