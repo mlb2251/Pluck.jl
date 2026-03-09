@@ -1,1 +1,4 @@
 (include "table1/sorted_list.pluck")
+(include "table1/hmm.pluck")
+(include "table1/string_editing.pluck")
+(include "table1/pcfg.pluck")

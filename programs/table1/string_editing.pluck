@@ -1,0 +1,42 @@
+;; String editing benchmark
+;; Translated from Julia benchmark definitions
+;;
+;; Model of typos with insertions, deletions, and substitutions
+;; over a 5-character alphabet (a-e).
+
+(define-type char5 (ca) (cb) (cc) (cd) (ce))
+
+(define (random_char5)
+  (uniform (ca) (cb) (cc) (cd) (ce)))
+
+(define strings_eq (list=? constructor=?))
+
+;; random_string: generates a random string, stopping with probability p
+(define (random_string p)
+  (if (flip p)
+    (Nil)
+    (Cons (random_char5) (random_string p))))
+
+;; perturb: applies random insertions, deletions, and substitutions
+(define (perturb s)
+  (match s
+    Nil => (random_string 0.99)
+    Cons c cs =>
+    (let ((do_delete (flip 0.01))
+          (insertion (random_string 0.99))
+          (perturbed_cs (perturb cs)))
+      (if do_delete
+        perturbed_cs
+        (append insertion (Cons (if (flip 0.01) (random_char5) c) perturbed_cs))))))
+
+;; Query: probability that perturb("edcc") == "eddde"
+;; long_string_1[1:4] = "edcc"
+;; long_string_2[1:5] = "eddde"
+(assert-query
+  'string-editing-default
+  (Marginal
+    (strings_eq
+      (perturb (Cons (ce) (Cons (cd) (Cons (cc) (Cons (cc) (Nil))))))
+      (Cons (ce) (Cons (cd) (Cons (cd) (Cons (cd) (Cons (ce) (Nil))))))))
+  ((False) 0.9999999703333271)
+  ((True) 2.9666673058148367e-8))

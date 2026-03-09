@@ -1,0 +1,46 @@
+;; PCFG benchmark
+;; Translated from Julia benchmark definitions
+;;
+;; Probabilistic context-free grammar with non-terminals SS, XX, YY
+;; and terminals a, b, c.
+
+(define-type pcfg_nt (SS) (XX) (YY))
+(define-type pcfg_t (a_) (b_) (c_))
+
+;; generate_pcfg: generates a list of terminals from a non-terminal
+;; SS => flip order, then append (generate XX) and (generate YY)
+;; XX => flip 0.5: either [a] or [b] ++ (generate XX) ++ (generate XX)
+;; YY => [c] ++ (flip 0.5: [] or (generate (flip 0.5: XX or SS)))
+(define (generate_pcfg symbol)
+  (match symbol
+    SS =>
+    (let ((xgen (generate_pcfg (XX)))
+          (ygen (generate_pcfg (YY)))
+          (order (flip 0.5)))
+      (if order (append xgen ygen) (append ygen xgen)))
+    XX =>
+    (if (flip 0.5)
+      (Cons (a_) (Nil))
+      (Cons (b_) (append (generate_pcfg (XX)) (generate_pcfg (XX)))))
+    YY =>
+    (Cons (c_) (if (flip 0.5)
+                 (Nil)
+                 (generate_pcfg (if (flip 0.5) (XX) (SS)))))))
+
+(define pcfg_string=? (list=? constructor=?))
+
+;; Query: probability that generate_pcfg(SS) produces the test string
+;; test_example_string = [c,b,b,b,a,b,b,a,b,a,b,b,a,b,a,a,a,a,a,b,a,a,a]
+(assert-query
+  'pcfg-default
+  (Marginal
+    (pcfg_string=?
+      (generate_pcfg (SS))
+      (Cons (c_) (Cons (b_) (Cons (b_) (Cons (b_) (Cons (a_)
+      (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_)
+      (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_)
+      (Cons (a_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (b_)
+      (Cons (a_) (Cons (a_) (Cons (a_)
+      (Nil))))))))))))))))))))))))))
+  ((False) 0.9999999701976776)
+  ((True) 2.9802322387695312e-8))
