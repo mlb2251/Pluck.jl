@@ -38,7 +38,7 @@ end
 
 function format_check_row(r::CheckResult)
     status = r.passed ? "PASS" : "FAIL"
-    name_with_file = "$(r.name) ($(r.file))"
+    name_with_file = r.name
     time_str = string(r.time_ms)
     task_time_str = string(r.task_time_ms)
     rsdd_time_str = string(r.rsdd_time_ms)
@@ -138,6 +138,7 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
 
     # Warmup run (silent) to avoid measuring JIT compilation
     if toplevel_state.check
+        print("$(expr.head.name)... ")
         clear_bdd_stats!()
         eval_query(body, state)
         free_state(state)
@@ -197,7 +198,6 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
         tt = stats.time !== nothing ? round(task_time(stats.time) * 1000; digits=2) : elapsed_ms
         cr = CheckResult(expr.head.name, toplevel_state.current_file, all_passed, elapsed_ms, stats.num_recursive_calls, stats.num_forward_calls, tt, rsdd_ms, total_bdd_size, gc_time_ms, alloc_bytes, num_allocs)
         push!(toplevel_state.check_results, cr)
-        print_check_row(cr)
     else
         if all_passed
             printstyled("  PASS: $(expr.head.name) ($(length(expected)) assertions)\n"; color=:green)
