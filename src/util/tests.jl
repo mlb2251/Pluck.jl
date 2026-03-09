@@ -9,13 +9,16 @@ function run_examples()
     end
 end
 
-function run_check()
+function run_check(files=nothing)
     fail_count = Ref(0)
     check_results = CheckResult[]
-    for file in readdir(joinpath(@__DIR__, "..", "..", "programs"); join=true)
-        if endswith(file, ".pluck")
-            load_pluck_file(file; check=true, fail_count, check_results)
-        end
+    if files === nothing
+        files = [f for f in readdir(joinpath(@__DIR__, "..", "..", "programs"); join=true) if endswith(f, ".pluck")]
+    else
+        files = [abspath(f) for f in files]
+    end
+    for file in files
+        load_pluck_file(file; check=true, fail_count, check_results)
     end
 
     # Reprint aligned table

@@ -1,0 +1,50 @@
+;; Sorted list benchmark
+;; Translated from Julia benchmark definitions
+
+;; random_num_larger_than: adds a random natural number to min
+(define (random_num_larger_than min)
+  (+ (randnat) min))
+
+;; random_num_larger_than_fuel: fuel-bounded version
+(define (random_num_larger_than_fuel fuel min)
+  (match fuel
+    S fuel =>
+      (if (flip 0.5)
+        min
+        (S (random_num_larger_than_fuel fuel min)))))
+
+;; generate_sorted_list: generates a random sorted list starting from min
+(define (generate_sorted_list min)
+  (if (flip 0.5)
+    (Nil)
+    (let ((m (random_num_larger_than min)))
+      (Cons m (generate_sorted_list m)))))
+
+;; generate_sorted_list_fuel: fuel-bounded version
+(define (generate_sorted_list_fuel fuel fuel_num min)
+  (match fuel
+    S fuel =>
+      (if (flip 0.5)
+        (Nil)
+        (let ((m (random_num_larger_than_fuel fuel_num min)))
+          (Cons m (generate_sorted_list_fuel fuel fuel_num m))))))
+
+;; Default query: can generate_sorted_list produce [0, 3, 7, 12, 13, 15, 16, 20]?
+(assert-query
+  'sorted-list-default
+  (Marginal
+    (list=? nat=?
+      (generate_sorted_list 0)
+      (Cons 0 (Cons 3 (Cons 7 (Cons 12 (Cons 13 (Cons 15 (Cons 16 (Cons 20 (Nil)))))))))))
+  ((False) 0.999999999992724)
+  ((True) 7.275957614183426e-12))
+
+;; Fuel-bounded query: same list, with fuel=9 and fuel_num=6
+(assert-query
+  'sorted-list-fuel
+  (Marginal
+    (list=? nat=?
+      (generate_sorted_list_fuel 9 6 0)
+      (Cons 0 (Cons 3 (Cons 7 (Cons 12 (Cons 13 (Cons 15 (Cons 16 (Cons 20 (Nil)))))))))))
+  ((False) 0.9999380027147708)
+  ((True) 7.275957614183426e-12))

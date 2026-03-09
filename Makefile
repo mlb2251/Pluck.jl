@@ -5,7 +5,11 @@ julia-instantiate:
 test:
 	julia --project -e 'using Pluck; Pluck.run_examples()'
 check:
+ifdef FILES
+	julia --project -e 'using Pluck; Pluck.run_check(ARGS)' -- $(FILES)
+else
 	julia --project -e 'using Pluck; Pluck.run_check()'
+endif
 
 NAME=latest
 STABLE=stable
