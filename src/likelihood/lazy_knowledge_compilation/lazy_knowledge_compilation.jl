@@ -265,6 +265,7 @@ function wmc(ret::LazyKCResult)
     return wmc(ret.worlds)
 end
 function wmc(worlds::Vector{Tuple{Any, BDD}})
+    get_bdd_stats().total_bdd_size = sum(bdd_size(bdd) for (_, bdd) in worlds; init=0)
     return Tuple{Any, Float64}[(val, bdd_wmc(bdd)) for (val, bdd) in worlds]
 end
 

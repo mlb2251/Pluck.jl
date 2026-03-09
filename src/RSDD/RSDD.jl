@@ -56,18 +56,23 @@ export BDD,
 const librsdd_path = joinpath(@__DIR__, "rsdd", "target", "release", "librsdd")
 
 
-export get_rsdd_time, clear_rsdd_time!, rsdd_time!, rsdd_timed, @rsdd_time
+export get_rsdd_time, clear_rsdd_time!, rsdd_time!, rsdd_timed, @rsdd_time, get_bdd_stats, clear_bdd_stats!
 
 # Default vector size for DualNumber
 const DEFAULT_VECTOR_SIZE = 3
 
 mutable struct BDDStats
     rsdd_time::Float64
+    total_bdd_size::Int
 end
-const bdd_stats = BDDStats(0.0)
-Base.show(io::IO, stats::BDDStats) = print(io, "BDDStats(rsdd_time=$(round(stats.rsdd_time, digits=2)) s)")
+const bdd_stats = BDDStats(0.0, 0)
+Base.show(io::IO, stats::BDDStats) = print(io, "BDDStats(rsdd_time=$(round(stats.rsdd_time, digits=2)) s, total_bdd_size=$(stats.total_bdd_size))")
 
 function get_rsdd_time()
+    return bdd_stats
+end
+
+function get_bdd_stats()
     return bdd_stats
 end
 
@@ -77,6 +82,11 @@ end
 
 function clear_rsdd_time!()
     bdd_stats.rsdd_time = 0.0
+end
+
+function clear_bdd_stats!()
+    bdd_stats.rsdd_time = 0.0
+    bdd_stats.total_bdd_size = 0
 end
 
 macro bdd_time_limit(manager, expr)
