@@ -4,7 +4,7 @@ julia-instantiate:
 	julia --project -e 'using Pkg; Pkg.instantiate()'
 test:
 	julia --project -e 'using Pluck; Pluck.run_examples()'
-check:
+check: generate-bayes-nets
 ifdef FILES
 	julia --project -e 'using Pluck; Pluck.run_check(ARGS)' -- $(FILES)
 else

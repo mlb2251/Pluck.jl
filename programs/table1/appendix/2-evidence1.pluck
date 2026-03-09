@@ -1,7 +1,7 @@
 ;; From https://github.com/SHoltzen/dice/blob/master/benchmarks/baselines/evidence1.dice
 
 (assert-query
-  'evidence1-default
+  'evidence1-posterior
   (let (evidence (flip 0.5)
         coin (flip 0.5))
     (Posterior evidence (if evidence coin true)))

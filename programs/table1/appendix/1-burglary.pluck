@@ -2,7 +2,7 @@
 ;; Adapted from https://github.com/SHoltzen/dice/blob/master/benchmarks/baselines/alarm.psi
 
 (assert-query
-  'burglary-default
+  'burglary-posterior
   (let (earthquake   (flip 0.0001)
         burglary     (flip 0.001)
         alarm        (or earthquake burglary)

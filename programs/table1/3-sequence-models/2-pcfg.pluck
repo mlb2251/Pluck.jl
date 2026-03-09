@@ -48,7 +48,7 @@
 ;;   (list_symbols_equal (generate_pcfg_grammar (SS)) <test_example_string>)
 ;; test_example_string = [:c, :b, :b, :b, :a, :b, :b, :a, :b, :a, :b, :b, :a, :b, :a, :a, :a, :a, :a, :b, :a, :a, :a]
 (assert-query
-  'pcfg-default
+  'pcfg
   (Marginal
     (list_symbols_equal
       (generate_pcfg_grammar (SS))

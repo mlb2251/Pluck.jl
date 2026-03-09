@@ -99,7 +99,7 @@ Read the `.json` file:
 Format as:
 ```scheme
 (assert-query
-  'hmm-default
+  'hmm
   (Marginal
     (prefix_equals? (hmm (False)) (generate_observations 50)))
   ((False) 0.9999999999998197)

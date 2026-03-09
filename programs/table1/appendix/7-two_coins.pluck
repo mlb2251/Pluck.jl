@@ -1,7 +1,7 @@
 ;; From https://github.com/SHoltzen/dice/blob/master/benchmarks/baselines/twocoins.dice
 
 (assert-query
-  'two-coins-default
+  'two-coins-posterior
   (let (firstCoin (flip 0.5)
         secondCoin (flip 0.5)
         bothHeads (and firstCoin secondCoin))

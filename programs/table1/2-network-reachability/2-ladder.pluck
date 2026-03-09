@@ -18,7 +18,7 @@
 
 ;; Query: (run_ladder_network 100)
 (assert-query
-  'ladder-default
+  'ladder
   (Marginal
     (run_ladder_network 100))
   ((False) 0.5246291582230684)

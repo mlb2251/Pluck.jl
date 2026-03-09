@@ -53,7 +53,7 @@
     (Pair key (strings_eq observed encrypted)))))
 
 (assert-query
-  'caesar-default
+  'caesar-posterior
   (let (result (caesar (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Nil)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
     (Posterior (fst result) (snd result)))
   ((b_) 7.888490723665978e-31)

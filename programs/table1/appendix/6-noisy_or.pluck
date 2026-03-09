@@ -1,7 +1,7 @@
 ;; Adapted from https://github.com/SHoltzen/dice/blob/master/benchmarks/baselines/noisyOr.dice
 
 (assert-query
-  'noisy-or-default
+  'noisy-or
   (Marginal
     (let (n0 (flip 0.5)
           n4 (flip 0.5)

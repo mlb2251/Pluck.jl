@@ -42,7 +42,7 @@
 ;; long_string_1[1:4] = "edcc"
 ;; long_string_2[1:5] = "eddde"
 (assert-query
-  'string-editing-default
+  'string-editing
   (Marginal
     (strings_eq
       (perturb (Cons (e_) (Cons (d_) (Cons (c_) (Cons (c_) (Nil))))))

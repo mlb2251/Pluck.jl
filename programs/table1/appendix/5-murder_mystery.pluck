@@ -1,7 +1,7 @@
 ;; From https://github.com/SHoltzen/dice/blob/master/benchmarks/baselines/murderMystery.dice
 
 (assert-query
-  'murder-mystery-default
+  'murder-mystery-posterior
   (let (aliceDunnit (flip 0.3)
         withGun (if aliceDunnit (flip 0.03) (flip 0.8))
         gunFound (flip 0.5)

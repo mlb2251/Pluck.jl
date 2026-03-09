@@ -15,7 +15,7 @@
 
 ;; Query: (diamond_network 100)
 (assert-query
-  'diamond-default
+  'diamond
   (Marginal
     (diamond_network 100))
   ((False) 0.004987645188015855)

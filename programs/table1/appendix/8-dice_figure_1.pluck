@@ -7,7 +7,7 @@
       (rec x2 n)))))))
 
 (assert-query
-  'dice-figure-1-default
+  'dice-figure-1
   (Marginal
     (dice_figure_1_fn (flip 0.5) 100))
   ((False) 0.7272727272727271)
