@@ -46,12 +46,16 @@ end
 
 # Add this helper function to process queries
 function eval_toplevel(expr::PExpr{QueryOp}, toplevel_state)
+    # In check mode, skip non-assert queries (e.g. sampling examples)
+    if toplevel_state.check
+        return nothing
+    end
     state = LazyKCState()
     body = deterministic_world(toplevel_compile(expr.head.query; state))
     t = time()
     results = eval_query(body, state)
     elapsed_ms = round((time() - t) * 1000; digits=2)
-    if !toplevel_state.silent && !toplevel_state.check
+    if !toplevel_state.silent
         print_query_results_by_type(body, results, expr.head.name; elapsed_ms)
     end
     free_state(state)
