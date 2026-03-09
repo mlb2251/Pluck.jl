@@ -116,7 +116,7 @@ PASS: hmm-smoothing (hmm.pluck)
 ERROR: check failed with 1 failure
 ```
 
-Plain `query` forms produce no output (they just run silently; if they crash, Julia errors out normally).
+Plain `query` forms produce no output (they just run silently). If any query (plain or assert) crashes, the whole `make check` run crashes immediately — this is intentional. Crashes are bugs, not expected test failures.
 
 ### What stays the same
 
