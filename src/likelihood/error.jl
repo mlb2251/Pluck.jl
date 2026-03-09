@@ -32,7 +32,7 @@ function print_stacktrace(io::IO, state)
         # if ty == Abs || ty == Defined || i == 1 || i == length(state.stacktrace)
         print(io, "  [$frame] ")
         if ty == Defined
-            body = Pluck.lookup(e.head.name).expr
+            body = Pluck.DEFINITIONS[e.head.name].expr
             print(io, "$e : $body")
         else
             print(io, "$e")

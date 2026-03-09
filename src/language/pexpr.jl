@@ -280,9 +280,6 @@ define_parser!("get_args", GetArgsOp, 1)
 struct GetConstructorOp <: Head end
 define_parser!("get_constructor", GetConstructorOp, 1)
 
-struct PBoolOp <: Head end
-define_parser!("pbool", PBoolOp, 1)
-
 struct GetConfig <: Head end
 define_parser!("get_config", GetConfig, 0)
 
@@ -298,34 +295,11 @@ define_parser!("uniform_int_range", UniformIntRangeOp, 3)
 struct IntDistEqOp <: Head end
 define_parser!("int_dist_eq", IntDistEqOp, 2)
 
-struct PrintOp <: Head end
-define_parser!("print", PrintOp, 1)
-
 struct AbstractTypeOp <: Head end
 define_parser!("abstract_type", AbstractTypeOp, 1)
 
-struct FDivOp <: Head end
-define_parser!("/.", FDivOp, 2)
-
-struct FMulOp <: Head end
-define_parser!("*.", FMulOp, 2)
-
-struct FAddOp <: Head end
-define_parser!("+.", FAddOp, 2)
-
-struct FSubOp <: Head end
-define_parser!("-.", FSubOp, 2)
-
-struct IsApproxOp <: Head end
-define_parser!("isapprox", IsApproxOp, 2)
-
 struct ErrorOp <: Head end
 define_parser!("error", ErrorOp, 1)
-
-struct LookupOp <: Head end
-define_parser!("lookup", LookupOp, 1)
-
-
 
 
 # by default we just look in subexpressions for free variables

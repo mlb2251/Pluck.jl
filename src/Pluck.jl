@@ -15,13 +15,8 @@ include("language/parsing.jl")
 include("language/values.jl")
 include("language/closures.jl")
 include("language/define.jl")
-include("language/json.jl")
 
 
-include("likelihood/enumeration/enumeration.jl")
-include("likelihood/enumeration/thunks.jl")
-include("likelihood/enumeration/monad.jl")
-include("likelihood/enumeration/compile_inner.jl")
 include("likelihood/int_dists.jl")
 include("likelihood/error.jl")
 
@@ -43,7 +38,6 @@ include("likelihood/full_dist.jl")
 
 
 include("likelihood/LPSMC.jl")
-include("likelihood/eager_knowledge_compilation.jl")
 
 include("likelihood/sample_value/sample_value.jl")
 include("likelihood/sample_value/force_value.jl")
@@ -58,7 +52,6 @@ include("toplevel/query.jl")
 include("toplevel/eval.jl")
 include("toplevel/printing.jl")
 
-include("util/bdd_viz.jl")
 include("util/tests.jl")
 
 export get_rsdd_time, clear_rsdd_time!, @rsdd_time

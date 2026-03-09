@@ -14,29 +14,3 @@
 ;; randnatlist : () -> List Nat
 ;; Sample random-length list of random naturals
 (define (randnatlist) (if (flip 0.5) (Nil) (Cons (randnat) (randnatlist))))
-
-;; make-uniform : List a -> List (Pair a Float)
-;; Build uniform distribution (list of value-probability pairs) over a list
-(define (make-uniform xs)
-  (let ((p (/. 1. (float-of-nat (length xs)))))
-    (map (fn x -> (Pair x p)) xs)))
-
-;; normalize-seq-rec : List (Pair a Float) -> Pair (List (Pair a Float)) Float
-;; Helper: normalize weights and return total weight
-(define (normalize-seq-rec pairs)
-  (match pairs
-    Nil => (Pair (Nil) 0.0)
-    Cons pair tl => (let ((tail_result (normalize-seq-rec tl))
-                          (total_weight (+. (snd pair) (snd tail_result))))
-                     (Pair (Cons (Pair (fst pair) (/. (snd pair) total_weight)) (fst tail_result)) total_weight))))
-
-;; normalize-seq : List (Pair a Float) -> List (Pair a Float)
-;; Normalize weights for sequential sampling (last weight becomes 1.0)
-(define (normalize-seq pairs)
-  (fst (normalize-seq-rec pairs)))
-
-;; sample-seq : List (Pair a Float) -> a
-;; Sample from a sequentially-normalized distribution
-(define (sample-seq dist)
-  (match dist
-    Cons pair tl => (if (flip (snd pair)) (fst pair) (sample-seq tl))))

@@ -102,10 +102,3 @@
   (if (>= x y)
     (mod (- x y) y)
     x))
-
-;; float-of-nat : Nat -> Float
-;; Convert natural number to floating-point
-(define (float-of-nat n)
-  (match n
-    O => 0.0
-    S n => (+. 1.0 (float-of-nat n))))

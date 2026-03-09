@@ -10,7 +10,7 @@ function pretty_callstack(callstack, strict_order_index=nothing)
 end
 
 function print_enter(expr, env, state)
-    getlog() || expr isa PExpr{PrintOp} || return
+    getlog() || return
     cs = pretty_callstack(state.callstack)
     printstyled("$cs $expr :: $(typeof(expr))\n", color=:yellow)
 end
@@ -34,7 +34,7 @@ function pretty_result(result; weights=false)
 end
 
 function print_exit(expr, result, env, state)
-    getlog() || expr isa PExpr{PrintOp} || return
+    getlog() || return
     cs = pretty_callstack(state.callstack)
     green = "$cs $expr :: $(typeof(expr)) "
     blue = pretty_result(result; weights=true)

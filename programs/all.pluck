@@ -5,7 +5,6 @@
 (include "fig1.pluck")
 (include "fig2.pluck")
 (include "hmm.pluck")
-(include "meta.pluck")
 (include "name_model.pluck")
 (include "pcfg.pluck")
 (include "regex.pluck")

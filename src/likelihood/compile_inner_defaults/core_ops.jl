@@ -80,7 +80,7 @@ function compile_inner(expr::PExpr{Var}, env, path_condition, state)
 end
 
 function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
-    body = Pluck.lookup(expr.head.name).expr
+    body = Pluck.DEFINITIONS[expr.head.name].expr
     # Execute Defined with an empty environment.
     with_stacktrace(state, expr) do
         res = traced_compile_inner(body, Pluck.EMPTY_ENV, path_condition, state, 0)
