@@ -1,0 +1,25 @@
+;; Ladder network verification benchmark
+;; Translated from PluckArtifact.jl/src/table1/network_verification/pluck/ladder.jl
+
+(define ladder_network
+  (lambda i1 i2 ->
+    (let (output (flip 0.5)
+          result (Cons output (not output))
+          fail_result (Cons false false))
+      (if i1 (if (flip 0.001) fail_result result)
+      (if i2 result fail_result)))))
+
+(define run_ladder_network
+  (lambda m ->
+    (case ((Y (lambda run_ladder_network n ->
+        (case n of O => (Cons true false) |
+                   S m => (case (run_ladder_network m) of Cons i1 i2 => (ladder_network i1 i2))))) m)
+    of Cons i1 i2 => i1)))
+
+;; Query: (run_ladder_network 100)
+(assert-query
+  'ladder-default
+  (Marginal
+    (run_ladder_network 100))
+  ((False) 0.5246291582230684)
+  ((True) 0.4753708417769318))

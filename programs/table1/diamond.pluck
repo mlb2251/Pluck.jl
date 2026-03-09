@@ -1,0 +1,22 @@
+;; Diamond network verification benchmark
+;; Translated from PluckArtifact.jl/src/table1/network_verification/pluck/diamond.jl
+
+(define diamond
+  (λ s1 ->
+    (let (route (flip 0.5)
+          drop  (flip 0.0001))
+      (and (or (not drop) route) s1))))
+
+(define diamond_network
+  (Y (λ network n ->
+    (case n of
+      O => true |
+      S m => (diamond (network m))))))
+
+;; Query: (diamond_network 100)
+(assert-query
+  'diamond-default
+  (Marginal
+    (diamond_network 100))
+  ((False) 0.004987645188015855)
+  ((True) 0.9950123548119845))

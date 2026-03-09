@@ -2,3 +2,5 @@
 (include "table1/hmm.pluck")
 (include "table1/string_editing.pluck")
 (include "table1/pcfg.pluck")
+(include "table1/diamond.pluck")
+(include "table1/ladder.pluck")
