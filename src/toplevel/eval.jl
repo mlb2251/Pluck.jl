@@ -1,9 +1,6 @@
 export load_pluck_file, eval_forms, sample_output, run_toplevel, run_check, diff_check_results
 
-struct CheckResult
-    name::String
-    file::String
-    passed::Bool
+struct CheckTrial
     time_ms::Float64
     num_recursive_calls::Int
     num_forward_calls::Int
@@ -12,6 +9,13 @@ struct CheckResult
     gc_time_ms::Float64
     alloc_bytes::Int64
     num_allocs::Int64
+end
+
+struct CheckResult
+    name::String
+    file::String
+    passed::Bool
+    trials::Vector{CheckTrial}
 end
 
 mutable struct ToplevelEvalState
@@ -31,70 +35,47 @@ function load_pluck_file(filename::String; kwargs...)
 end
 
 
-function format_mb(bytes::Int64)
+function format_mb(bytes)
     return @sprintf("%.1f", bytes / 1024^2)
 end
 
-function format_check_row(r::CheckResult)
-    status = r.passed ? "PASS" : "FAIL"
-    time_str = string(r.time_ms)
-    rsdd_time_str = string(r.rsdd_time_ms)
-    rsdd_pct = r.time_ms > 0 ? "$(round(r.rsdd_time_ms / r.time_ms * 100; digits=1))%" : "N/A"
-    gc_time_str = string(r.gc_time_ms)
-    alloc_str = format_mb(r.alloc_bytes)
-    return (name=r.name, status=status, time=time_str,
-            rsdd_time=rsdd_time_str, rsdd_pct=rsdd_pct,
-            bdd_size=string(r.bdd_size), gc_time=gc_time_str,
-            alloc=alloc_str, num_allocs=string(r.num_allocs),
-            num_recursive_calls=string(r.num_recursive_calls), num_forward_calls=string(r.num_forward_calls))
+
+function trial_to_dict(t::CheckTrial)
+    Dict(
+        "time_ms" => t.time_ms,
+        "rsdd_time_ms" => t.rsdd_time_ms,
+        "bdd_size" => t.bdd_size,
+        "gc_time_ms" => t.gc_time_ms,
+        "alloc_bytes" => t.alloc_bytes,
+        "num_allocs" => t.num_allocs,
+        "num_recursive_calls" => t.num_recursive_calls,
+        "num_forward_calls" => t.num_forward_calls,
+    )
 end
 
-function print_check_row(r::CheckResult)
-    row = format_check_row(r)
-    color = r.passed ? :green : :red
-    printstyled(row.status; color)
-    print("  $(row.name)  $(row.time)  $(row.rsdd_time)($(row.rsdd_pct))  bdd=$(row.bdd_size)  gc=$(row.gc_time)  $(row.alloc)MB($(row.num_allocs))  fwd=$(row.num_forward_calls)  rec=$(row.num_recursive_calls)\n")
-end
-
-function print_check_table(results::Vector{CheckResult})
-    rows = [format_check_row(r) for r in results]
-    headers = ("", "name", "ms", "rsdd ms", "rsdd%", "bdd", "gc ms", "alloc MB", "nalloc", "fwd", "rec")
-    w_status = 4
-    w_name = max(length(headers[2]), maximum(length(r.name) for r in rows))
-    w_time = max(length(headers[3]), maximum(length(r.time) for r in rows))
-    w_rsdd = max(length(headers[4]), maximum(length(r.rsdd_time) for r in rows))
-    w_rsdd_pct = max(length(headers[5]), maximum(length(r.rsdd_pct) for r in rows))
-    w_bdd = max(length(headers[6]), maximum(length(r.bdd_size) for r in rows))
-    w_gc = max(length(headers[7]), maximum(length(r.gc_time) for r in rows))
-    w_alloc = max(length(headers[8]), maximum(length(r.alloc) for r in rows))
-    w_nalloc = max(length(headers[9]), maximum(length(r.num_allocs) for r in rows))
-    w_fwd = max(length(headers[10]), maximum(length(r.num_forward_calls) for r in rows))
-    w_rec = max(length(headers[11]), maximum(length(r.num_recursive_calls) for r in rows))
-
-    # Print header
-    printstyled("$(rpad("", w_status))  $(rpad(headers[2], w_name))  $(lpad(headers[3], w_time))  $(lpad(headers[4], w_rsdd))  $(lpad(headers[5], w_rsdd_pct))  $(lpad(headers[6], w_bdd))  $(lpad(headers[7], w_gc))  $(lpad(headers[8], w_alloc))  $(lpad(headers[9], w_nalloc))  $(lpad(headers[10], w_fwd))  $(lpad(headers[11], w_rec))\n"; bold=true)
-
-    for (r, row) in zip(results, rows)
-        color = r.passed ? :green : :red
-        printstyled(rpad(row.status, w_status); color)
-        print("  $(rpad(row.name, w_name))  $(lpad(row.time, w_time))  $(lpad(row.rsdd_time, w_rsdd))  $(lpad(row.rsdd_pct, w_rsdd_pct))  $(lpad(row.bdd_size, w_bdd))  $(lpad(row.gc_time, w_gc))  $(lpad(row.alloc, w_alloc))  $(lpad(row.num_allocs, w_nalloc))  $(lpad(row.num_forward_calls, w_fwd))  $(lpad(row.num_recursive_calls, w_rec))\n")
-    end
+function mean_trial(trials::Vector{CheckTrial})
+    n = length(trials)
+    CheckTrial(
+        sum(t.time_ms for t in trials) / n,
+        round(Int, sum(t.num_recursive_calls for t in trials) / n),
+        round(Int, sum(t.num_forward_calls for t in trials) / n),
+        sum(t.rsdd_time_ms for t in trials) / n,
+        round(Int, sum(t.bdd_size for t in trials) / n),
+        sum(t.gc_time_ms for t in trials) / n,
+        round(Int64, sum(t.alloc_bytes for t in trials) / n),
+        round(Int64, sum(t.num_allocs for t in trials) / n),
+    )
 end
 
 function check_result_to_dict(r::CheckResult)
-    Dict(
-        "name" => r.name,
-        "file" => r.file,
-        "passed" => r.passed,
-        "time_ms" => r.time_ms,
-        "rsdd_time_ms" => r.rsdd_time_ms,
-        "bdd_size" => r.bdd_size,
-        "gc_time_ms" => r.gc_time_ms,
-        "alloc_bytes" => r.alloc_bytes,
-        "num_allocs" => r.num_allocs,
-        "num_recursive_calls" => r.num_recursive_calls,
-        "num_forward_calls" => r.num_forward_calls,
-    )
+    avg = mean_trial(r.trials)
+    d = Dict{String, Any}(trial_to_dict(avg))
+    d["name"] = r.name
+    d["file"] = r.file
+    d["passed"] = r.passed
+    d["num_trials"] = length(r.trials)
+    d["trials"] = [trial_to_dict(t) for t in r.trials]
+    d
 end
 
 function save_check_results(results::Vector{CheckResult})
@@ -140,16 +121,21 @@ end
 
 function fmt_val(val, key)
     if key == "alloc_bytes"
-        return format_mb(Int64(val))
+        return format_mb(val)
     elseif key in ("rsdd_time_ms", "time_ms", "gc_time_ms")
         return @sprintf("%.2f", val)
     elseif key == "rsdd_pct"
         return @sprintf("%.1f%%", val)
     else
-        return string(Int(val))
+        return string(round(Int, val))
     end
 end
 
+
+function diff_check_results()
+    base = joinpath(@__DIR__, "..", "..", "check-results")
+    diff_check_results(joinpath(base, "camera-ready.json"), joinpath(base, "latest.json"))
+end
 
 function diff_check_results(baseline_path::String, latest_path::String="check-results/latest.json")
     base = joinpath(@__DIR__, "..", "..", "check-results")
@@ -177,33 +163,6 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
     new_ordered = [r["name"] for r in new_data["results"]]
     old_only = [name for name in keys(old_results) if !haskey(new_results, name)]
     all_names = vcat(new_ordered, sort(old_only))
-
-    # Status changes
-    status_changes = []
-    for name in all_names
-        if !haskey(old_results, name)
-            push!(status_changes, (name, "NEW", new_results[name]["passed"] ? :green : :red))
-        elseif !haskey(new_results, name)
-            push!(status_changes, (name, "REMOVED", :yellow))
-        else
-            old_pass = old_results[name]["passed"]
-            new_pass = new_results[name]["passed"]
-            if old_pass && !new_pass
-                push!(status_changes, (name, "PASS → FAIL", :red))
-            elseif !old_pass && new_pass
-                push!(status_changes, (name, "FAIL → PASS", :green))
-            end
-        end
-    end
-
-    if !isempty(status_changes)
-        printstyled("Status changes:\n"; bold=true)
-        for (name, change, color) in status_changes
-            printstyled("  $change"; color)
-            println("  $name")
-        end
-        println()
-    end
 
     # Performance table
     metrics = [
@@ -270,14 +229,14 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
     end
 
     if !isempty(table_rows)
-        printstyled("Performance changes:\n"; bold=true)
+        w_pf = 2  # "P" or "F"
         w_name = maximum(length(r.name) for r in table_rows)
         col_widths = [max(length(label), maximum(max(length(row.cells[i].old_str), length(row.cells[i].new_str)) for row in table_rows)) for (i, (_, label, _)) in enumerate(metrics)]
-        total_width = 2 + w_name + sum(2 + w for w in col_widths)
+        total_width = 2 + w_pf + 1 + w_name + sum(2 + w for w in col_widths)
         separator = "  " * "─"^(total_width - 2)
 
         # Print header
-        printstyled("  $(rpad("", w_name))"; bold=true)
+        printstyled("  $(rpad("", w_pf)) $(rpad("", w_name))"; bold=true)
         for (i, (_, label, _)) in enumerate(metrics)
             printstyled("  $(lpad(label, col_widths[i]))"; bold=true)
         end
@@ -285,14 +244,28 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
         printstyled(separator, "\n"; color=:light_black)
 
         for (ri, row) in enumerate(table_rows)
+            # Determine pass/fail for this row
+            pf_str = ""
+            pf_color = :normal
+            if haskey(new_results, row.name)
+                if new_results[row.name]["passed"]
+                    pf_str = "P"
+                    pf_color = :green
+                else
+                    pf_str = "F"
+                    pf_color = :red
+                end
+            end
+
             # Old values line
-            printstyled("  $(rpad(row.name, w_name))"; bold=true)
+            printstyled("  $(rpad(pf_str, w_pf))"; color=pf_color, bold=true)
+            printstyled(" $(rpad(row.name, w_name))"; bold=true)
             for (i, cell) in enumerate(row.cells)
                 printstyled("  $(lpad(cell.old_str, col_widths[i]))"; color=:light_black)
             end
             println()
             # New values line (colored)
-            print("  $(rpad("", w_name))")
+            print("  $(rpad("", w_pf)) $(rpad("", w_name))")
             for (i, cell) in enumerate(row.cells)
                 printstyled("  $(lpad(cell.new_str, col_widths[i]))"; color=cell.color)
             end
@@ -304,7 +277,7 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
         println()
     end
 
-    if isempty(status_changes) && !any_changes && !isempty(table_rows)
+    if !any_changes && !isempty(table_rows)
         printstyled("No significant changes.\n"; color=:green)
     end
 end
@@ -370,24 +343,45 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
         body = deterministic_world(toplevel_compile(expr.head.query; state))
     end
 
-    clear_bdd_stats!()
-    Base.GC.gc(true)
-    gc_before = Base.gc_num()
-    t = time()
-    results = eval_query(body, state)
-    elapsed_ms = round((time() - t) * 1000; digits=2)
-    gc_after = Base.gc_num()
-    bdd_stats = get_bdd_stats()
-    rsdd_ms = round(bdd_stats.rsdd_time * 1000; digits=2)
-    total_bdd_size = bdd_stats.total_bdd_size
-    gc_time_ms = round((gc_after.total_time - gc_before.total_time) / 1e6; digits=2)
-    alloc_bytes = Int64(gc_after.allocd - gc_before.allocd)
-    num_allocs = Int64((gc_after.malloc + gc_after.realloc + gc_after.poolalloc + gc_after.bigalloc) -
-                       (gc_before.malloc + gc_before.realloc + gc_before.poolalloc + gc_before.bigalloc))
+    # Run trials until we've spent ~1s of wall time (always at least once)
+    trials = CheckTrial[]
+    results = nothing
+    stats = nothing
+    wall_start = time()
+    while true
+        # Re-compile for each trial after the first (fresh state)
+        if !isempty(trials)
+            free_state(state)
+            state = LazyKCState()
+            body = deterministic_world(toplevel_compile(expr.head.query; state))
+        end
+
+        clear_bdd_stats!()
+        Base.GC.gc(true)
+        gc_before = Base.gc_num()
+        t = time()
+        results = eval_query(body, state)
+        elapsed_ms = round((time() - t) * 1000; digits=2)
+        gc_after = Base.gc_num()
+        bdd_stats = get_bdd_stats()
+        rsdd_ms = round(bdd_stats.rsdd_time * 1000; digits=2)
+        total_bdd_size = bdd_stats.total_bdd_size
+        gc_time_ms = round((gc_after.total_time - gc_before.total_time) / 1e6; digits=2)
+        alloc_bytes = Int64(gc_after.allocd - gc_before.allocd)
+        num_allocs = Int64((gc_after.malloc + gc_after.realloc + gc_after.poolalloc + gc_after.bigalloc) -
+                           (gc_before.malloc + gc_before.realloc + gc_before.poolalloc + gc_before.bigalloc))
+        stats = state.stats
+        time_ms = stats.time !== nothing ? round(task_time(stats.time) * 1000; digits=2) : elapsed_ms
+        push!(trials, CheckTrial(time_ms, stats.num_recursive_calls, stats.num_forward_calls, rsdd_ms, total_bdd_size, gc_time_ms, alloc_bytes, num_allocs))
+
+        if !toplevel_state.check || (time() - wall_start) >= 1.0
+            break
+        end
+    end
+    elapsed_ms = round(mean_trial(trials).time_ms; digits=2)
     if !toplevel_state.silent && !toplevel_state.check
         print_query_results_by_type(body, results, expr.head.name; elapsed_ms)
     end
-    stats = state.stats
     free_state(state)
 
     # Check results against expected values
@@ -419,9 +413,12 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
         if !all_passed
             toplevel_state.fail_count[] += 1
         end
-        time_ms = stats.time !== nothing ? round(task_time(stats.time) * 1000; digits=2) : elapsed_ms
-        cr = CheckResult(expr.head.name, toplevel_state.current_file, all_passed, time_ms, stats.num_recursive_calls, stats.num_forward_calls, rsdd_ms, total_bdd_size, gc_time_ms, alloc_bytes, num_allocs)
+        cr = CheckResult(expr.head.name, toplevel_state.current_file, all_passed, trials)
         push!(toplevel_state.check_results, cr)
+        n = length(trials)
+        if n > 1
+            printstyled("($n trials) "; color=:light_black)
+        end
     else
         if all_passed
             printstyled("  PASS: $(expr.head.name) ($(length(expected)) assertions)\n"; color=:green)

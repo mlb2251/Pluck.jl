@@ -21,11 +21,11 @@ function run_check(files=nothing)
         load_pluck_file(file; check=true, fail_count, check_results)
     end
 
-    # Reprint aligned table
+    # Save results and show diff against baseline
     if !isempty(check_results)
         println()
-        print_check_table(check_results)
         save_check_results(check_results)
+        diff_check_results()
     end
 
     n = fail_count[]

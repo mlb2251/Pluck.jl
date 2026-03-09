@@ -15,7 +15,7 @@ generate-bayes-nets:
 
 BEFORE=check-results/camera-ready.json
 AFTER=check-results/latest.json
-check-diff:
+diff:
 	julia --project -e 'using Pluck; Pluck.diff_check_results(ARGS[1], ARGS[2])' -- $(BEFORE) $(AFTER)
 
 NAME=latest
@@ -24,6 +24,5 @@ examples:
 	mkdir -p out/examples
 	julia --project -e 'using Pluck; Pluck.run_examples()' > out/examples/$(NAME).txt
 
-
-diff:
+examples-diff:
 	diff -u out/examples/$(STABLE).txt out/examples/$(NAME).txt
