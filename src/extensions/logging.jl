@@ -42,3 +42,32 @@ function print_exit(expr, result, env, state)
     length(green) + length(blue) > 80 && print("\n")
     printstyled(blue * "\n", color=:blue)
 end
+
+
+function pretty_thunk(thunk::LazyKCThunk)
+    return "Thunk $(thunk.expr)"
+end
+
+function print_thunk_enter(thunk::LazyKCThunk, state)
+    getlog() || return
+    cs = pretty_callstack(state.callstack)
+    thunk_cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
+    printstyled("$cs $(pretty_thunk(thunk)) ", color=:yellow)
+    printstyled("@ $thunk_cs\n", color=:magenta)
+end
+
+function print_thunk_exit(thunk::LazyKCThunk, result, state)
+    getlog() || return
+    cs = pretty_callstack(state.callstack)
+    thunk_cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
+    printstyled("$thunk_cs $(pretty_thunk(thunk)) ", color=:green)
+    result = pretty_result(result; weights=true)
+    printstyled(result, color=:blue)
+    printstyled(" @ $cs\n", color=:magenta)
+end
+
+function print_make_thunk(thunk::LazyKCThunk, state)
+    getlog() || return
+    cs = pretty_callstack(thunk.callstack, thunk.strict_order_index)
+    printstyled("$cs Make $(pretty_thunk(thunk))\n", color=:cyan)
+end

@@ -116,3 +116,24 @@ function adaptive_rejection_sampling(val, state::LazyKCState)
     end
 
 end
+
+
+function clear_thunk_cache!(::Nothing) end
+function clear_thunk_cache!(thunk::LazyKCThunk)
+    empty!(thunk.cache)
+    clear_env_thunk_caches(thunk.env)
+end
+function clear_thunk_cache!(union_thunk::LazyKCThunkUnion)
+    for (t, _) in union_thunk.thunks
+        clear_thunk_cache!(t)
+    end
+end
+
+function clear_env_thunk_caches(env::EnvCons)
+    val = env.val
+    if val isa LazyKCThunk || val isa LazyKCThunkUnion
+        clear_thunk_cache!(val)
+    end
+    clear_env_thunk_caches(env.tail)
+end
+clear_env_thunk_caches(::EnvNil) = nothing
