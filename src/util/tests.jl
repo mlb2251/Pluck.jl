@@ -9,7 +9,7 @@ function run_examples()
     end
 end
 
-function run_check(files=nothing)
+function run_check(files=nothing; baseline=nothing)
     fail_count = Ref(0)
     check_results = CheckResult[]
     if files === nothing
@@ -25,7 +25,11 @@ function run_check(files=nothing)
     if !isempty(check_results)
         println()
         save_check_results(check_results)
-        diff_check_results()
+        if baseline !== nothing
+            diff_check_results(baseline)
+        else
+            diff_check_results()
+        end
     end
 
     n = fail_count[]

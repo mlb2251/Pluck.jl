@@ -158,11 +158,9 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
     printstyled("Current:  $new_ts\n"; color=:light_black)
     println()
 
-    # Use ordering from the new results file, then append any old-only names
+    # Use ordering from the new results file, skip old-only names
     new_data = JSON.parsefile(latest_path)
-    new_ordered = [r["name"] for r in new_data["results"]]
-    old_only = [name for name in keys(old_results) if !haskey(new_results, name)]
-    all_names = vcat(new_ordered, sort(old_only))
+    all_names = [r["name"] for r in new_data["results"]]
 
     # Performance table
     metrics = [

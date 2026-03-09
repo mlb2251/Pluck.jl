@@ -241,18 +241,6 @@ function parse_expr_inner(tokens, state)
             # Parse as a CaseOf expression.
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
             return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
-        elseif token == "Y"
-            # parse a Y
-            tokens = view(tokens, 2:length(tokens))
-            f, tokens = parse_expr_inner(tokens, state)
-            e = Y()(f)
-            if tokens[1] != ")"
-                # parse (Y f x) into App(Y(f), x)
-                x, tokens = parse_expr_inner(tokens, state)
-                e = App()(e, x)
-            end
-            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after Y combinator")
-            return e, view(tokens, 2:length(tokens))
         elseif token == "case" || token == "match"
             # case e1 of Cons => (λ_->(λ_->e2)) | Nil => e3
             tokens = view(tokens, 2:length(tokens))

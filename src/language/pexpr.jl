@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Y, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, UniformIntOp, UniformIntRangeOp, IntDistEqOp, GetArgsOp, PBoolOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
+export PExpr, Head, Var, App, Abs, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, UniformIntOp, UniformIntRangeOp, IntDistEqOp, GetArgsOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
 
 import DataStructures: OrderedDict
 
@@ -265,9 +265,6 @@ function prim_arity(::Type{T}) where T <: Head
     arity_of_primop[T]
 end
 
-struct Y <: Head end
-define_parser!("Y", Y, 1)
-
 struct FlipOp <: Head end
 define_parser!("flip", FlipOp, 1)
 
@@ -300,14 +297,3 @@ define_parser!("abstract_type", AbstractTypeOp, 1)
 
 struct ErrorOp <: Head end
 define_parser!("error", ErrorOp, 1)
-
-
-# by default we just look in subexpressions for free variables
-var_is_free(e::PExpr, var) = any(var_is_free(arg, var) for arg in e.args)
-# abs binds a new variable
-var_is_free(e::PExpr{Abs}, var) = var_is_free(e.args[1], var + 1)
-# vars are free if they are the same as the variable we're checking for
-var_is_free(e::PExpr{Var}, var) = e.head.name == var
-# CaseOf branches also bind variables – one for each arg to the guard
-var_is_free(e::PExpr{CaseOf}, var) = 
-    var_is_free(getscrutinee(e), var) || any(case -> !any(arg -> arg == var, getguard(e, case).args) && var_is_free(getbranch(e, case), var), 1:numbranches(e))

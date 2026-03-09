@@ -92,14 +92,6 @@ function compile_inner(expr::PExpr{Defined}, env, path_condition, state)
     end
 end
 
-function compile_inner(expr::PExpr{Y}, env, path_condition, state)
-    rec_lambda = expr.args[1] :: PExpr{Abs}
-    arg_lambda = rec_lambda.args[1] :: PExpr{Abs}
-    closure = make_self_loop(arg_lambda.args[1], env, rec_lambda.head.var, arg_lambda.head.var, expr)
-
-    return pure_monad(closure, path_condition, state)
-end
-
 function compile_inner(expr::PExpr{ErrorOp}, env, path_condition, state)
     pluck_error(state, "ErrorOp: $expr")
 end
