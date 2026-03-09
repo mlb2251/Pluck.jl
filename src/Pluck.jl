@@ -17,7 +17,7 @@ include("language/closures.jl")
 include("language/define.jl")
 
 
-include("likelihood/int_dists.jl")
+include("extensions/int_dists.jl")
 include("likelihood/error.jl")
 
 include("likelihood/compile_inner_defaults/core_ops.jl")
@@ -33,19 +33,19 @@ include("likelihood/lazy_knowledge_compilation/compile_inner.jl")
 include("likelihood/lazy_knowledge_compilation/logging.jl")
 
 
-include("likelihood/optimize.jl")
+include("extensions/optimize.jl")
 include("likelihood/full_dist.jl")
 
 
-include("likelihood/LPSMC.jl")
+include("extensions/LPSMC.jl")
 
-include("likelihood/sample_value/sample_value.jl")
-include("likelihood/sample_value/force_value.jl")
-include("likelihood/sample_value/compile_inner.jl")
-include("likelihood/sample_value/thunks.jl")
-include("likelihood/sample_value/monad.jl")
+include("extensions/sample_value/sample_value.jl")
+include("extensions/sample_value/force_value.jl")
+include("extensions/sample_value/compile_inner.jl")
+include("extensions/sample_value/thunks.jl")
+include("extensions/sample_value/monad.jl")
 
-include("likelihood/posterior_sampling.jl")
+include("extensions/posterior_sampling.jl")
 
 include("toplevel/parsing.jl")
 include("toplevel/query.jl")

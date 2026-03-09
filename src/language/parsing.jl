@@ -1,14 +1,4 @@
-export parse_expr, @expr_str
-
-"""
-expr"..." is equivalent to parse_expr("...")
-No string interpolation is done - this simplifies \$var parsing to not require escaping.
-If you need string interpolation, just do parse_expr() directly.
-"""
-macro expr_str(str)
-    # interpolated_str = Meta.parse("\"$str\"")
-    :(parse_expr($(esc(str))))
-end
+export parse_expr
 
 """
 Token with source position information for better error messages.
@@ -644,14 +634,6 @@ function format_parse_error_to_stderr(state::ParseState, tokens, msg::String)
         end
     end
 end
-
-# function get_context(tokens::SubArray)
-#     full_context = tokens.parent
-#     start = tokens.indices[1].start
-#     stop = t
-#     # stop = tokens.indices[1].stop
-
-# end
 
 
 function detokenize(tokens)

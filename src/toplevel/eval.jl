@@ -216,7 +216,8 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
                     d = fmt_delta(old_val, new_val; higher_is_worse=hiw)
                     color = d !== nothing ? d.color : (new_val < old_val ? (hiw ? :green : :red) : (hiw ? :red : :green))
                     ratio = old_val != 0 ? abs((new_val - old_val) / old_val) : 1.0
-                    push!(cells, (old_str=old_fmt, new_str=new_fmt, color=color, changed=true, bold=ratio > 0.1))
+                    stars = ratio > 0.4 ? "***" : ratio > 0.3 ? "**" : ratio > 0.2 ? "*" : ""
+                    push!(cells, (old_str=old_fmt, new_str=stars * new_fmt, color=color, changed=true, bold=ratio > 0.1))
                     row_has_change = true
                 end
             end
