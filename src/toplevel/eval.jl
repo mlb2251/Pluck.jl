@@ -204,20 +204,21 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
             new_missing = new_val === nothing
 
             if old_missing && new_missing
-                push!(cells, (old_str="-", new_str="-", color=:light_black, changed=false))
+                push!(cells, (old_str="-", new_str="-", color=:light_black, changed=false, bold=false))
             elseif old_missing
-                push!(cells, (old_str="-", new_str=fmt_val(new_val, key), color=:white, changed=false))
+                push!(cells, (old_str="-", new_str=fmt_val(new_val, key), color=:white, changed=false, bold=false))
             elseif new_missing
-                push!(cells, (old_str=fmt_val(old_val, key), new_str="-", color=:light_black, changed=false))
+                push!(cells, (old_str=fmt_val(old_val, key), new_str="-", color=:light_black, changed=false, bold=false))
             else
                 old_fmt = fmt_val(old_val, key)
                 new_fmt = fmt_val(new_val, key)
                 if old_fmt == new_fmt
-                    push!(cells, (old_str=old_fmt, new_str=new_fmt, color=:normal, changed=false))
+                    push!(cells, (old_str=old_fmt, new_str=new_fmt, color=:normal, changed=false, bold=false))
                 else
                     d = fmt_delta(old_val, new_val; higher_is_worse=hiw)
                     color = d !== nothing ? d.color : (new_val < old_val ? (hiw ? :green : :red) : (hiw ? :red : :green))
-                    push!(cells, (old_str=old_fmt, new_str=new_fmt, color=color, changed=true))
+                    ratio = old_val != 0 ? abs((new_val - old_val) / old_val) : 1.0
+                    push!(cells, (old_str=old_fmt, new_str=new_fmt, color=color, changed=true, bold=ratio > 0.1))
                     row_has_change = true
                 end
             end
@@ -264,10 +265,10 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
                 printstyled("  $(lpad(cell.old_str, col_widths[i]))"; color=:light_black)
             end
             println()
-            # New values line (colored)
+            # New values line (colored, bold if >10% change)
             print("  $(rpad("", w_pf)) $(rpad("", w_name))")
             for (i, cell) in enumerate(row.cells)
-                printstyled("  $(lpad(cell.new_str, col_widths[i]))"; color=cell.color)
+                printstyled("  $(lpad(cell.new_str, col_widths[i]))"; color=cell.color, underline=cell.bold)
             end
             println()
             if ri < length(table_rows)
