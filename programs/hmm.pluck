@@ -32,7 +32,7 @@
 
 ;; Posterior distribution of the 11th latent,
 ;; given that the first fifty observations are all true.
-(query
+(assert-query
  'posterior-first-fifty-latents
  (let ((chain (hmm (flip 0.5))))
    ;; Compute the exact posterior distribution P(11th latent | first fifty observations all true)
@@ -40,7 +40,9 @@
     ;; Query expression -- A in "P(A | B)"
     (fst (index 10 chain))
     ;; Evidence -- B in "P(A | B)"
-    (all (take 50 (map snd chain))))))
+    (all (take 50 (map snd chain)))))
+ ((True) 0.6338219329206617)
+ ((False) 0.36617806707933825))
 
 ;; Sample from the posterior of the entire latent chain.
 (query

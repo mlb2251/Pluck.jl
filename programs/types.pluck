@@ -13,7 +13,7 @@
     )
 )
 
-(define (rand-mytype) 
+(define (rand-mytype)
     (if (flip 0.5)
         (MyNat)
         (MyList (rand-mytype))))
@@ -36,7 +36,7 @@
 
 
 
-;; (define (type-checks x t) 
+;; (define (type-checks x t)
 
 
 (define (my-add a b) (match a
@@ -49,14 +49,24 @@
     Nil => (Nil)
     Cons x xs => (Cons (f x) (my-map f xs))))
 
-(query (Marginal
-    (my-add 4 5)))
+(assert-query
+ 'my-add-4-5
+ (Marginal
+  (my-add 4 5))
+ (9 1.0))
 
-(query (Marginal
-    (my-map (fn x -> (my-add x x)) [1 2 3 4 5])))
+(assert-query
+ 'my-map-double
+ (Marginal
+  (my-map (fn x -> (my-add x x)) [1 2 3 4 5]))
+ ([2, 4, 6, 8, 10] 1.0))
 
-(query (Marginal
-    (=? (rand-mytype) (MyList (MyList (MyNat))))))
+(assert-query
+ 'rand-mytype-eq
+ (Marginal
+  (=? (rand-mytype) (MyList (MyList (MyNat)))))
+ ((False) 0.875)
+ ((True) 0.125))
 
 ;; (query (Marginal
 ;;     (=? (rand-myvalue (MyNat)) 5)))
@@ -64,17 +74,19 @@
 ;; (query (Marginal
 ;;     (=? (rand-myvalue (MyList (MyNat))) [5 5 5])))
 
-(query (Marginal
-    (let (tx (rand-mytype)
-          vx (rand-myvalue tx)
-          ty (rand-mytype)
-          vy (rand-myvalue ty)
-          vz (my-add vx vy)
-          tz (typeof vz))
-        (if (True)
-            (Some [tz])
-            (None)))))
-
+(assert-query
+ 'type-inference
+ (Marginal
+  (let (tx (rand-mytype)
+        vx (rand-myvalue tx)
+        ty (rand-mytype)
+        vy (rand-myvalue ty)
+        vz (my-add vx vy)
+        tz (typeof vz))
+      (if (True)
+          (Some [tz])
+          (None))))
+ ((Some [(MyNat)]) 0.375))
 
 
 

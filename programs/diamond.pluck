@@ -11,4 +11,8 @@
     O => (True)
     S m => (diamond (network m))))
 
-(query 'network-100 (Marginal (network 100)))
+(assert-query
+ 'network-100
+ (Marginal (network 100))
+ ((True) 0.9950123548119845)
+ ((False) 0.004987645188015855))

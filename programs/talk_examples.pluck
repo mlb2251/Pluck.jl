@@ -23,24 +23,49 @@
     (and (=? (program (talk-inputs-1)) (talk-outputs-1))
          (=? (program (talk-inputs-2)) (talk-outputs-2))))
 
-(query
-  (Marginal
-  (talk-evaluate (talk-hypothesis-1))))
-(query
-  (Marginal
-  (talk-evaluate (talk-hypothesis-2))))
-(query
-  (Marginal
-  (talk-evaluate (talk-hypothesis-3))))
-(query
-  (Marginal
-  (talk-evaluate (talk-hypothesis-4))))
-(query
-  (Marginal
-  (talk-evaluate (talk-hypothesis-5))))
-(query
-  (Marginal
-  (talk-evaluate (talk-hypothesis-alt-1))))
-(query
-  (Marginal
-  (talk-evaluate (talk-hypothesis-alt-2))))
+(assert-query
+ 'talk-hypothesis-1
+ (Marginal
+  (talk-evaluate (talk-hypothesis-1)))
+ ((False) 1.0)
+ ((True) 1.3552527156068805e-20))
+
+(assert-query
+ 'talk-hypothesis-2
+ (Marginal
+  (talk-evaluate (talk-hypothesis-2)))
+ ((False) 1.0)
+ ((True) 2.7755575615628914e-17))
+
+(assert-query
+ 'talk-hypothesis-3
+ (Marginal
+  (talk-evaluate (talk-hypothesis-3)))
+ ((False) 0.9999999994534107)
+ ((True) 5.465893523925493e-10))
+
+(assert-query
+ 'talk-hypothesis-4
+ (Marginal
+  (talk-evaluate (talk-hypothesis-4)))
+ ((False) 0.998046875)
+ ((True) 0.001953125))
+
+(assert-query
+ 'talk-hypothesis-5
+ (Marginal
+  (talk-evaluate (talk-hypothesis-5)))
+ ((True) 1.0))
+
+(assert-query
+ 'talk-hypothesis-alt-1
+ (Marginal
+  (talk-evaluate (talk-hypothesis-alt-1)))
+ ((False) 1.0))
+
+(assert-query
+ 'talk-hypothesis-alt-2
+ (Marginal
+  (talk-evaluate (talk-hypothesis-alt-2)))
+ ((False) 1.0)
+ ((True) 5.421010862427522e-20))

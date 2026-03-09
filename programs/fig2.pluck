@@ -4,20 +4,26 @@
     (let (x (+ n (geom 0.5)))
       (Cons x (mkSortedList x)))))
 
-(query
+(assert-query
  'first-two-elements-are-zero
  (Marginal
   (list=? nat=?
           (take 2 (mkSortedList 0))
-          (Cons 0 (Cons 0 (Nil))))))
+          (Cons 0 (Cons 0 (Nil)))))
+ ((False) 0.9375)
+ ((True) 0.0625))
 
-(query
+(assert-query
  'second-element-given-first-and-third
  (let ((xs (mkSortedList 0)))
    (Posterior
     (index 1 xs)
     (and (nat=? (index 0 xs) 2)
-         (nat=? (index 2 xs) 5)))))
+         (nat=? (index 2 xs) 5))))
+ (2 0.25)
+ (3 0.25)
+ (4 0.25)
+ (5 0.25))
 
 (query
  'posterior-samples-given-sixth-elem-is-3

@@ -2,20 +2,25 @@
   (+ (geom p) (geom 0.2)))
 
 ;; Marginal probability that
-;; the generated number is 
+;; the generated number is
 ;; greater than 5.
-(query
-  ;; Query name (optional):
+(assert-query
  'num-greater-than-five
-  ;; Query:
  (Marginal
-  (> (generate-number 0.7) 5)))
+  (> (generate-number 0.7) 5))
+ ((False) 0.7064862000000001)
+ ((True) 0.2935138000000001))
 
 ;; Posterior distribution of the number,
 ;; given that it is less than 5.
-(query
+(assert-query
  'posterior-given-less-than-five
  (let ((n (generate-number 0.7)))
    (Posterior
     n
-    (< n 5))))
+    (< n 5)))
+ (1 0.24317453299436276)
+ (0 0.22106775726760244)
+ (2 0.21443572454957446)
+ (3 0.17751740908588484)
+ (4 0.14380457610257547))

@@ -9,4 +9,8 @@
     ;; given that `called` is true
     (Posterior burglary called)))
 
-(query 'burglary-given-that-mary-called (burglary))
+(assert-query
+ 'burglary-given-that-mary-called
+ (burglary)
+ ((False) 0.9970065507586944)
+ ((True) 0.0029934492413055437))

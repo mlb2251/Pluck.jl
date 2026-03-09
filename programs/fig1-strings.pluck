@@ -44,10 +44,11 @@
 ;;  - (Marginal <expr>), to compute the marginal distribution over values that <expr> can take on.
 ;;  - (Posterior <expr> <bool>), to compute the posterior distribution over values that <expr> can take on, conditioned on the evidence <bool> being true.
 ;;  - (PosteriorSamples <expr> <bool> <num-samples>), to draw <num-samples> samples from the posterior distribution over values that <expr> can take on, conditioned on the evidence <bool> being true.
-(query
- ;; Query name
+(assert-query
  'lazy-to-lucky
- (Marginal (string=? (perturb "lazy") "lucky")))
+ (Marginal (string=? (perturb "lazy") "lucky"))
+ ((False) 0.9999999999967386)
+ ((True) 3.2614371064714946e-12))
 
 ;; Is "gat" more likely a typo of "goat" or "bat"?
 (assert-query
