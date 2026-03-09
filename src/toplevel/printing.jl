@@ -52,18 +52,19 @@ function print_query_results(results, query_str; save = false)
 end
 
 
-function print_query_results_by_type(val, results, query_str; save = nothing)
+function print_query_results_by_type(val, results, query_str; save = nothing, elapsed_ms = nothing)
+    time_str = isnothing(elapsed_ms) ? "" : " $(elapsed_ms)ms"
     if val.constructor == :Marginal
-        print_query_results(results, query_str; save)
+        print_query_results(results, "$query_str$time_str"; save)
     elseif val.constructor == :Posterior
-        print_query_results(results, query_str; save)
+        print_query_results(results, "$query_str$time_str"; save)
     elseif val.constructor == :PosteriorSamples
-        printstyled("$query_str:\n", color=:yellow, bold=true)
+        printstyled("$query_str$time_str:\n", color=:yellow, bold=true)
         for (i, result) in enumerate(results)
             printstyled("  $result\n", bold=true)
         end
     elseif val.constructor == :AdaptiveRejection
-        printstyled("$query_str:\n", color=:yellow, bold=true)
+        printstyled("$query_str$time_str:\n", color=:yellow, bold=true)
         printstyled("  $results\n", bold=true)
     else
         error("printing not supported for query type $(val.constructor)")

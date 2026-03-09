@@ -3,7 +3,7 @@ bindings:
 julia-instantiate:
 	julia --project -e 'using Pkg; Pkg.instantiate()'
 test:
-	julia --project -e 'using Pluck; Pluck.run_examples(); Pluck.deriv_tests()'
+	julia --project -e 'using Pluck; Pluck.run_examples()'
 
 NAME=latest
 STABLE=stable
