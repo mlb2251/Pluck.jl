@@ -1,32 +1,21 @@
 ;; HMM benchmark
-;; Translated from Julia benchmark definitions
-;;
-;; HMM with Boolean latent states and observations.
-;; Transition: P(z1=T|z0=T)=0.7, P(z1=T|z0=F)=0.1
-;; Emission: P(emit=T|z1=T)=0.3, P(emit=T|z1=F)=0.6
+;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/hmm.jl
 
-;; hmm: generates a lazy stream of Boolean observations
-(define (hmm z0)
-  (let ((z1 (flip (if z0 0.7 0.1))))
-    (Cons (flip (if z1 0.3 0.6)) (hmm z1))))
+(define hmm
+  (Y (λ rec z0 ->
+    (let (z1 (flip (if z0 0.7 0.1)))
+      (Cons (flip (if z1 0.3 0.6)) (rec z1))))))
 
-;; prefix_equals?: checks if xs matches ys element-by-element
-;; for the length of ys
-(define (prefix_equals? xs ys)
-  (match ys
-    Nil => (True)
-    Cons yhd ytl =>
-    (match xs
-      Nil => (False)
-      Cons xhd xtl => (and (constructor=? xhd yhd) (prefix_equals? xtl ytl)))))
+(define prefix_equals?
+  (Y (λ rec xs ys ->
+    (case ys of Nil => true |
+                Cons yhd ytl => (case xs of Nil => false |
+                                            Cons xhd xtl => (and (constructors_equal xhd yhd) (rec xtl ytl)))))))
 
-;; generate_observations: generates a list of n True values
-(define (generate_observations n)
-  (match n
-    O => (Nil)
-    S npred => (Cons (True) (generate_observations npred))))
+(define generate_observations
+  (Y (λ rec n -> (case n of O => (Nil) | S => (λ npred -> (Cons (True) (rec npred)))))))
 
-;; Query: probability that first 50 HMM outputs (starting from False) are all True
+;; Query: (hmm_example 50) = (prefix_equals? (hmm (False)) (generate_observations 50))
 (assert-query
   'hmm-default
   (Marginal

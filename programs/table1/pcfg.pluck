@@ -1,46 +1,62 @@
 ;; PCFG benchmark
-;; Translated from Julia benchmark definitions
-;;
-;; Probabilistic context-free grammar with non-terminals SS, XX, YY
-;; and terminals a, b, c.
+;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/pcfg.jl
 
-(define-type pcfg_nt (SS) (XX) (YY))
-(define-type pcfg_t (a_) (b_) (c_))
+;; Original: Pluck.define_type!(:pcfg_grammar_symbol, Dict(:SS => Symbol[], :XX => Symbol[], :YY => Symbol[], :a => Symbol[], :b => Symbol[], :c => Symbol[]))
+(define-type pcfg_grammar_symbol (SS) (XX) (YY) (a) (b) (c))
 
-;; generate_pcfg: generates a list of terminals from a non-terminal
-;; SS => flip order, then append (generate XX) and (generate YY)
-;; XX => flip 0.5: either [a] or [b] ++ (generate XX) ++ (generate XX)
-;; YY => [c] ++ (flip 0.5: [] or (generate (flip 0.5: XX or SS)))
-(define (generate_pcfg symbol)
-  (match symbol
-    SS =>
-    (let ((xgen (generate_pcfg (XX)))
-          (ygen (generate_pcfg (YY)))
-          (order (flip 0.5)))
-      (if order (append xgen ygen) (append ygen xgen)))
-    XX =>
-    (if (flip 0.5)
-      (Cons (a_) (Nil))
-      (Cons (b_) (append (generate_pcfg (XX)) (generate_pcfg (XX)))))
-    YY =>
-    (Cons (c_) (if (flip 0.5)
-                 (Nil)
-                 (generate_pcfg (if (flip 0.5) (XX) (SS)))))))
+(define generate_pcfg_grammar
+  (Y (λ generate symbol ->
+    (case symbol of
+      SS => (let (xgen (generate ( XX )) ygen (generate (YY)) order (flip 0.5))
+        (if order (append xgen ygen) (append ygen xgen)))
+      XX => (if (flip 0.5) (Cons (a) (Nil)) (Cons (b) (append (generate (XX)) (generate (XX)))))
+      YY => (Cons (c) (if (flip 0.5) (Nil) (generate (if (flip 0.5) (XX) (SS)))))
+    )
+  )))
 
-(define pcfg_string=? (list=? constructor=?))
+(define symbol_equals
+  (λ symbol1 symbol2 ->
+    (case symbol1 of
+      a => (case symbol2 of
+        a => true
+        b => false
+        c => false)
+      b => (case symbol2 of
+        a => false
+        b => true
+        c => false)
+      c => (case symbol2 of
+        a => false
+        b => false
+        c => true)
+    )
+  ))
 
-;; Query: probability that generate_pcfg(SS) produces the test string
-;; test_example_string = [c,b,b,b,a,b,b,a,b,a,b,b,a,b,a,a,a,a,a,b,a,a,a]
+(define list_symbols_equal
+  (Y (λ rec list1 list2 ->
+    (case list1 of
+      Nil => (case list2 of
+        Nil => true
+        Cons _ _ => false)
+      Cons hd1 tl1 => (case list2 of
+        Nil => false
+        Cons hd2 tl2 => (and (symbol_equals hd1 hd2) (rec tl1 tl2)))
+    )
+  )))
+
+;; Query: pcfg_query() =
+;;   (list_symbols_equal (generate_pcfg_grammar (SS)) <test_example_string>)
+;; test_example_string = [:c, :b, :b, :b, :a, :b, :b, :a, :b, :a, :b, :b, :a, :b, :a, :a, :a, :a, :a, :b, :a, :a, :a]
 (assert-query
   'pcfg-default
   (Marginal
-    (pcfg_string=?
-      (generate_pcfg (SS))
-      (Cons (c_) (Cons (b_) (Cons (b_) (Cons (b_) (Cons (a_)
-      (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_)
-      (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_)
-      (Cons (a_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (b_)
-      (Cons (a_) (Cons (a_) (Cons (a_)
+    (list_symbols_equal
+      (generate_pcfg_grammar (SS))
+      (Cons (c) (Cons (b) (Cons (b) (Cons (b) (Cons (a)
+      (Cons (b) (Cons (b) (Cons (a) (Cons (b) (Cons (a)
+      (Cons (b) (Cons (b) (Cons (a) (Cons (b) (Cons (a)
+      (Cons (a) (Cons (a) (Cons (a) (Cons (a) (Cons (b)
+      (Cons (a) (Cons (a) (Cons (a)
       (Nil))))))))))))))))))))))))))
   ((False) 0.9999999701976776)
   ((True) 2.9802322387695312e-8))

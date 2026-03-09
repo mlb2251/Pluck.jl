@@ -1,42 +1,51 @@
 ;; String editing benchmark
-;; Translated from Julia benchmark definitions
-;;
-;; Model of typos with insertions, deletions, and substitutions
-;; over a 5-character alphabet (a-e).
+;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/string_editing.jl
 
-(define-type char5 (ca) (cb) (cc) (cd) (ce))
+;; Original: Pluck.define_type!(:Char, Dict(Symbol("$(a)_") => Symbol[] for a = 'a':'e'))
+(define-type Char (a_) (b_) (c_) (d_) (e_))
 
-(define (random_char5)
-  (uniform (ca) (cb) (cc) (cd) (ce)))
+;; Original: make_uniform(CHARACTERS) — uniform over 5 chars via nested flips
+(define (random_char)
+  (uniform (a_) (b_) (c_) (d_) (e_)))
 
-(define strings_eq (list=? constructor=?))
+(define strings_eq
+  (Y (λ strings_eq l1 l2 -> (case l1 of
+    Nil => (case l2 of Nil => true | Cons _ _ => false)
+    Cons c1 c2 => (case l2 of Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))
+  ))))
 
-;; random_string: generates a random string, stopping with probability p
-(define (random_string p)
-  (if (flip p)
-    (Nil)
-    (Cons (random_char5) (random_string p))))
+(define random_string
+  (Y (λ random_string p ->
+    (if (flip p)
+      (Nil)
+      (Cons (random_char) (random_string p))
+    )
+  )))
 
-;; perturb: applies random insertions, deletions, and substitutions
-(define (perturb s)
-  (match s
-    Nil => (random_string 0.99)
-    Cons c cs =>
-    (let ((do_delete (flip 0.01))
-          (insertion (random_string 0.99))
-          (perturbed_cs (perturb cs)))
-      (if do_delete
-        perturbed_cs
-        (append insertion (Cons (if (flip 0.01) (random_char5) c) perturbed_cs))))))
+;; note during artifact construction: this is the one we're using
+(define perturb
+  (Y (λ perturb s ->
+      (case s of
+        Nil => (random_string 0.99)
+        Cons c cs =>
+        (let
+          (do_delete (flip 0.01)
+           insertion (random_string 0.99)
+           perturbed_cs (perturb cs))
+          (if do_delete
+              perturbed_cs
+              (append insertion (Cons (if (flip 0.01) (random_char) c) perturbed_cs))
+              ))))))
 
-;; Query: probability that perturb("edcc") == "eddde"
+;; Query: string_editing_query(4, 5) =
+;;   (strings_eq (perturb <long_string_1[1:4]>) <long_string_2[1:5]>)
 ;; long_string_1[1:4] = "edcc"
 ;; long_string_2[1:5] = "eddde"
 (assert-query
   'string-editing-default
   (Marginal
     (strings_eq
-      (perturb (Cons (ce) (Cons (cd) (Cons (cc) (Cons (cc) (Nil))))))
-      (Cons (ce) (Cons (cd) (Cons (cd) (Cons (cd) (Cons (ce) (Nil))))))))
+      (perturb (Cons (e_) (Cons (d_) (Cons (c_) (Cons (c_) (Nil))))))
+      (Cons (e_) (Cons (d_) (Cons (d_) (Cons (d_) (Cons (e_) (Nil))))))))
   ((False) 0.9999999703333271)
   ((True) 2.9666673058148367e-8))
