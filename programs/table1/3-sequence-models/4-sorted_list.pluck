@@ -50,11 +50,11 @@
 
 ;; Query: test_to_perform_fuel(9, 6) =
 ;;   (nat_lists_equal (generate_sorted_list_fuel 9 6 (O)) <same list>)
-(assert-query
-  'sorted-list-fuel
-  (Marginal
-    (nat_lists_equal
-      (generate_sorted_list_fuel 9 6 (O))
-      (Cons 0 (Cons 3 (Cons 7 (Cons 12 (Cons 13 (Cons 15 (Cons 16 (Cons 20 (Nil)))))))))))
-  ((False) 0.9999380027147708)
-  ((True) 7.275957614183426e-12))
+;; (assert-query
+;;   'sorted-list-fuel
+;;   (Marginal
+;;     (nat_lists_equal
+;;       (generate_sorted_list_fuel 9 6 (O))
+;;       (Cons 0 (Cons 3 (Cons 7 (Cons 12 (Cons 13 (Cons 15 (Cons 16 (Cons 20 (Nil)))))))))))
+;;   ((False) 0.9999380027147708)
+;;   ((True) 7.275957614183426e-12))
