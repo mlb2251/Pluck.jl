@@ -21,3 +21,4 @@ build.log
 data_to_plot
 worktrees/
 programs/table1/1-bayesian-networks/*.pluck
+check-results/

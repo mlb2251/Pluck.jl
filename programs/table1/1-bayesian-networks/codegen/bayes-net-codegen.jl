@@ -1,6 +1,6 @@
 include("../../../../src/util/util.jl")
 
-names = ["cancer", "survey", "water", "alarm", "insurance", "hepar2", "pigs", "hailfinder", "munin"]
+names = ["cancer", "survey", "alarm", "insurance", "hepar2", "hailfinder", "pigs", "water", "munin"]
 raw_bayes_nets_dir = "programs/table1/1-bayesian-networks/codegen/raw_data"
 pluck_format_dir = "programs/table1/1-bayesian-networks/"
 

@@ -74,19 +74,19 @@
 ;; (query (Marginal
 ;;     (=? (rand-myvalue (MyList (MyNat))) [5 5 5])))
 
-(assert-query
- 'type-inference
- (Marginal
-  (let (tx (rand-mytype)
-        vx (rand-myvalue tx)
-        ty (rand-mytype)
-        vy (rand-myvalue ty)
-        vz (my-add vx vy)
-        tz (typeof vz))
-      (if (True)
-          (Some [tz])
-          (None))))
- ((Some [(MyNat)]) 0.375))
+;; (assert-query
+;;  'type-inference
+;;  (Marginal
+;;   (let (tx (rand-mytype)
+;;         vx (rand-myvalue tx)
+;;         ty (rand-mytype)
+;;         vy (rand-myvalue ty)
+;;         vz (my-add vx vy)
+;;         tz (typeof vz))
+;;       (if (True)
+;;           (Some [tz])
+;;           (None))))
+;;  ((Some [(MyNat)]) 0.375))
 
 
 

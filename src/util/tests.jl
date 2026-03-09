@@ -25,6 +25,7 @@ function run_check(files=nothing)
     if !isempty(check_results)
         println()
         print_check_table(check_results)
+        save_check_results(check_results)
     end
 
     n = fail_count[]
