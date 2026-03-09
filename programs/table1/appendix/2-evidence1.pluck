@@ -1,0 +1,18 @@
+;; From https://github.com/SHoltzen/dice/blob/master/benchmarks/baselines/evidence1.dice
+
+(assert-query
+  'evidence1-default
+  (let (evidence (flip 0.5)
+        coin (flip 0.5))
+    (Posterior evidence (if evidence coin true)))
+  ((False) 0.6666666666666666)
+  ((True) 0.3333333333333333))
+
+(assert-query
+  'evidence1-given
+  (NormalizedMarginal
+    (let (evidence (flip 0.5)
+          coin (flip 0.5))
+      (if evidence (given coin evidence) evidence)))
+  ((False) 0.6666666666666666)
+  ((True) 0.3333333333333333))

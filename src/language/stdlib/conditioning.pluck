@@ -37,6 +37,7 @@
 
 (define-type query
   (Marginal any)
+  (NormalizedMarginal any)
   (Posterior any bool)
   (PosteriorSamples any bool int)
   (SubproblemMonteCarlo int query)

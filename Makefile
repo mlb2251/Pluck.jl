@@ -11,6 +11,9 @@ else
 	julia --project -e 'using Pluck; Pluck.run_check()'
 endif
 
+generate-bayes-nets:
+	julia --project -e 'include("programs/table1/1-bayesian-networks/codegen/bayes-net-codegen.jl"); generate_benchmarks()'
+
 NAME=latest
 STABLE=stable
 examples:

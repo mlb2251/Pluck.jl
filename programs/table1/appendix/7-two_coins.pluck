@@ -1,0 +1,20 @@
+;; From https://github.com/SHoltzen/dice/blob/master/benchmarks/baselines/twocoins.dice
+
+(assert-query
+  'two-coins-default
+  (let (firstCoin (flip 0.5)
+        secondCoin (flip 0.5)
+        bothHeads (and firstCoin secondCoin))
+    (Posterior firstCoin (not bothHeads)))
+  ((False) 0.6666666666666666)
+  ((True) 0.3333333333333333))
+
+(assert-query
+  'two-coins-given
+  (NormalizedMarginal
+    (let (firstCoin (flip 0.5)
+          secondCoin (flip 0.5)
+          bothHeads (and firstCoin secondCoin))
+      (given (not bothHeads) firstCoin)))
+  ((False) 0.6666666666666666)
+  ((True) 0.3333333333333333))

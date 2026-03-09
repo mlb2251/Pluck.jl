@@ -1,0 +1,78 @@
+;; Caesar cipher inference
+;; Adapted from the Dice artifact
+
+(define-type Char (a_) (b_) (c_) (d_))
+
+(define (random_key)
+  (if (flip 0.25)
+    (a_)
+    (if (flip 0.33333)
+      (b_)
+      (if (flip 0.5)
+        (c_)
+        (d_)))))
+
+(define (random_char)
+  (if (flip 0.5)
+    (a_)
+    (if (flip 0.5)
+      (b_)
+      (if (flip 0.5)
+        (c_)
+        (d_)))))
+
+(define strings_eq
+  (Y (λ strings_eq l1 l2 -> (case l1 of
+    Nil => (case l2 of Nil => true | Cons _ _ => false)
+    Cons c1 c2 => (case l2 of Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))))))
+
+(define char_to_num (lambda c -> (case c of a_ => 0 | b_ => 1 | c_ => 2 | d_ => 3)))
+
+(define rotate_char
+  (Y (λ rotate_char n c ->
+    (case n of
+      O => c
+      | S m => (rotate_char m (case c of
+        a_ => (b_)
+        b_ => (c_)
+        c_ => (d_)
+        d_ => (a_)))))))
+
+(define encrypt_message
+  (λ key message -> (map (λ c -> (rotate_char key c)) message)))
+
+(define random_string
+  (Y (λ random_string n ->
+    (case n of O => (Nil) | S m => (Cons (random_char) (random_string m))))))
+
+(define caesar
+  (λ observed -> (let
+    (key (random_key)
+     msg (random_string (length observed))
+     encrypted (encrypt_message (char_to_num key) msg))
+    (Pair key (strings_eq observed encrypted)))))
+
+(assert-query
+  'caesar-default
+  (let (result (caesar (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Nil)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (Posterior (fst result) (snd result)))
+  ((b_) 7.888490723665978e-31)
+  ((a_) 6.222984162940327e-61)
+  ((d_) 6.223015277861142e-61)
+  ((c_) 1.0))
+
+(define caesar_given
+  (λ observed -> (let
+    (key (random_key)
+     msg (random_string (length observed))
+     encrypted (encrypt_message (char_to_num key) msg))
+    (given (strings_eq observed encrypted) key))))
+
+(assert-query
+  'caesar-given
+  (NormalizedMarginal
+    (caesar_given (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Nil)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+  ((b_) 7.888490723665978e-31)
+  ((a_) 6.222984162940327e-61)
+  ((d_) 6.223015277861142e-61)
+  ((c_) 1.0))

@@ -18,6 +18,8 @@ function eval_query(val, state::LazyKCState)
 
     if val.constructor == :Marginal
         return thunk_marginal(val.args[1], state, mode)
+    elseif val.constructor == :NormalizedMarginal
+        return normalize(thunk_marginal(val.args[1], state, mode))
     elseif val.constructor == :Posterior
         return thunk_posterior(val.args[1], val.args[2], state, mode)
     elseif val.constructor == :PosteriorSamples
@@ -27,7 +29,7 @@ function eval_query(val, state::LazyKCState)
     elseif val.constructor == :AdaptiveRejection
         return adaptive_rejection_sampling(val, state)
     else
-        error("Expected Marginal, Posterior, or PosteriorSample query, got $(val.constructor)")
+        error("Expected Marginal, NormalizedMarginal, Posterior, or PosteriorSample query, got $(val.constructor)")
     end
 end
 

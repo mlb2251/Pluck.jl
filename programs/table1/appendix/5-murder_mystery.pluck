@@ -1,0 +1,22 @@
+;; From https://github.com/SHoltzen/dice/blob/master/benchmarks/baselines/murderMystery.dice
+
+(assert-query
+  'murder-mystery-default
+  (let (aliceDunnit (flip 0.3)
+        withGun (if aliceDunnit (flip 0.03) (flip 0.8))
+        gunFound (flip 0.5)
+        obs (if withGun gunFound (not gunFound)))
+    (Posterior aliceDunnit obs))
+  ((False) 0.7)
+  ((True) 0.3))
+
+(assert-query
+  'murder-mystery-given
+  (NormalizedMarginal
+    (let (aliceDunnit (flip 0.3)
+          withGun (if aliceDunnit (flip 0.03) (flip 0.8))
+          gunFound (flip 0.5)
+          obs (if withGun gunFound (not gunFound)))
+      (given obs aliceDunnit)))
+  ((False) 0.7)
+  ((True) 0.3))
