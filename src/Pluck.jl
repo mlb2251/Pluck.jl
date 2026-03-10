@@ -5,6 +5,8 @@ using JSON: JSON
 # include("util/timing.jl")
 # using .Timing
 
+const ENABLE_INTDISTS = true
+
 include("RSDD/RSDD.jl")
 using .RSDD
 
@@ -16,8 +18,9 @@ include("language/values.jl")
 include("language/closures.jl")
 include("language/define.jl")
 
-
-include("extensions/int_dists.jl")
+if ENABLE_INTDISTS
+    include("extensions/int_dists.jl")
+end
 include("likelihood/error.jl")
 
 include("likelihood/compile_inner_defaults/core_ops.jl")
@@ -41,7 +44,9 @@ include("extensions/sample_value/force_value.jl")
 include("extensions/sample_value/compile_inner.jl")
 include("extensions/sample_value/thunks.jl")
 include("extensions/sample_value/monad.jl")
-include("extensions/sample_value/int_dists.jl")
+if ENABLE_INTDISTS
+    include("extensions/sample_value/int_dists.jl")
+end
 
 include("extensions/posterior_sampling.jl")
 

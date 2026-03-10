@@ -115,27 +115,47 @@ function join_values!(nested_worlds, join_results, index_of_result, results_for_
     for ((post_worlds, _), pre_guard) in nested_worlds
         for (post_val, post_guard) in post_worlds
             pre_and_post = post_guard & pre_guard
-            if state.cfg.use_thunk_unions && post_val isa Value
-                constructor = post_val.constructor
-                res = get!(Vector{Tuple{Value, BDD}}, results_for_constructor, constructor)
-                push!(res, (post_val, pre_and_post))
-            elseif post_val isa Closure || post_val isa Value || post_val isa NativeValue
-                result_index = Base.get!(index_of_result, post_val, length(join_results) + 1)
-                if result_index > length(join_results)
-                    push!(join_results, (post_val, pre_and_post))
-                    continue
-                end
-                old_guard = join_results[result_index][2]
-                new_guard = old_guard | pre_and_post
-                join_results[result_index] = (post_val, new_guard)
-            elseif post_val isa IntDist
-                push!(int_dist_results, (post_val, pre_and_post))
-            else
-                error("join_monad found a result with an unsupported type: $(typeof(post_val)): $post_val")
-            end
+            join_value!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state)
         end
     end
 end
+
+function join_value!(post_val::IntDist, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
+    push!(int_dist_results, (post_val, pre_and_post))
+    return
+end
+
+function join_value!(post_val::Closure, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
+    join_value_simple!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+end
+
+function join_value!(post_val::NativeValue, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
+    join_value_simple!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+end
+
+function join_value!(post_val::Value, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
+    if state.cfg.use_thunk_unions
+        constructor = post_val.constructor
+        res = get!(Vector{Tuple{Value, BDD}}, results_for_constructor, constructor)
+        push!(res, (post_val, pre_and_post))
+        return
+    end
+
+    join_value_simple!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+end
+
+function join_value_simple!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
+    result_index = Base.get!(index_of_result, post_val, length(join_results) + 1)
+    if result_index > length(join_results)
+        push!(join_results, (post_val, pre_and_post))
+        return
+    end
+    old_guard = join_results[result_index][2]
+    new_guard = old_guard | pre_and_post
+    join_results[result_index] = (post_val, new_guard)
+    return
+end
+
 
 function join_thunk_unions!(join_results, results_for_constructor, state::LazyKCState)
     for constructor in keys(results_for_constructor)

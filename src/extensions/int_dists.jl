@@ -218,3 +218,16 @@ function replace_at_path(val::IntDist, path::Vector{Int}, new_val)
     @assert isempty(path)
     new_val
 end
+
+function try_expand_intdist(current_val, path_condition, state, queue)
+    intdist_path = find_first_intdist(current_val)
+    isnothing(intdist_path) && return false
+    
+    intdist = get_value_at_path(current_val, intdist_path)::IntDist
+    sub_results = enumerate_int_dist(intdist, path_condition, state.manager)
+    for (sub_val, sub_bdd) in sub_results
+        new_val = replace_at_path(current_val, intdist_path, NativeValue(sub_val))
+        push!(queue, (new_val, sub_bdd))
+    end
+    return true
+end
