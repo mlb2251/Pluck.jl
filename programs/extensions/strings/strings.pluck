@@ -77,20 +77,6 @@
  (["Emily Jane Mc", "Clellan"] 0.004584430056107424)
  (["Emily", "Jane Mc", "Clellan"] 0.000286526878506714))
 
-(query 'people
-       (let
-        ((num-people 3)
-         (indices (map (fn -> (uniform 0 1 2)) (range 5)))
-         (people (map random-person (range num-people)))
-         (refs (map (fn i -> (index i people)) indices))
-         (names (map render-person refs)))
-         ;;(Posterior people ((list=? string=?) names ["John", "Mary", "Alex", "A"]))))
-         ;;(Posterior (map car people) ((list=? string=?) names ["A", "Mary", "Alex", "A"]))))
-         (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) people)
-                           ((list=? string=?)
-                            names
-                            ["Jordan B. Fisher", "J. Fisher", "JCF", "AKL", "Jesse"]) 10)))
-
 (define (trunc-geom n m)
   (match n
     O => (Pair true m)
@@ -107,32 +93,4 @@
       (new-mention (render-person person))
       (others (generate-mentions m (if need-new? (Cons person people-so-far) people-so-far))))
       (Pair (Cons new-mention (fst others)) (snd others)))))
-
-(query 'people-2
-       (let
-        ((obs ["JBF", "Jacob", "JCF", "J. Fry"])
-         (mentions (generate-mentions (length obs) (Nil))))
-         ;;(Posterior people ((list=? string=?) names ["John", "Mary", "Alex", "A"]))))
-        ;;  (Posterior (map car people) ((list=? string=?) names ["A", "Mary", "Alex", "A"]))))
-        ;; (Posterior (length (snd mentions)) ((list=? string=?) (fst mentions) obs))))
-         (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) (snd mentions))
-                           ((list=? string=?) (fst mentions)
-                                              obs) 10)))
-
-(query 'people-hard
-       (let
-        ((num-people 3)
-         (indices (map (fn -> (uniform 0 1 2)) (range 5)))
-         (people (map random-person (range num-people)))
-         (refs (map (fn i -> (index i people)) indices))
-         (names (map render-person refs))
-         (mentions (map (fn name -> (append (random-printable-string) (Cons (car " ") (append name (Cons (car " ") (random-printable-string)))))) names)))
-         (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) people)
-                           ((list=? string=?)
-                            mentions
-                            ["so I talked to Jordan B. Fisher yesterday",
-                             "If J. Fisher were here",
-                             "when I met MBJ it was summer",
-                             "a Book Signed By Michael B. Jordan and Sold For Millions",
-                             "it was Josh Tenenbaum who The Company saw first"]) 10)))
 

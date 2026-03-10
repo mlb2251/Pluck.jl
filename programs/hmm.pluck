@@ -43,15 +43,3 @@
     (all (take 50 (map snd chain)))))
  ((True) 0.6338219329206617)
  ((False) 0.36617806707933825))
-
-;; Sample from the posterior of the entire latent chain.
-(query
- 'sampled-chain
- (let ((chain (hmm (flip 0.5))))
-   (PosteriorSamples
-    ;; Query expression -- A in "P(A | B)"
-    (take 50 (map fst chain))
-    ;; Evidence -- B in "P(A | B)"
-    (all (take 50 (map snd chain)))
-    ;; Number of samples to draw
-    1)))

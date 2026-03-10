@@ -1,0 +1,103 @@
+;; Sampling queries extracted from various programs
+;; Each query below includes the program that defines it
+
+(include "../bst.pluck")
+(query
+ 'bst-sampling
+ (let ((tree (random-tree 4)))
+   (PosteriorSamples
+    tree
+    (and (nat=? (length (nodes tree)) 8)
+         (isBST tree 0 10))
+    500)))
+
+(include "../fig1.pluck")
+(query
+ 'fig1-cat-third-char
+ (let ((typed-string
+        (perturb
+         (Cons (c_) (Cons (a_) (Cons (t_) (Nil)))))))
+   (PosteriorSamples
+    typed-string
+    (constructor=? (index 2 typed-string) (a_))
+    15)))
+
+(include "../fig2.pluck")
+(query
+ 'fig2-posterior-samples
+ (let ((xs (mkSortedList 0)))
+   (PosteriorSamples
+    xs
+    (nat=? (index 5 xs) 3)
+    15)))
+
+(include "../hmm.pluck")
+(query
+ 'hmm-sampled-chain
+ (let ((chain (hmm (flip 0.5))))
+   (PosteriorSamples
+    (take 50 (map fst chain))
+    (all (take 50 (map snd chain)))
+    1)))
+
+(include "../pcfg.pluck")
+(query
+ 'pcfg-sample-long-sentence
+ (let ((s (generate-english (Sent))))
+   (PosteriorSamples
+    s
+    (and
+     (>= (length s) 8)
+     (constructor=? (index 4 s) (tasty_)))
+    10)))
+
+(include "strings/fig1-strings.pluck")
+(query
+ 'fig1-strings-cat-third-char
+ (let ((typed-string
+        (perturb "cat")))
+   (PosteriorSamples
+    typed-string
+    (char=? (index 2 typed-string) 0ca)
+    15)))
+
+(include "strings/strings.pluck")
+(query
+ 'strings-people
+ (let
+  ((num-people 3)
+   (indices (map (fn -> (uniform 0 1 2)) (range 5)))
+   (people (map random-person (range num-people)))
+   (refs (map (fn i -> (index i people)) indices))
+   (names (map render-person refs)))
+   (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) people)
+                     ((list=? string=?)
+                      names
+                      ["Jordan B. Fisher", "J. Fisher", "JCF", "AKL", "Jesse"]) 10)))
+
+(query
+ 'strings-people-2
+ (let
+  ((obs ["JBF", "Jacob", "JCF", "J. Fry"])
+   (mentions (generate-mentions (length obs) (Nil))))
+   (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) (snd mentions))
+                     ((list=? string=?) (fst mentions)
+                                        obs) 10)))
+
+(query
+ 'strings-people-hard
+ (let
+  ((num-people 3)
+   (indices (map (fn -> (uniform 0 1 2)) (range 5)))
+   (people (map random-person (range num-people)))
+   (refs (map (fn i -> (index i people)) indices))
+   (names (map render-person refs))
+   (mentions (map (fn name -> (append (random-printable-string) (Cons (car " ") (append name (Cons (car " ") (random-printable-string)))))) names)))
+   (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) people)
+                     ((list=? string=?)
+                      mentions
+                      ["so I talked to Jordan B. Fisher yesterday",
+                       "If J. Fisher were here",
+                       "when I met MBJ it was summer",
+                       "a Book Signed By Michael B. Jordan and Sold For Millions",
+                       "it was Josh Tenenbaum who The Company saw first"]) 10)))

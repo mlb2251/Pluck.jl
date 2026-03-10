@@ -28,17 +28,4 @@
           (right (random-tree (- fuel 1))))
       (Node (geom 0.5) left right))))
 
-;; Although it enjoys better constant factors than enumeration,
-;; the following query is still quite slow (exponential in all 
-;; of the numeric parameters).
-;; The one thing that scales well is the number of samples,
-;; which can be arbitrarily large.
-(query
- 'binary-search-tree
- (let ((tree (random-tree 4)))
-   (PosteriorSamples
-    tree
-    (and (nat=? (length (nodes tree)) 8)
-         (isBST tree 0 10))
-    500)))
 

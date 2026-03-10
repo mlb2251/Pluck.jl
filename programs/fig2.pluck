@@ -24,14 +24,3 @@
  (3 0.25)
  (4 0.25)
  (5 0.25))
-
-(query
- 'posterior-samples-given-sixth-elem-is-3
- (let ((xs (mkSortedList 0)))
-   (PosteriorSamples
-    ;; Query
-    xs
-    ;; Evidence
-    (nat=? (index 5 xs) 3)
-    ;; Number of samples
-    15)))

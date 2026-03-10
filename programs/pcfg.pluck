@@ -572,13 +572,3 @@
  ([(a_), (tasty_), (tasty_), (tasty_), (tasty_), (bone_), (eats_)] 8.893632155816435e-5)
  ([(the_), (tasty_), (tasty_), (tasty_), (tasty_), (bone_), (barks_)] 8.893632155816435e-5)
  ([(the_), (tasty_), (tasty_), (tasty_), (tasty_), (bone_), (eats_)] 8.893632155816435e-5))
-
-(query
- 'sample-long-sentence-with-fifth-word-tasty
- (let ((s (generate-english (Sent))))
-   (PosteriorSamples
-    s
-    (and
-     (>= (length s) 8)
-     (constructor=? (index 4 s) (tasty_)))
-    10)))

@@ -67,13 +67,3 @@
      observed_string)))
  ("goat" 0.9891651837352433)
  ("bat" 0.010834816264756806))
-
-;; If a user intended to type "cat" and the third letter they type is an "a", what did they probably type?
-(query
- 'cat-third-char
- (let ((typed-string
-        (perturb "cat")))
-   (PosteriorSamples
-    typed-string
-    (char=? (index 2 typed-string) 0ca)
-    15)))

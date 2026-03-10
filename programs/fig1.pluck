@@ -72,13 +72,3 @@
  ([(g_), (o_), (a_), (t_)] 0.9615492686388217)
  ([(b_), (a_), (t_)] 0.038450731361178284))
 
-;; If a user intended to type "cat" and the third letter they type is an "a", what did they probably type?
-(query
- 'cat-third-char
- (let ((typed-string
-        (perturb
-         (Cons (c_) (Cons (a_) (Cons (t_) (Nil)))))))
-   (PosteriorSamples
-    typed-string
-    (constructor=? (index 2 typed-string) (a_))
-    15)))
