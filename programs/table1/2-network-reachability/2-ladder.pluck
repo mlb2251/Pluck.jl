@@ -1,20 +1,18 @@
 ;; Ladder network verification benchmark
 ;; Translated from PluckArtifact.jl/src/table1/network_verification/pluck/ladder.jl
 
-(define ladder_network
-  (fn i1 i2 ->
-    (let (output (flip 0.5)
-          result (Cons output (not output))
-          fail_result (Cons false false))
-      (if i1 (if (flip 0.001) fail_result result)
-      (if i2 result fail_result)))))
+(define (ladder_network i1 i2)
+  (let (output (flip 0.5)
+        result (Cons output (not output))
+        fail_result (Cons false false))
+    (if i1 (if (flip 0.001) fail_result result)
+    (if i2 result fail_result))))
 
-(define run_ladder_network
-  (fn m ->
-    (match ((Y (fn run_ladder_network n ->
-        (match n O => (Cons true false)
-                   S m => (match (run_ladder_network m) Cons i1 i2 => (ladder_network i1 i2))))) m)
-    Cons i1 i2 => i1)))
+(define (run_ladder_network m)
+  (match ((Y (fn run_ladder_network n ->
+      (match n O => (Cons true false)
+                 S m => (match (run_ladder_network m) Cons i1 i2 => (ladder_network i1 i2))))) m)
+  Cons i1 i2 => i1))
 
 ;; Query: (run_ladder_network 100)
 (assert-query
