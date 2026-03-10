@@ -52,7 +52,6 @@ mutable struct LazyKCState
     sorted_var_labels::Vector{Int}
     manager::RSDD.Manager
     depth::Int
-    thunk_cache::Dict{Tuple{PExpr, Env, Callstack}, Any}
     stats::LazyKCStats
     viz::Any # Union{Nothing, BDDJSONLogger}
     cfg::LazyKCConfig
@@ -78,7 +77,6 @@ function LazyKCState(cfg::LazyKCConfig)
         Int[],
         manager,
         0,
-        Dict{Tuple{PExpr, Env, Callstack}, Any}(),
         LazyKCStats(),
         nothing,
         cfg,

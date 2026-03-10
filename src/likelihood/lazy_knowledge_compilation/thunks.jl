@@ -11,17 +11,8 @@ struct LazyKCThunk <: Thunk
         if expr isa PExpr{Var} && getenv(env, expr.head.name) isa LazyKCThunk
             return getenv(env, expr.head.name)
         end
-
-        # key = (expr, env, state.callstack)
-        # if state.cfg.use_thunk_cache && haskey(state.thunk_cache, key)
-        #     return state.thunk_cache[key]
-        # else
         thunk = new(expr, env, [], copy(state.callstack), strict_order_index, copy(state.stacktrace))
-        # if state.cfg.use_thunk_cache
-        #     state.thunk_cache[(expr, copy(env), copy(state.callstack))] = thunk
-        # end
         return thunk
-        # end
     end
 end
 
