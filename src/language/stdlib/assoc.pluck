@@ -27,7 +27,7 @@
 ;; Replace element at given index with new value
 (define (replace-at-index xs idx new-value)
   (match xs
-    Nil => (Nil)
+    Nil => []
     Cons x xs =>
       (match idx
         O => (Cons new-value xs)

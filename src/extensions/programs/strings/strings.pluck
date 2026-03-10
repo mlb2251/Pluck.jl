@@ -12,7 +12,7 @@
     ""))
 
 ;; (define (random-list elem)
-;;   (if (flip 0.8) (Cons (elem) (random-list elem)) (Nil)))
+;;   (if (flip 0.8) (Cons (elem) (random-list elem)) []))
 
 ;; (define (random-lowercase-char) (uniform_int_range @8 @97 @122))
 ;; (define (random-uppercase-char) (uniform_int_range @8 @65 @90))
@@ -84,7 +84,7 @@
 
 (define (generate-mentions n people-so-far)
   (match n
-    O => (Pair (Nil) people-so-far)
+    O => (Pair [] people-so-far)
     S m =>
     (let
      ((idx (trunc-geom (length people-so-far) 0))

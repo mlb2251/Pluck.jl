@@ -7,10 +7,10 @@
               (append (generate (XX)) (generate (YY)))
               (append (generate (YY)) (generate (XX))))
     XX => (uniform
-           (Cons (a_) (Nil))
+           [(a_)]
            (Cons (b_) (append (generate (XX)) (generate (XX)))))
     YY => (Cons (c_) (uniform
-                      (Nil)
+                      []
                       (generate (XX))
                       (generate (Start))))))
 
@@ -26,7 +26,7 @@
  'probability-of-string
  (Marginal
   (string=? (generate (Start))
-            (Cons (c_) (Cons (b_) (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_)  (Cons (b_) (Cons (b_) (Cons (a_) (Cons (b_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (a_) (Cons (b_) (Cons (a_) (Cons (a_) (Cons (a_) (Nil))))))))))))))))))))))))))
+            [(c_) (b_) (b_) (b_) (a_) (b_) (b_) (a_) (b_) (a_) (b_) (b_) (a_) (b_) (a_) (a_) (a_) (a_) (a_) (b_) (a_) (a_) (a_)]))
  ((False) 0.9999999602635702)
  ((True) 3.973642985224724e-8))
 
@@ -59,21 +59,21 @@
              ((append (generate-english (NP)) (generate-english (VP))) 0.7)
              ((append (append (generate-english (NP)) (generate-english (VP)))
                       (append (generate-english (Conj)) (generate-english (Sent)))) 0.3))
-    Conj => (Cons (uniform (and_) (but_)) (Nil))
+    Conj => [(uniform (and_) (but_))]
     NP => (append (generate-english (Det)) (generate-english (Noun)))
     VP => (uniform (generate-english (Verb)) (append (generate-english (VT)) (generate-english (NP))))
-    Verb => (Cons (uniform (barks_) (eats_)) (Nil))
-    VT => (Cons (eats_) (Nil))
-    Adj => (Cons (uniform (happy_) (sad_) (tasty_)) (Nil))
-    Det => (Cons (uniform (the_) (a_)) (Nil))
+    Verb => [(uniform (barks_) (eats_))]
+    VT => [(eats_)]
+    Adj => [(uniform (happy_) (sad_) (tasty_))]
+    Det => [(uniform (the_) (a_))]
     Noun => (discrete ((append (generate-english (Adj)) (generate-english (Noun))) 0.3)
-                      ((Cons (uniform (cat_) (dog_) (bone_)) (Nil)) 0.7))))
+                      ([(uniform (cat_) (dog_) (bone_))] 0.7))))
 
 (assert-query
  'probability-of-sentence
  (Marginal
   (string=? (generate-english (Sent))
-            (Cons (the_) (Cons (dog_) (Cons (eats_) (Cons (the_) (Cons (bone_) (Nil))))))))
+            [(the_) (dog_) (eats_) (the_) (bone_)]))
  ((False) 0.9952361111113492)
  ((True) 0.004763888888650694))
 

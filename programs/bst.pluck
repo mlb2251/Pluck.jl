@@ -7,7 +7,7 @@
 
 (define (nodes tree)
   (match tree
-    Leaf => (Nil)
+    Leaf => []
     Node n left right =>
     (Cons n (append (nodes left) (nodes right)))))
 

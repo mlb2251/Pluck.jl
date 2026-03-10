@@ -17,7 +17,7 @@
 (define random_string
   (Y (fn random_string p ->
     (if (flip p)
-      (Nil)
+      []
       (Cons (random_char) (random_string p))
     )
   )))
@@ -45,7 +45,7 @@
   'string-editing
   (Marginal
     (strings_eq
-      (perturb (Cons (e_) (Cons (d_) (Cons (c_) (Cons (c_) (Nil))))))
-      (Cons (e_) (Cons (d_) (Cons (d_) (Cons (d_) (Cons (e_) (Nil))))))))
+      (perturb [(e_) (d_) (c_) (c_)])
+      [(e_) (d_) (d_) (d_) (e_)]))
   ((False) 0.9999999703333271)
   ((True) 2.9666673058148367e-8))

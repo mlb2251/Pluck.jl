@@ -19,31 +19,31 @@
 (define (randList p_length p_values)
   (if (flip p_length)
     (Cons (geom p_values) (randList p_length p_values))
-    (Nil)))
+    []))
 
 
 
 ;; (query
 ;;  (Marginal
-;;   (factored=? (Cons 0 (Nil)) (if (flip 0.2) (Cons 0 (Nil)) (Nil)))))
+;;   (factored=? (Cons 0 []) (if (flip 0.2) (Cons 0 []) []))))
 
 ;; (query
 ;;  (Marginal
-;;   (factored=? (Cons 0 (Nil)) (if (flip 0.2) (Cons (geom 0.3) (Nil)) (Cons 0 (geom 0.3))))))
+;;   (factored=? (Cons 0 []) (if (flip 0.2) [(geom 0.3)] (Cons 0 (geom 0.3))))))
 
 ;; (query
 ;;  (Marginal
-;;   (factored=? (Cons 1 (Nil)) (randnatlist))))
+;;   (factored=? (Cons 1 []) (randnatlist))))
 
 ;; (query
 ;;  (Marginal
-;;   (factored=? (Cons 0 (Cons 0 (Nil))) (Cons (geom 0.5) (Cons (geom 0.5) (Nil))))))
+;;   (factored=? (Cons 0 (Cons 0 [])) [(geom 0.5) (geom 0.5)])))
 
 ;; (query
 ;;  (Marginal
-;;   (factored=? (Cons 0 (Cons 0 (Nil)))
+;;   (factored=? (Cons 0 (Cons 0 []))
 ;;               (let ((x (geom 0.5)))
-;;                 (Cons x (Cons x (Nil)))))))
+;;                 [x x]))))
 
 
 ;; (query
@@ -57,12 +57,12 @@
 
 ;; (define (lafi-examples) ;; input-output list
 ;;   (Cons (Pair ;; input-output pair
-;;       (Cons 3 (Cons 7 (Cons 2 (Cons 6 (Nil))))) ;; input
-;;       (Cons 4 (Cons 8 (Cons 1 (Cons 5 (Nil)))))) ;; output
+;;       (Cons 3 (Cons 7 (Cons 2 (Cons 6 [])))) ;; input
+;;       (Cons 4 (Cons 8 (Cons 1 (Cons 5 []))))) ;; output
 ;;   (Cons (Pair
-;;       (Cons 1 (Cons 8 (Cons 6 (Cons 5 (Cons 7 (Nil))))))
-;;       (Cons 2 (Cons 7 (Cons 5 (Cons 6 (Cons 8 (Nil)))))))
-;;   (Nil))))
+;;       (Cons 1 (Cons 8 (Cons 6 (Cons 5 (Cons 7 [])))))
+;;       (Cons 2 (Cons 7 (Cons 5 (Cons 6 (Cons 8 []))))))
+;;   [])))
 
 (define (lafi-examples) ;; input-output list
   [(Pair ;; input-output pair
@@ -124,9 +124,9 @@
 ;;   )
 ;;   ))
 
-;; (factored=? (Cons 0 (Nil)) (Cons 0 (Nil)))
+;; (factored=? (Cons 0 []) (Cons 0 []))
 ;; yields
-;; (Prob 1.0 (Cons (Prob 1.0 0) (Prob 1.0 (Nil))))
+;; (Prob 1.0 (Cons (Prob 1.0 0) (Prob 1.0 [])))
 
 ;; tbh i think we should do this as a top level function first
 
@@ -164,18 +164,18 @@
 
 ;; (query
 ;;  (Marginal
-;;   (factor-all (Cons 1 (Cons 2 (Nil))))))
+;;   (factor-all (Cons 1 (Cons 2 [])))))
 
 ;; (query
 ;;  (Marginal
-;;   (factor-list (Cons 1 (Cons 2 (Nil))))))
+;;   (factor-list (Cons 1 (Cons 2 [])))))
 
 ;; (define (factor-all x)
 ;;   (FProb (map (fn arg -> (factor-all arg)) (get_args x))))
 
 ;; (define (factor-list xs)
 ;;   (match xs
-;;     Nil => (FProb (Nil))
+;;     Nil => (FProb [])
 ;;     Cons x xs => (FProb (Cons x (factor-list xs)))))
 
 ;; (define (factored=? qry prog)
@@ -192,7 +192,7 @@
 ;;         True => (Prob p_same (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
 ;;   )
 
-;; (factored=? (Cons Any Any) (if (flip 0.2) (Cons 0 (Nil)) (Nil)))
+;; (factored=? (Cons Any Any) (if (flip 0.2) (Cons 0 []) []))
 ;; -> (Prob 0.2 (Cons Any Any))
 
 ;; other factored query examples are:
@@ -212,10 +212,10 @@
 
 ;; (factored=? (FAny) (make-sorted-list))
 
-;; (factored=? (factor-list (Cons 1 (Cons 2 (Nil)))) (make-sorted-list))
+;; (factored=? (factor-list (Cons 1 (Cons 2 []))) (make-sorted-list))
 
 ;; mandually written
-;; (factored=? (FProb (Cons (FProb (S (O))) (Cons (FProb (S (S (O)))) (FProb (Nil))))) (make-sorted-list))
+;; (factored=? (FProb (Cons (FProb (S (O))) (Cons (FProb (S (S (O)))) (FProb [])))) (make-sorted-list))
 ;; (FCon )
 
 ;; oooh you could either put the logic in factored=? or in a thing that

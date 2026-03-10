@@ -112,5 +112,5 @@
 (define (random-string-surnames prev)
   (let ((c (next-char-surnames prev)))
     (if (int_dist_eq c EOS)
-      (Nil)
+      []
       (Cons c (random-string-surnames c)))))

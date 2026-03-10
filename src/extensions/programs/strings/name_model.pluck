@@ -118,5 +118,5 @@
 (define (random-string prev)
   (let ((c (next-char prev)))
     (if (int_dist_eq c EOS)
-      (Nil)
+      []
       (Cons c (random-string c)))))

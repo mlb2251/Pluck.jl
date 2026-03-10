@@ -33,7 +33,7 @@
 
 (define (perturb s)
   (match s
-    Nil => (maybe_insert (Nil))
+    Nil => (maybe_insert [])
     Cons c cs =>
     (let ((perturbed_cs (perturb cs)))
       (maybe_insert (maybe_cons (maybe_substitute c) perturbed_cs)))))

@@ -30,7 +30,7 @@
 
 (define (perturb s)
   (match s
-    Nil => (maybe_insert (Nil))
+    Nil => (maybe_insert [])
     Cons c cs =>
     (let ((perturbed_cs (perturb cs)))
       (maybe_insert (maybe_cons (maybe_substitute c) perturbed_cs)))))
@@ -45,8 +45,8 @@
  'lazy-to-lucky
  (Marginal
   (string=?
-   (perturb (Cons (l_) (Cons (a_) (Cons (z_) (Cons (y_) (Nil))))))
-   (Cons (l_) (Cons (u_) (Cons (c_) (Cons (k_) (Cons (y_) (Nil))))))))
+   (perturb [(l_) (a_) (z_) (y_)])
+   [(l_) (u_) (c_) (k_) (y_)]))
  ((False) 0.9999999998407798)
  ((True) 1.5922011260988487e-10))
 
@@ -55,10 +55,10 @@
  'goat-or-bat
  (let ((original_string
         (if (flip 0.5)
-          (Cons (g_) (Cons (o_) (Cons (a_) (Cons (t_) (Nil)))))
-          (Cons (b_) (Cons (a_) (Cons (t_) (Nil))))))
+          [(g_) (o_) (a_) (t_)]
+          [(b_) (a_) (t_)]))
        (observed_string
-        (Cons (g_) (Cons (a_) (Cons (t_) (Nil))))))
+        [(g_) (a_) (t_)]))
 
    ;; Posterior over `original_string` variable,
    ;; conditioned on the observed string.

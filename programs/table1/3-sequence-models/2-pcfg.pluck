@@ -9,8 +9,8 @@
     (match symbol
       SS => (let (xgen (generate ( XX )) ygen (generate (YY)) order (flip 0.5))
         (if order (append xgen ygen) (append ygen xgen)))
-      XX => (if (flip 0.5) (Cons (a) (Nil)) (Cons (b) (append (generate (XX)) (generate (XX)))))
-      YY => (Cons (c) (if (flip 0.5) (Nil) (generate (if (flip 0.5) (XX) (SS)))))
+      XX => (if (flip 0.5) [(a)] (Cons (b) (append (generate (XX)) (generate (XX)))))
+      YY => (Cons (c) (if (flip 0.5) [] (generate (if (flip 0.5) (XX) (SS)))))
     )
   )))
 
@@ -52,11 +52,6 @@
   (Marginal
     (list_symbols_equal
       (generate_pcfg_grammar (SS))
-      (Cons (c) (Cons (b) (Cons (b) (Cons (b) (Cons (a)
-      (Cons (b) (Cons (b) (Cons (a) (Cons (b) (Cons (a)
-      (Cons (b) (Cons (b) (Cons (a) (Cons (b) (Cons (a)
-      (Cons (a) (Cons (a) (Cons (a) (Cons (a) (Cons (b)
-      (Cons (a) (Cons (a) (Cons (a)
-      (Nil))))))))))))))))))))))))))
+      [(c) (b) (b) (b) (a) (b) (b) (a) (b) (a) (b) (b) (a) (b) (a) (a) (a) (a) (a) (b) (a) (a) (a)]))
   ((False) 0.9999999701976776)
   ((True) 2.9802322387695312e-8))

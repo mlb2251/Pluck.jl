@@ -16,7 +16,7 @@
  'fig1-cat-third-char
  (let ((typed-string
         (perturb
-         (Cons (c_) (Cons (a_) (Cons (t_) (Nil)))))))
+         [(c_) (a_) (t_)])))
    (PosteriorSamples
     typed-string
     (constructor=? (index 2 typed-string) (a_))
@@ -79,7 +79,7 @@
  'strings-people-2
  (let
   ((obs ["JBF" "Jacob" "JCF" "J. Fry"])
-   (mentions (generate-mentions (length obs) (Nil))))
+   (mentions (generate-mentions (length obs) [])))
    (PosteriorSamples (map (fn p -> (match p Person f m l => [f m l])) (snd mentions))
                      ((list=? string=?) (fst mentions)
                                         obs) 10)))

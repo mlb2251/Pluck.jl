@@ -16,7 +16,7 @@
 ;; Get tail of list, returning Nil for empty list
 (define (cdr_safe l)
   (match l
-    Nil => (Nil)
+    Nil => []
     Cons x xs => xs))
 
 ;; isempty : List a -> Bool
@@ -37,7 +37,7 @@
 ;; Apply function to each element
 (define (map f xs)
   (match xs
-    Nil => (Nil)
+    Nil => []
     Cons x xs => (Cons (f x) (map f xs))))
 
 ;; mapi : ((a, Nat) -> b, List a) -> List b
@@ -46,7 +46,7 @@
   (let ((helper
          (Y (fn rec xs i ->
               (match xs
-                Nil => (Nil)
+                Nil => []
                 Cons x xs => (Cons (f x i) (rec xs (S i))))))))
     (helper xs 0)))
 
@@ -54,7 +54,7 @@
 ;; Keep elements satisfying predicate
 (define (filter f xs)
   (match xs
-    Nil => (Nil)
+    Nil => []
     Cons x xs => (let (xs (filter f xs))
                    (if (f x) (Cons x xs) xs))))
 
@@ -78,7 +78,7 @@
   (let ((helper
          (Y (fn rec xs i ->
               (match xs
-                Nil => (Nil)
+                Nil => []
                 Cons x xs => (let (xs (rec xs (S i)))
                                (if (f x i) (Cons x xs) xs)))))))
     (helper xs 0)))
@@ -94,7 +94,7 @@
   (let ((helper
          (Y (fn rec m ->
               (if (nat=? m n)
-                (Nil)
+                []
                 (Cons m (rec (S m))))))))
     (helper 0)))
 
@@ -115,7 +115,7 @@
 
 ;; append_one : (List a, a) -> List a
 ;; Append single element to end of list
-(define (append_one xs y) (append xs (Cons y (Nil))))
+(define (append_one xs y) (append xs [y]))
 
 ;; list=? : ((a, a) -> Bool, List a, List a) -> Bool
 ;; List equality using element comparator
@@ -136,18 +136,18 @@
 ;; Take first n elements
 (define (take n xs)
   (match xs
-    Nil => (Nil)
+    Nil => []
     Cons x xs => (match n
-                   O => (Nil)
+                   O => []
                    S n => (Cons x (take n xs)))))
 
 ;; zip_with : ((a, b) -> c, List a, List b) -> List c
 ;; Zip two lists using combiner function
 (define (zip_with f xs ys)
   (match xs
-    Nil => (Nil)
+    Nil => []
     Cons x xs => (match ys
-                  Nil => (Nil)
+                  Nil => []
                   Cons y ys => (Cons (f x y) (zip_with f xs ys)))))
 
 ;; head-or : (List a, a) -> a

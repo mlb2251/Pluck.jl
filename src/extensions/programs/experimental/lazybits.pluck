@@ -14,7 +14,7 @@
 ;; Like Cons but ensures canonical form: (bcons False Nil) = Nil.
 (define (bcons b rest)
   (match rest
-    Nil => (if b (Cons (True) (Nil)) (Nil))
+    Nil => (if b [(True)] [])
     Cons _ _ => (Cons b rest)))
 
 ;;; --- Conversion to/from Peano naturals ---
@@ -32,7 +32,7 @@
 ;; Convert a Peano natural to canonical bit-list.
 (define (nat-to-bits n)
   (match n
-    O => (Nil)
+    O => []
     S _ => (bcons (isodd n) (nat-to-bits (div2 n)))))
 
 ;; bits-to-nat :: bits -> nat
@@ -68,7 +68,7 @@
 ;; Add one.
 (define (bits-succ a)
   (match a
-    Nil => (Cons (True) (Nil))
+    Nil => [(True)]
     Cons a0 arest =>
       (if a0
         (bcons (False) (bits-succ arest))
@@ -78,7 +78,7 @@
 ;; Subtract one, saturating at zero.
 (define (bits-pred a)
   (match a
-    Nil => (Nil)
+    Nil => []
     Cons a0 arest =>
       (if a0
         (bcons (False) arest)
@@ -133,15 +133,15 @@
 (define (add-with-carry a b carry)
   (match a
     Nil => (match b
-      Nil => (bcons carry (Nil))
+      Nil => (bcons carry [])
       Cons b0 brest =>
         (if carry
-          (bcons (not b0) (add-with-carry (Nil) brest b0))
+          (bcons (not b0) (add-with-carry [] brest b0))
           (Cons b0 brest)))
     Cons a0 arest => (match b
       Nil =>
         (if carry
-          (bcons (not a0) (add-with-carry arest (Nil) a0))
+          (bcons (not a0) (add-with-carry arest [] a0))
           (Cons a0 arest))
       Cons b0 brest =>
         (let ((s (xor a0 (xor b0 carry)))
@@ -158,11 +158,11 @@
 ;; Ripple-borrow subtraction; assumes a >= b.
 (define (sub-with-borrow a b borrow)
   (match a
-    Nil => (Nil)
+    Nil => []
     Cons a0 arest => (match b
       Nil =>
         (if borrow
-          (bcons (not a0) (sub-with-borrow arest (Nil) (not a0)))
+          (bcons (not a0) (sub-with-borrow arest [] (not a0)))
           (Cons a0 arest))
       Cons b0 brest =>
         (let ((d (xor a0 (xor b0 borrow)))
@@ -173,7 +173,7 @@
 ;; Subtraction, saturating at zero.
 (define (bits-sub a b)
   (if (bits-lt a b)
-    (Nil)
+    []
     (sub-with-borrow a b (False))))
 
 ;;; --- Multiplication ---
@@ -182,7 +182,7 @@
 ;; Shift-and-add multiplication.
 (define (bits-mul a b)
   (match a
-    Nil => (Nil)
+    Nil => []
     Cons a0 arest =>
       (let ((shifted (bcons (False) (bits-mul arest b))))
         (if a0
@@ -195,9 +195,9 @@
 ;; Bitwise AND; shorter operand is implicitly zero-extended.
 (define (bits-and a b)
   (match a
-    Nil => (Nil)
+    Nil => []
     Cons a0 arest => (match b
-      Nil => (Nil)
+      Nil => []
       Cons b0 brest =>
         (bcons (and a0 b0) (bits-and arest brest)))))
 
@@ -225,9 +225,9 @@
 ;; Bitwise NOT over a fixed width (Peano nat).
 (define (bits-not a width)
   (match width
-    O => (Nil)
+    O => []
     S w => (match a
-      Nil => (Cons (True) (bits-not (Nil) w))
+      Nil => (Cons (True) (bits-not [] w))
       Cons a0 arest =>
         (bcons (not a0) (bits-not arest w)))))
 
@@ -241,7 +241,7 @@
 ;; Shift right by one (divide by 2, truncating).
 (define (bits-shift-right a)
   (match a
-    Nil => (Nil)
+    Nil => []
     Cons _ rest => rest))
 
 ;;; --- Division (repeated subtraction) ---
@@ -250,10 +250,10 @@
 ;; Quotient and remainder via repeated subtraction. Returns (Pair 0 0) for division by zero.
 (define (bits-divmod a b)
   (match b
-    Nil => (Pair (Nil) (Nil))
+    Nil => (Pair [] [])
     Cons _ _ =>
       (if (bits-lt a b)
-        (Pair (Nil) a)
+        (Pair [] a)
         (let ((result (bits-divmod (bits-sub a b) b)))
           (Pair (bits-succ (fst result)) (snd result))))))
 

@@ -43,7 +43,7 @@
 
 (define random_string
   (Y (fn random_string n ->
-    (match n O => (Nil) | S m => (Cons (random_char) (random_string m))))))
+    (match n O => [] | S m => (Cons (random_char) (random_string m))))))
 
 (define caesar
   (fn observed -> (let
@@ -54,7 +54,7 @@
 
 (assert-query
   'caesar-posterior
-  (let (result (caesar (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Nil)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+  (let (result (caesar [(c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_)]))
     (Posterior (fst result) (snd result)))
   ((b_) 7.888490723665978e-31)
   ((a_) 6.222984162940327e-61)
@@ -71,7 +71,7 @@
 (assert-query
   'caesar-given
   (NormalizedMarginal
-    (caesar_given (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Cons (c_) (Nil)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (caesar_given [(c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_)]))
   ((b_) 7.888490723665978e-31)
   ((a_) 6.222984162940327e-61)
   ((d_) 6.223015277861142e-61)

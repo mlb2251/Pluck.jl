@@ -29,7 +29,7 @@
 
 (define (generate-nonconcat-regex)
   (uniform
-   (String (Cons (random-printable-char) (Nil)))
+   (String [(random-printable-char)])
    (KleeneStar (generate-non-star-regex))
    (Sum (generate-regex) (generate-regex))))
 

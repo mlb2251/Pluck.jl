@@ -1,6 +1,6 @@
 (define (mkSortedList n)
   (if (flip 0.5)
-    (Nil)
+    []
     (let (x (+ n (geom 0.5)))
       (Cons x (mkSortedList x)))))
 
@@ -9,7 +9,7 @@
  (Marginal
   (list=? nat=?
           (take 2 (mkSortedList 0))
-          (Cons 0 (Cons 0 (Nil)))))
+          [0 0]))
  ((False) 0.9375)
  ((True) 0.0625))
 

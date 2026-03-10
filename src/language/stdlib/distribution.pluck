@@ -13,4 +13,4 @@
 
 ;; randnatlist : () -> List Nat
 ;; Sample random-length list of random naturals
-(define (randnatlist) (if (flip 0.5) (Nil) (Cons (randnat) (randnatlist))))
+(define (randnatlist) (if (flip 0.5) [] (Cons (randnat) (randnatlist))))

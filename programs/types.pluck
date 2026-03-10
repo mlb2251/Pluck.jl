@@ -32,7 +32,7 @@
 (define (rand-myvalue type)
     (match type
         MyNat => (if (flip 0.5) 0 (S (rand-myvalue (MyNat))))
-        MyList t => (if (flip 0.5) (Nil) (Cons (rand-myvalue t) (rand-myvalue (MyList t))))))
+        MyList t => (if (flip 0.5) [] (Cons (rand-myvalue t) (rand-myvalue (MyList t))))))
 
 
 
@@ -46,7 +46,7 @@
         O => b)))
 
 (define (my-map f l) (match l
-    Nil => (Nil)
+    Nil => []
     Cons x xs => (Cons (f x) (my-map f xs))))
 
 (assert-query
