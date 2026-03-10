@@ -6,6 +6,7 @@ using JSON: JSON
 # using .Timing
 
 const ENABLE_INTDISTS = false
+const ENABLE_SAMPLE_VALUE = false
 
 include("RSDD/RSDD.jl")
 using .RSDD
@@ -39,14 +40,16 @@ include("likelihood/full_dist.jl")
 
 include("extensions/LPSMC.jl")
 
-include("extensions/sample_value/sample_value.jl")
-include("extensions/sample_value/force_value.jl")
-include("extensions/sample_value/compile_inner.jl")
-include("extensions/sample_value/thunks.jl")
-include("extensions/sample_value/monad.jl")
+if ENABLE_SAMPLE_VALUE
+    include("extensions/sample_value/sample_value.jl")
+    include("extensions/sample_value/force_value.jl")
+    include("extensions/sample_value/compile_inner.jl")
+    include("extensions/sample_value/thunks.jl")
+    include("extensions/sample_value/monad.jl")
 
-if ENABLE_INTDISTS
-    include("extensions/sample_value/int_dists.jl")
+    if ENABLE_INTDISTS
+        include("extensions/sample_value/int_dists.jl")
+    end
 end
 
 include("extensions/posterior_sampling.jl")
