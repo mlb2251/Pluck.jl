@@ -21,8 +21,6 @@ include("extensions/int_dists.jl")
 include("likelihood/error.jl")
 
 include("likelihood/compile_inner_defaults/core_ops.jl")
-include("likelihood/compile_inner_defaults/native_ops.jl")
-include("likelihood/compile_inner_defaults/experimental_ops.jl")
 
 
 include("likelihood/lazy_knowledge_compilation/lazy_knowledge_compilation.jl")
