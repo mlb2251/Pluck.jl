@@ -242,25 +242,16 @@ function parse_expr_inner(tokens, state)
                 constructor = Symbol(tokens[1])
                 tokens = view(tokens, 2:length(tokens))
                 args = Symbol[]
-                # Else branch of this allows for the syntax (Cons x xs -> body) instead of (Cons -> (fn  x xs -> body))
-                if tokens[1] == "->"
-                    body, tokens = parse_expr_inner(view(tokens, 2:length(tokens)), state)
-                    while body isa PExpr{Abs}
-                        push!(args, body.head.var)
-                        body = body.args[1]
-                    end
-                else
-                    # parse `Cons x xs -> body`
-                    new_env = env
-                    while tokens[1] != "->"
-                        push!(args, Symbol(tokens[1]))
-                        new_env = [tokens[1], new_env...]
-                        tokens = view(tokens, 2:length(tokens))
-                    end
+                # parse `Cons x xs -> body`
+                new_env = env
+                while tokens[1] != "->"
+                    push!(args, Symbol(tokens[1]))
+                    new_env = [tokens[1], new_env...]
                     tokens = view(tokens, 2:length(tokens))
-                    body, tokens = parse_with_env(tokens, state, new_env)
-                    # Wrap body in Abs for each argument, in the proper order.
                 end
+                tokens = view(tokens, 2:length(tokens))
+                body, tokens = parse_with_env(tokens, state, new_env)
+                # Wrap body in Abs for each argument, in the proper order.
                 any(g -> g.constructor == constructor, guards) && parse_error(state, tokens, "duplicate constructor $constructor in match expression")
 
                 guard = CaseOfGuard(constructor, args)

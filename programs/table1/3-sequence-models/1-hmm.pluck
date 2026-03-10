@@ -11,7 +11,7 @@
                                           Cons xhd xtl -> (and (constructors_equal xhd yhd) (prefix_equals? xtl ytl)))))
 
 (define (generate_observations n)
-  (match n O -> []  S -> (fn npred -> (Cons (True) (generate_observations npred)))))
+  (match n O -> []  S npred -> (Cons (True) (generate_observations npred))))
 
 ;; Query: (hmm_example 50) = (prefix_equals? (hmm (False)) (generate_observations 50))
 (assert-query
