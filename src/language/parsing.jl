@@ -456,13 +456,6 @@ function parse_expr_inner(tokens, state)
             expr = Construct(:Cons)(val, expr)
         end
         return expr, tokens
-    elseif token[1] == '?'
-        name = Symbol(token[2:end])
-        return GSymbol(name)(), view(tokens, 2:length(tokens))
-    elseif token[1] == '#'
-        # parse CFG symbol variable like "#int"
-        type = Symbol(token[2:end])
-        return GVarSymbol(type)(), view(tokens, 2:length(tokens))
     elseif token[1] == '@'
         idx = parse(Int, token[2:end])
         return ConstNative(idx)(), view(tokens, 2:length(tokens))
@@ -485,7 +478,7 @@ function parse_expr_inner(tokens, state)
             token = token[2:end]
         end
         return Var(Symbol(token))(), view(tokens, 2:length(tokens))
-    elseif haskey(state.defs, Symbol(token))
+    elseif haskey(state.defs, Symbol(token)) || token[1] == '?' && token[2] == '='
         return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
         parse_error(state, tokens, "unknown token: $token")
