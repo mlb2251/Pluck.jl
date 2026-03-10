@@ -196,7 +196,7 @@ function Base.show(io::IO, x::Value)
             head, tail = x.args
             print(io, head)
             if tail isa Value && tail.constructor == :Cons
-                print(io, ", ")
+                print(io, " ")
             end
             x = tail
         end
