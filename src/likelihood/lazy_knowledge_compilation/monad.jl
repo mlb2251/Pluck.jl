@@ -74,8 +74,8 @@ struct JoinResults
     join_results::Vector{World}
     index_of_result::Dict{AbstractValue, Int}
     results_for_constructor::Dict{Symbol, Vector{Tuple{Value, BDD}}}
-    int_dist_results::Vector{Tuple{IntDist, BDD}}
-    JoinResults() = new(Vector{World}(), Dict{AbstractValue, Int}(), Dict{Symbol, Vector{Tuple{Value, BDD}}}(), Vector{Tuple{IntDist, BDD}}())
+    int_dist_results::Vector{Tuple{Any, BDD}}
+    JoinResults() = new(Vector{World}(), Dict{AbstractValue, Int}(), Dict{Symbol, Vector{Tuple{Value, BDD}}}(), Vector{Tuple{Any, BDD}}())
 end
 
 """
@@ -123,11 +123,6 @@ function join_values!(nested_worlds, join_results, state::LazyKCState)
             join_value!(post_val, pre_and_post, join_results, state)
         end
     end
-end
-
-function join_value!(post_val::IntDist, pre_and_post, join_results, state::LazyKCState)
-    push!(join_results.int_dist_results, (post_val, pre_and_post))
-    return
 end
 
 function join_value!(post_val::Closure, pre_and_post, join_results, state::LazyKCState)

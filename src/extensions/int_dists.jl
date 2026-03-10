@@ -231,3 +231,8 @@ function try_expand_intdist(current_val, path_condition, state, queue)
     end
     return true
 end
+
+function join_value!(post_val::IntDist, pre_and_post, join_results, state::LazyKCState)
+    push!(join_results.int_dist_results, (post_val, pre_and_post))
+    return
+end
