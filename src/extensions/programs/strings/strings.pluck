@@ -21,8 +21,8 @@
 ;;   (Cons (random-uppercase-char)
 ;;         (random-list (fn -> (if (flip 0.99) (random-lowercase-char) (random-uppercase-char))))))
 
-(define (random-name) (random-string BOS))
-(define (random-surname) (random-string-surnames BOS))
+(define (random-name) (random-string bos))
+(define (random-surname) (random-string-surnames bos))
 
 (assert-query
  'uncertain-world

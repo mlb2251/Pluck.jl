@@ -1,7 +1,7 @@
 (define-type char
-  (a_) (b_) (c_) (d_) (e_) (f_) (g_) (h_) (i_)
-  (j_) (k_) (l_) (m_) (n_) (o_) (p_) (q_) (r_)
-  (s_) (t_) (u_) (v_) (w_) (x_) (y_) (z_))
+  (A_) (B_) (C_) (D_) (E_) (F_) (G_) (H_) (I_)
+  (J_) (K_) (L_) (M_) (N_) (O_) (P_) (Q_) (R_)
+  (S_) (T_) (U_) (V_) (W_) (X_) (Y_) (Z_))
 
 ;; `uniform` is one of the built-in functions for sampling from discrete distributions.
 ;; The other built-in distribution primitives are:
@@ -9,9 +9,9 @@
 ;;   - `(discrete (e1 p1) (e2 p2) ...)`, to sample from a discrete distribution over `e1`, `e2`, etc. with probabilities `p1`, `p2`, etc. The probabilities must be floating-point literals and must sum to 1.
 ;;   - `(geom p)`, to sample from a geometric distribution on natural numbers with parameter `p`.
 (define (random_char)
-  (uniform (a_) (b_) (c_) (d_) (e_) (f_) (g_) (h_) (i_)
-           (j_) (k_) (l_) (m_) (n_) (o_) (p_) (q_) (r_)
-           (s_) (t_) (u_) (v_) (w_) (x_) (y_) (z_)))
+  (uniform (A_) (B_) (C_) (D_) (E_) (F_) (G_) (H_) (I_)
+           (J_) (K_) (L_) (M_) (N_) (O_) (P_) (Q_) (R_)
+           (S_) (T_) (U_) (V_) (W_) (X_) (Y_) (Z_)))
 
 ;; list=? (defined in src/language/stdlib/stdlib.pluck) takes as an argument 
 ;; a predicate for comparing two elements for equality.
@@ -45,8 +45,8 @@
  'lazy-to-lucky
  (Marginal
   (string=?
-   (perturb [(l_) (a_) (z_) (y_)])
-   [(l_) (u_) (c_) (k_) (y_)]))
+   (perturb [(L_) (A_) (Z_) (Y_)])
+   [(L_) (U_) (C_) (K_) (Y_)]))
  ((False) 0.9999999998407798)
  ((True) 1.5922011260988487e-10))
 
@@ -55,10 +55,10 @@
  'goat-or-bat
  (let ((original_string
         (if (flip 0.5)
-          [(g_) (o_) (a_) (t_)]
-          [(b_) (a_) (t_)]))
+          [(G_) (O_) (A_) (T_)]
+          [(B_) (A_) (T_)]))
        (observed_string
-        [(g_) (a_) (t_)]))
+        [(G_) (A_) (T_)]))
 
    ;; Posterior over `original_string` variable,
    ;; conditioned on the observed string.
@@ -69,6 +69,6 @@
     (string=?
      (perturb original_string)
      observed_string)))
- ([(g_) (o_) (a_) (t_)] 0.9615492686388217)
- ([(b_) (a_) (t_)] 0.038450731361178284))
+ ([(G_) (O_) (A_) (T_)] 0.9615492686388217)
+ ([(B_) (A_) (T_)] 0.038450731361178284))
 

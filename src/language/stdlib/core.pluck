@@ -1,8 +1,8 @@
 ;;; core.pluck - Core utilities and boolean operations
 
 ;; Y combinator
-(define (Y f x)
-    (f (Y f) x))
+(define (y f x)
+    (f (y f) x))
 
 ;; constructors_equal : (a, b) -> Bool
 ;; Check if two values have the same constructor

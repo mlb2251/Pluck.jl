@@ -4,7 +4,7 @@
 (include "core.pluck")          ;; core utilities, boolean ops
 (include "nat.pluck")           ;; natural number arithmetic, comparison
 (include "pair.pluck")          ;; Pair type, fst, snd
-(include "option.pluck")        ;; Option type, Some.x
+(include "option.pluck")        ;; Option type
 (include "list.pluck")          ;; list operations
 (include "equality.pluck")      ;; constructor=?, =?, adt=?
 (include "distribution.pluck")  ;; geom, sampling utilities
