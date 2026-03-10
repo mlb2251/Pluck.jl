@@ -261,7 +261,7 @@ function generate_conditional_distribution(prob::ProbabilityStatement, variables
                 expr = "$val => $then_br"
                 push!(exprs, expr)
             end
-            expr = "(case $parent of $(join(exprs, " | ")))"
+            expr = "(match $parent $(join(exprs, " | ")))"
             return expr
         end
     end
@@ -329,7 +329,7 @@ function generate_conditional_distribution(prob::ProbabilityStatement, variables
                     e = "$val => $then_br"
                     push!(exprs, e)
                 end
-                expr = "(case $parent of $(join(exprs, " | ")))"
+                expr = "(match $parent $(join(exprs, " | ")))"
             end
 
             new_exprs[prefix] = expr

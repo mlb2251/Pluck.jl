@@ -37,8 +37,8 @@ end
 # Function application
 @auto_hash_equals struct App <: Head end
 function Base.show(io::IO, e::PExpr{App})
-    # show (App (λ x -> e) arg) as (let [x e] arg)
-    # and show (App (λ x -> (App (λ x -> e) ey)) ex) as (let [x ex y ey] e) 
+    # show (App (fn  x -> e) arg) as (let [x e] arg)
+    # and show (App (fn  x -> (App (fn  x -> e) ey)) ex) as (let [x ex y ey] e) 
     if e.args[1] isa PExpr{Abs}
         bindings = Tuple{Symbol, PExpr}[(e.args[1].head.var, e.args[2])]
         body = e.args[1].args[1]
@@ -99,7 +99,7 @@ end
 Base.copy(h::Abs) = h
 Base.show(io::IO, h::Abs) = print(io, "λ", h.var)
 function Base.show(io::IO, e::PExpr{Abs})
-    print(io, "(λ", e.head.var)
+    print(io, "(fn ", e.head.var)
     while e.args[1] isa PExpr{Abs}
         e = e.args[1]
         print(io, " ", e.head.var)
@@ -154,7 +154,7 @@ function Base.show(io::IO, e::PExpr{CaseOf})
         return
     end
 
-    print(io, "(case ", getscrutinee(e), " of ")
+    print(io, "(match ", getscrutinee(e))
     for i in eachindex(e.head.branches)
         print(io, getguard(e, i), " => ", getbranch(e, i))
         i < numbranches(e) && print(io, " | ")
