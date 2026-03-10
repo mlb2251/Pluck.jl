@@ -70,6 +70,14 @@ function bind_monad(cont::F, pre_worlds, path_condition, state::LazyKCState; con
     return join_monad(nested_worlds, state)
 end
 
+struct JoinResults
+    join_results::Vector{World}
+    index_of_result::Dict{AbstractValue, Int}
+    results_for_constructor::Dict{Symbol, Vector{Tuple{Value, BDD}}}
+    int_dist_results::Vector{Tuple{IntDist, BDD}}
+    JoinResults() = new(Vector{World}(), Dict{AbstractValue, Int}(), Dict{Symbol, Vector{Tuple{Value, BDD}}}(), Vector{Tuple{IntDist, BDD}}())
+end
+
 """
 join :: M (M a) -> M a
 """
@@ -78,22 +86,19 @@ function join_monad(nested_worlds, state::LazyKCState) #::Vector{Tuple{Tuple{Vec
     used_information = join_used_information(nested_worlds, pre_used_info, state)
 
     # Now lets join the resulting worlds.
-    join_results = Vector{World}()
-    index_of_result = Dict{AbstractValue, Int}()
-    results_for_constructor = Dict{Symbol, Vector{Tuple{Value, BDD}}}()
-    int_dist_results = Vector{Tuple{IntDist, BDD}}()
+    join_results = JoinResults()
 
-    join_values!(nested_worlds, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+    join_values!(nested_worlds, join_results, state)
 
     if state.cfg.use_thunk_unions
-        join_thunk_unions!(join_results, results_for_constructor, state)
+        join_thunk_unions!(join_results, state)
     end
 
-    if length(int_dist_results) > 0
-        push!(join_results, combine_int_dists(int_dist_results, state.manager))
+    if length(join_results.int_dist_results) > 0
+        push!(join_results.join_results, combine_int_dists(join_results.int_dist_results, state.manager))
     end
 
-    return join_results, used_information
+    return join_results.join_results, used_information
 end
 
 function join_used_information(nested_worlds, pre_used_info, state::LazyKCState)
@@ -111,63 +116,63 @@ function join_used_information(nested_worlds, pre_used_info, state::LazyKCState)
     return used_information
 end
 
-function join_values!(nested_worlds, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
+function join_values!(nested_worlds, join_results, state::LazyKCState)
     for ((post_worlds, _), pre_guard) in nested_worlds
         for (post_val, post_guard) in post_worlds
             pre_and_post = post_guard & pre_guard
-            join_value!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+            join_value!(post_val, pre_and_post, join_results, state)
         end
     end
 end
 
-function join_value!(post_val::IntDist, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
-    push!(int_dist_results, (post_val, pre_and_post))
+function join_value!(post_val::IntDist, pre_and_post, join_results, state::LazyKCState)
+    push!(join_results.int_dist_results, (post_val, pre_and_post))
     return
 end
 
-function join_value!(post_val::Closure, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
-    join_value_simple!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+function join_value!(post_val::Closure, pre_and_post, join_results, state::LazyKCState)
+    join_value_simple!(post_val, pre_and_post, join_results, state)
 end
 
-function join_value!(post_val::NativeValue, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
-    join_value_simple!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+function join_value!(post_val::NativeValue, pre_and_post, join_results, state::LazyKCState)
+    join_value_simple!(post_val, pre_and_post, join_results, state)
 end
 
-function join_value!(post_val::Value, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
+function join_value!(post_val::Value, pre_and_post, join_results, state::LazyKCState)
     if state.cfg.use_thunk_unions
         constructor = post_val.constructor
-        res = get!(Vector{Tuple{Value, BDD}}, results_for_constructor, constructor)
+        res = get!(Vector{Tuple{Value, BDD}}, join_results.results_for_constructor, constructor)
         push!(res, (post_val, pre_and_post))
         return
     end
 
-    join_value_simple!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state)
+    join_value_simple!(post_val, pre_and_post, join_results, state)
 end
 
-function join_value_simple!(post_val, pre_and_post, join_results, index_of_result, results_for_constructor, int_dist_results, state::LazyKCState)
-    result_index = Base.get!(index_of_result, post_val, length(join_results) + 1)
-    if result_index > length(join_results)
-        push!(join_results, (post_val, pre_and_post))
+function join_value_simple!(post_val, pre_and_post, join_results, state::LazyKCState)
+    result_index = Base.get!(join_results.index_of_result, post_val, length(join_results.join_results) + 1)
+    if result_index > length(join_results.join_results)
+        push!(join_results.join_results, (post_val, pre_and_post))
         return
     end
-    old_guard = join_results[result_index][2]
+    old_guard = join_results.join_results[result_index][2]
     new_guard = old_guard | pre_and_post
-    join_results[result_index] = (post_val, new_guard)
+    join_results.join_results[result_index] = (post_val, new_guard)
     return
 end
 
 
-function join_thunk_unions!(join_results, results_for_constructor, state::LazyKCState)
-    for constructor in keys(results_for_constructor)
+function join_thunk_unions!(join_results, state::LazyKCState)
+    for constructor in keys(join_results.results_for_constructor)
         world_of_value = Dict{Value, World}()
-        for (post_val, pre_and_post) in results_for_constructor[constructor]
+        for (post_val, pre_and_post) in join_results.results_for_constructor[constructor]
             old_world = get(world_of_value, post_val, nothing)
             old_guard = isnothing(old_world) ? state.manager.BDD_FALSE : old_world[2]
             new_guard = old_guard | pre_and_post
             world_of_value[post_val] = (post_val, new_guard)
         end
         if length(world_of_value) <= 1
-            append!(join_results, World[Tuple(world) for world in values(world_of_value)])
+            append!(join_results.join_results, World[Tuple(world) for world in values(world_of_value)])
             continue
         end
 
@@ -182,7 +187,7 @@ function join_thunk_unions!(join_results, results_for_constructor, state::LazyKC
         end
         overall_args = [LazyKCThunkUnion(thunks, state) for thunks in thunks_of_arg]
         overall_value = Value(constructor, overall_args)
-        push!(join_results, (overall_value, overall_guard))
+        push!(join_results.join_results, (overall_value, overall_guard))
     end
 end
 
