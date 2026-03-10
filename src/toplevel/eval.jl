@@ -394,14 +394,19 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
                 found = true
                 if !isapprox(prob, expected_prob; rtol=1e-6)
                     all_passed = false
-                    printstyled("  FAIL: $(expr.head.name): value $val_str expected prob $expected_prob, got $prob\n"; color=:red)
+                    printstyled("\nFAIL: $(expr.head.name): value $val_str expected prob $expected_prob, got $prob"; color=:red)
                 end
                 break
             end
         end
         if !found
             all_passed = false
-            printstyled("  FAIL: $(expr.head.name): expected value $val_str not found in results\n"; color=:red)
+            printstyled("\nFAIL: $(expr.head.name): expected value $val_str not found in results"; color=:red)
+        end
+        if !all_passed
+            printstyled("\nFull expected: $expected\nFull actual: $results\n"; color=:red)
+            # file path
+            printstyled("\nFile: $(toplevel_state.current_file)\n"; color=:blue)
         end
     end
 
