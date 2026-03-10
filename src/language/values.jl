@@ -163,16 +163,6 @@ function is_all_native_int(x::Value)
     return xs isa Value && xs.constructor === :Nil
 end
 
-function is_all_intdist(x::Value)
-    xs = x
-    while xs isa Value && xs.constructor == :Cons
-        head = xs.args[1]
-        (head isa IntDist && length(head.bits) == 8 && all(b -> b === true || b === false, head.bits)) || return false
-        xs = xs.args[2]
-    end
-    return xs isa Value && xs.constructor === :Nil
-end
-
 function to_list(xs::Value)
     res = []
     @assert xs isa Value && xs.constructor == :Cons || xs.constructor == :Nil "Expected Cons or Nil, got $(xs.constructor)"

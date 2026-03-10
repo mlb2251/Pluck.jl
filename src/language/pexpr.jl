@@ -280,18 +280,6 @@ define_parser!("get_constructor", GetConstructorOp, 1)
 struct GetConfig <: Head end
 define_parser!("get_config", GetConfig, 0)
 
-struct MkIntOp <: Head end
-define_parser!("mk_int", MkIntOp, 2)
-
-struct UniformIntOp <: Head end
-define_parser!("uniform_int", UniformIntOp, 1)
-
-struct UniformIntRangeOp <: Head end
-define_parser!("uniform_int_range", UniformIntRangeOp, 3)
-
-struct IntDistEqOp <: Head end
-define_parser!("int_dist_eq", IntDistEqOp, 2)
-
 struct AbstractTypeOp <: Head end
 define_parser!("abstract_type", AbstractTypeOp, 1)
 

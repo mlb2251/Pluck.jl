@@ -71,56 +71,11 @@ end
 
 find_first_thunk(val, path = Int[]) = nothing
 
-# Helper function to find first IntDist in a value tree using DFS
-function find_first_intdist(val::Value, path::Vector{Int} = Int[])
-    for (i, arg) in enumerate(val.args)
-        if arg isa IntDist
-            push!(path, i)
-            return path
-        elseif arg isa Value
-            sub_path = find_first_intdist(arg, copy(path))
-            if !isnothing(sub_path)
-                pushfirst!(sub_path, i)
-                return sub_path
-            end
-        end
-    end
-    return nothing
-end
-
-function find_first_intdist(val::IntDist, path = Int[])
-    return path
-end
-
-function find_first_intdist(val::PExpr{T}, path = Int[]) where T <: Head
-    for (i, arg) in enumerate(val.args)
-        if arg isa IntDist
-            push!(path, i)
-            return path
-        end
-        sub_path = find_first_intdist(arg, copy(path))
-        if !isnothing(sub_path)
-            pushfirst!(sub_path, i)
-            return sub_path
-        end
-    end
-    return nothing
-end
-
-find_first_intdist(val, path = Int[]) = nothing
-
 # Helper to get value at a path in the value tree
 function get_value_at_path(val, path)
     isempty(path) && return val
     val = val.args[path[1]]
     get_value_at_path(val, view(path, 2:length(path)))
-end
-
-
-
-function replace_at_path(val::IntDist, path::Vector{Int}, new_val)
-    @assert isempty(path)
-    new_val
 end
 
 # Helper to create a copy of a value with replacement at path

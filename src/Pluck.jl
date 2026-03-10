@@ -21,7 +21,6 @@ include("extensions/int_dists.jl")
 include("likelihood/error.jl")
 
 include("likelihood/compile_inner_defaults/core_ops.jl")
-include("likelihood/compile_inner_defaults/int_dist_ops.jl")
 include("likelihood/compile_inner_defaults/native_ops.jl")
 include("likelihood/compile_inner_defaults/experimental_ops.jl")
 
@@ -30,7 +29,7 @@ include("likelihood/lazy_knowledge_compilation/lazy_knowledge_compilation.jl")
 include("likelihood/lazy_knowledge_compilation/thunks.jl")
 include("likelihood/lazy_knowledge_compilation/monad.jl")
 include("likelihood/lazy_knowledge_compilation/compile_inner.jl")
-include("likelihood/lazy_knowledge_compilation/logging.jl")
+include("extensions/logging.jl")
 
 
 include("extensions/optimize.jl")
@@ -44,6 +43,7 @@ include("extensions/sample_value/force_value.jl")
 include("extensions/sample_value/compile_inner.jl")
 include("extensions/sample_value/thunks.jl")
 include("extensions/sample_value/monad.jl")
+include("extensions/sample_value/int_dists.jl")
 
 include("extensions/posterior_sampling.jl")
 
