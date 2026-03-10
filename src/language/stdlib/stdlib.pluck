@@ -9,6 +9,4 @@
 (include "equality.pluck")      ;; constructor=?, =?, adt=?
 (include "distribution.pluck")  ;; geom, sampling utilities
 (include "conditioning.pluck")  ;; suspendible types, given, query types
-(include "metaprogramming.pluck") ;; PExpr type, make-apply
 (include "assoc.pluck")         ;; association lists, search
-(include "reflection.pluck")    ;; type reflection, Type type

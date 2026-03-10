@@ -1,5 +1,6 @@
 ;;; core.pluck - Core utilities and boolean operations
 
+;; Y combinator
 (define (Y f x)
     (f (Y f) x))
 
