@@ -59,7 +59,7 @@ function parse_expr(s::String; defs=DEFINITIONS, env=[], filename="<unknown>")
     tokens = tokenize(s)
     state = ParseState(defs, env, pwd(), s, filename)
     expr, rest = parse_expr_inner(tokens, state)
-    isempty(rest) || parse_error(state, rest, "unexpected tokens after end of expression")
+    isempty(rest) || parse_error(state, rest, "trailing tokens after end of expression")
     return expr
 end
 
@@ -213,6 +213,8 @@ function parse_expr_inner(tokens, state)
             return parse_application(tokens, state)
         end
     # UNPARENTHESIZED EXPRESSION
+    elseif isuppercase(token[1])
+        parse_error(state, tokens, "non-constructor uppercase token is not allowed. This is not a constructor since it isn't wrapped in parentheses.")
     # 'foo is a symbol
     elseif token[1] == '\''
         return parse_symbol(tokens)
@@ -247,7 +249,7 @@ function parse_expr_inner(tokens, state)
     elseif haskey(state.defs, Symbol(token))
         return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
-        parse_error(state, tokens, "unexpected token for start of an expression: $token")
+        parse_error(state, tokens, "illegal token for start of an expression: $token")
     end
 end
 
@@ -255,20 +257,17 @@ function parse_fn(tokens, state, env)
     tokens = view(tokens, 2:length(tokens))
     num_args = 0
 
-    # Handle regular lambda cases
-    while true
-        tokens[1] == "->" && parse_error(state, tokens, "fn missing argument list")
+    while tokens[1] != "->"
         name = tokens[1]
         Base.isidentifier(name) || parse_error(state, tokens, "expected identifier for `fn` argument, got $name")
         env = [name, env...]
         num_args += 1
         tokens = view(tokens, 2:length(tokens))
-        tokens[1] == "," && parse_error(state, tokens, "unnecessary comma in `fn` argument list")
-        if tokens[1] == "->" # end of arg list
-            tokens = view(tokens, 2:length(tokens))
-            break
-        end
+        tokens[1] == "," && parse_error(state, tokens, "illegal comma in `fn` argument list")
     end
+    tokens = view(tokens, 2:length(tokens))
+    num_args == 0 && parse_error(state, tokens, "fn missing argument list")
+
     body, tokens = parse_with_env(tokens, state, env)
     for i ∈ 1:num_args
         body = Abs(Symbol(env[i]))(body)
@@ -425,7 +424,7 @@ function parse_discrete(tokens, state)
     # Generate the nested if-expression using the discrete function
     expr_str = discrete(options, probabilities)
     expr, rest = parse_expr_inner(tokenize(expr_str), state)
-    isempty(rest) || parse_error(state, rest, "unexpected tokens after discrete expression")
+    isempty(rest) || parse_error(state, rest, "illegal tokens after discrete expression")
 
     return expr, view(tokens, 2:length(tokens))
 end
@@ -445,7 +444,7 @@ function parse_uniform(tokens, state)
     # Generate the nested if-expression using the discrete function
     expr_str = discrete(options, probabilities)
     expr, rest = parse_expr_inner(tokenize(expr_str), state)
-    isempty(rest) || parse_error(state, rest, "unexpected tokens after uniform expression")
+    isempty(rest) || parse_error(state, rest, "illegal tokens after uniform expression")
 
     return expr, view(tokens, 2:length(tokens))
 end
@@ -509,7 +508,7 @@ function parse_list(tokens, state)
     vals = []
     while tokens[1] != "]"
         head, tokens = parse_expr_inner(tokens, state)
-        tokens[1] == "," && parse_error(state, tokens, "unexpected comma in list")
+        tokens[1] == "," && parse_error(state, tokens, "illegal comma in list")
         push!(vals, head)
     end
     tokens = view(tokens, 2:length(tokens))

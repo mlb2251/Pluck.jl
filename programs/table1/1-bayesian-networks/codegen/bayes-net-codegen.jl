@@ -7,15 +7,15 @@ pluck_format_dir = "programs/table1/1-bayesian-networks/"
 
 # which variable to get the single marginal of
 target_vars::Dict{String, Symbol} = Dict(
-    "alarm" => :BP,
-    "cancer" => :Dyspnoea,
-    "hailfinder" => :R5Fcst,
+    "alarm" => :bp,
+    "cancer" => :dyspnoea,
+    "hailfinder" => :r5fcst,
     "hepar2" => :jaundice,
-    "insurance" => :PropCost,
+    "insurance" => :prop_cost,
     "pigs" => :p48084991,
-    "survey" => :T,
-    "water" => :CNON_12_45,
-    "munin" => :L_SUR_CV_CA
+    "survey" => :t,
+    "water" => :cnon_12_45,
+    "munin" => :l_sur_cv_ca
 )
 
 expected_outputs = Dict(
@@ -138,7 +138,7 @@ function parse_bif(filename::String)
 
         # Parse variable declarations
         for m in eachmatch(r"variable\s+(\w+)\s*\{\s*type\s+discrete\s*\[\s*(\d+)\s*\]\s*\{([^}]+)\}", content)
-            name = Symbol(m[1])
+            name = Symbol(lowercase(m[1]))
             domain_size = parse(Int, m[2])
             # Add "Option" prefix to all domain values
             domain = [Symbol("Option" * strip(v)) for v in split(m[3], ",")]
@@ -157,8 +157,8 @@ function parse_bif(filename::String)
 
         # Parse probability statements
         for m in eachmatch(r"probability\s*\(\s*(\w+)(?:\s*\|\s*([^)]+))?\s*\)\s*\{([^}]+)\}", content)
-            target = Symbol(m[1])
-            parents = isnothing(m[2]) ? Symbol[] : [Symbol(strip(p)) for p in split(m[2], ",")]
+            target = Symbol(lowercase(m[1]))
+            parents = isnothing(m[2]) ? Symbol[] : [Symbol(lowercase(strip(p))) for p in split(m[2], ",")]
             prob_data = strip(m[3])
 
             if isempty(parents)
@@ -392,7 +392,7 @@ function get_var_order(name)
                 # "parse let C_NI_12_00 = " into C_NI_12_00
                 var = split(line, " = ")[1]
                 var = split(var, "let ")[2]
-                push!(vars, Symbol(var))
+                push!(vars, Symbol(lowercase(var)))
             end
         end
     end
