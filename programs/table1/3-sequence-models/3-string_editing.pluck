@@ -2,11 +2,11 @@
 ;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/string_editing.jl
 
 ;; Original: Pluck.define_type!(:Char, Dict(Symbol("$(a)_") -> Symbol[] for a = 'a':'e'))
-(define-type Char (a_) (b_) (c_) (d_) (e_))
+(define-type Char (A_) (B_) (C_) (D_) (E_))
 
 ;; Original: make_uniform(CHARACTERS) — uniform over 5 chars via nested flips
 (define (random_char)
-  (uniform (a_) (b_) (c_) (d_) (e_)))
+  (uniform (A_) (B_) (C_) (D_) (E_)))
 
 (define (strings_eq l1 l2)
   (match l1
@@ -39,7 +39,7 @@
   'string-editing
   (Marginal
     (strings_eq
-      (perturb [(e_) (d_) (c_) (c_)])
-      [(e_) (d_) (d_) (d_) (e_)]))
+      (perturb [(E_) (D_) (C_) (C_)])
+      [(E_) (D_) (D_) (D_) (E_)]))
   ((False) 0.9999999703333271)
   ((True) 2.9666673058148367e-8))

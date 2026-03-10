@@ -19,15 +19,15 @@ target_vars::Dict{String, Symbol} = Dict(
 )
 
 expected_outputs = Dict(
-    "alarm" => [(:LOW, 0.38999308773414654), (:NORMAL, 0.20470776251260087), (:HIGH, 0.4052991497532523)],
-    "cancer" => [(:True, 0.3040705), (:False, 0.6959294999999999)],
-    "hailfinder" => [(:XNIL, 0.25206480542413834), (:SIG, 0.44059947932150173), (:SVR, 0.3073357152543599)],
-    "hepar2" => [(:present, 0.2719147607671873), (:absent, 0.7280852392328125)],
-    "insurance" => [(:Thousand, 0.5629455909005231), (:TenThou, 0.3151875947814524), (:HundredThou, 0.10507029426792233), (:Million, 0.01679652005010235)],
+    "alarm" => [(:OptionLOW, 0.38999308773414654), (:OptionNORMAL, 0.20470776251260087), (:OptionHIGH, 0.4052991497532523)],
+    "cancer" => [(:OptionTrue, 0.3040705), (:OptionFalse, 0.6959294999999999)],
+    "hailfinder" => [(:OptionXNIL, 0.25206480542413834), (:OptionSIG, 0.44059947932150173), (:OptionSVR, 0.3073357152543599)],
+    "hepar2" => [(:Optionpresent, 0.2719147607671873), (:Optionabsent, 0.7280852392328125)],
+    "insurance" => [(:OptionThousand, 0.5629455909005231), (:OptionTenThou, 0.3151875947814524), (:OptionHundredThou, 0.10507029426792233), (:OptionMillion, 0.01679652005010235)],
     "pigs" => [(:Option0, 0.2656249999748047), (:Option1, 0.4687500000078124), (:Option2, 0.2656250000173828)],
-    "survey" => [(:car, 0.5618339760097999), (:train, 0.28085725199020023), (:other, 0.15730877199999996)],
+    "survey" => [(:OptionCar, 0.5618339760097999), (:OptionTrain, 0.28085725199020023), (:OptionOther, 0.15730877199999996)],
     "water" => [(:Option2_MG_L, 0.004161748754297062), (:Option4_MG_L, 0.9047758779258376), (:Option6_MG_L, 0.09106235327587024), (:Option10_MG_L, 2.0043995018129032e-8)],
-    "munin" => [(:M_S00, 0.008716364148532453), (:M_S04, 0.0001237557537930512), (:M_S08, 0.0008255742377163428), (:M_S12, 0.0015344946621133775), (:M_S16, 0.0015667764969255586), (:M_S20, 0.0013746809661952988), (:M_S24, 0.0018831614905352439), (:M_S28, 0.0020968149527313216), (:M_S32, 0.004044895489278196), (:M_S36, 0.009388818407956679), (:M_S40, 0.034088231795036374), (:M_S44, 0.09472751695144571), (:M_S48, 0.29201934141813285), (:M_S52, 0.3541139707266835), (:M_S56, 0.15438224661460737), (:M_S60, 0.03637682276538774), (:M_S_64, 0.0027365331229289008)]
+    "munin" => [(:OptionM_S00, 0.008716364148532453), (:OptionM_S04, 0.0001237557537930512), (:OptionM_S08, 0.0008255742377163428), (:OptionM_S12, 0.0015344946621133775), (:OptionM_S16, 0.0015667764969255586), (:OptionM_S20, 0.0013746809661952988), (:OptionM_S24, 0.0018831614905352439), (:OptionM_S28, 0.0020968149527313216), (:OptionM_S32, 0.004044895489278196), (:OptionM_S36, 0.009388818407956679), (:OptionM_S40, 0.034088231795036374), (:OptionM_S44, 0.09472751695144571), (:OptionM_S48, 0.29201934141813285), (:OptionM_S52, 0.3541139707266835), (:OptionM_S56, 0.15438224661460737), (:OptionM_S60, 0.03637682276538774), (:OptionM_S_64, 0.0027365331229289008)]
 )
 
 function generate_benchmarks()
@@ -140,9 +140,8 @@ function parse_bif(filename::String)
         for m in eachmatch(r"variable\s+(\w+)\s*\{\s*type\s+discrete\s*\[\s*(\d+)\s*\]\s*\{([^}]+)\}", content)
             name = Symbol(m[1])
             domain_size = parse(Int, m[2])
-            # Add "Option" prefix to any domain values that start with numbers
-            domain = [Symbol(startswith(strip(v), r"\d") ? "Option" * strip(v) : strip(v)) for v in split(m[3], ",")]
-            # domain = [Symbol(strip(v)) for v in split(m[3], ",")]
+            # Add "Option" prefix to all domain values
+            domain = [Symbol("Option" * strip(v)) for v in split(m[3], ",")]
             @assert length(domain) == domain_size
 
             variables[name] = Variable(name, domain)
@@ -175,7 +174,7 @@ function parse_bif(filename::String)
 
                     # Parse parent values and corresponding probabilities
                     m = match(r"\((.*?)\)\s*(.*)", line)
-                    parent_vals = [Symbol(startswith(strip(v), r"\d") ? "Option" * strip(v) : strip(v)) for v in split(m[1], ",")]
+                    parent_vals = [Symbol("Option" * strip(v)) for v in split(m[1], ",")]
 
                     #parent_vals = [Symbol(strip(v)) for v in split(m[1], ",")]
                     probs = parse_probability_table(m[2])

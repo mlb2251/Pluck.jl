@@ -16,10 +16,10 @@
  'fig1-cat-third-char
  (let ((typed-string
         (perturb
-         [(c_) (a_) (t_)])))
+         [(C_) (A_) (t_)])))
    (PosteriorSamples
     typed-string
-    (constructor=? (index 2 typed-string) (a_))
+    (constructor=? (index 2 typed-string) (A_))
     15)))
 
 (include "../fig2.pluck")

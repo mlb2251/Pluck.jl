@@ -379,6 +379,7 @@ end
 
 function parse_constructor_expr(tokens, state, token)
     # parse a sum product type constructor
+    @assert isuppercase(token[1]) "constructor $token must be uppercase"
     constructor = Symbol(token)
     type = type_of_constructor[constructor]
     args = args_of_constructor[constructor]

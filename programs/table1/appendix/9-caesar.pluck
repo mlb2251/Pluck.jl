@@ -1,41 +1,41 @@
 ;; Caesar cipher inference
 ;; Adapted from the Dice artifact
 
-(define-type Char (a_) (b_) (c_) (d_))
+(define-type Char (A_) (B_) (C_) (D_))
 
 (define (random_key)
   (if (flip 0.25)
-    (a_)
+    (A_)
     (if (flip 0.33333)
-      (b_)
+      (B_)
       (if (flip 0.5)
-        (c_)
-        (d_)))))
+        (C_)
+        (D_)))))
 
 (define (random_char)
   (if (flip 0.5)
-    (a_)
+    (A_)
     (if (flip 0.5)
-      (b_)
+      (B_)
       (if (flip 0.5)
-        (c_)
-        (d_)))))
+        (C_)
+        (D_)))))
 
 (define (strings_eq l1 l2)
   (match l1
     Nil -> (match l2 Nil -> true  Cons _ _ -> false)
     Cons c1 c2 -> (match l2 Nil -> false  Cons c3 c4 -> (and (constructors_equal c1 c3) (strings_eq c2 c4)))))
 
-(define char_to_num (fn c -> (match c a_ -> 0  b_ -> 1  c_ -> 2  d_ -> 3)))
+(define char_to_num (fn c -> (match c A_ -> 0  B_ -> 1  C_ -> 2  D_ -> 3)))
 
 (define (rotate_char n c)
   (match n
     O -> c
      S m -> (rotate_char m (match c
-      a_ -> (b_)
-      b_ -> (c_)
-      c_ -> (d_)
-      d_ -> (a_)))))
+      A_ -> (B_)
+      B_ -> (C_)
+      C_ -> (D_)
+      D_ -> (A_)))))
 
 (define encrypt_message
   (fn key message -> (map (fn c -> (rotate_char key c)) message)))
@@ -52,12 +52,12 @@
 
 (assert-query
   'caesar-posterior
-  (let (result (caesar [(c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_)]))
+  (let (result (caesar [(C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_)]))
     (Posterior (fst result) (snd result)))
-  ((b_) 7.888490723665978e-31)
-  ((a_) 6.222984162940327e-61)
-  ((d_) 6.223015277861142e-61)
-  ((c_) 1.0))
+  ((B_) 7.888490723665978e-31)
+  ((A_) 6.222984162940327e-61)
+  ((D_) 6.223015277861142e-61)
+  ((C_) 1.0))
 
 (define caesar_given
   (fn observed -> (let
@@ -69,8 +69,8 @@
 (assert-query
   'caesar-given
   (NormalizedMarginal
-    (caesar_given [(c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_) (c_)]))
-  ((b_) 7.888490723665978e-31)
-  ((a_) 6.222984162940327e-61)
-  ((d_) 6.223015277861142e-61)
-  ((c_) 1.0))
+    (caesar_given [(C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_) (C_)]))
+  ((B_) 7.888490723665978e-31)
+  ((A_) 6.222984162940327e-61)
+  ((D_) 6.223015277861142e-61)
+  ((C_) 1.0))
