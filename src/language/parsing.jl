@@ -139,7 +139,7 @@ function tokenize(s)
             col += 2
             i = nextind(s, nextind(s, i))
             continue
-        elseif c in ('(', ')', '{', '}', '[', ']', '`')
+        elseif c in ('(', ')', '[', ']')
             # Single character token
             push!(tokens, Token(string(c), token_line, token_col, token_offset))
             col += 1
@@ -151,7 +151,7 @@ function tokenize(s)
             start_col = col
             while i <= lastindex(s)
                 c = s[i]
-                if isspace(c) || c in ('(', ')', '{', '}', '[', ']', '`', '"')
+                if isspace(c) || c in ('(', ')', '[', ']', '"')
                     break
                 elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
                     break
@@ -229,16 +229,14 @@ function parse_expr_inner(tokens, state)
             # Parse as a CaseOf expression.
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
             return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
-        elseif token == "case" || token == "match"
+        elseif token == "match"
             # case e1 of Cons => (fn _->(fn _->e2)) | Nil => e3
             tokens = view(tokens, 2:length(tokens))
             scrutinee, tokens = parse_expr_inner(tokens, state)
-            (tokens[1] == "of" || token == "match") || parse_error(state, tokens, "expected 'of' after match scrutinee")
-            tokens[1] == "of" && (tokens = view(tokens, 2:length(tokens)))
             guards = CaseOfGuard[]
             branches = PExpr[]
             while tokens[1] != ")"
-                tokens[1] != "(" || parse_error(state, tokens, "unnecessary parens around pattern match guard") # common mistake
+                tokens[1] != "(" || parse_error(state, tokens, "unnecessary parens around match guard") # common mistake
                 if tokens[1] == "|"
                     tokens = view(tokens, 2:length(tokens))
                 end
@@ -277,7 +275,7 @@ function parse_expr_inner(tokens, state)
         elseif token == "let"
             # Parse a let expression
             tokens = view(tokens, 2:length(tokens))
-            (tokens[1] == "(" || tokens[1] == "[") || parse_error(state, tokens, "expected opening parenthesis or bracket after 'let'")
+            (tokens[1] == "(" || tokens[1] == "[") || parse_error(state, tokens, "expected opening parenthesis or bracket after `let`")
             close_token = tokens[1] == "(" ? ")" : "]"
             tokens = view(tokens, 2:length(tokens))
 
@@ -292,7 +290,7 @@ function parse_expr_inner(tokens, state)
                     var = tokens[1]
                     tokens = view(tokens, 2:length(tokens))
                     val, tokens = parse_with_env(tokens, state, env)
-                    tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis in let binding")
+                    tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis in `let` binding")
                     tokens = view(tokens, 2:length(tokens))  # Skip closing paren
                 else
                     # Flat list format
