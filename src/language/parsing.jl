@@ -179,278 +179,59 @@ function parse_expr_inner(tokens, state)
         parse_error(state, tokens, "unexpected end of input")
     end
     token = tokens[1]
+    # PARENTHESIZED EXPRESSIONS
     if token == "("
         # Possible expression heads
         tokens = view(tokens, 2:length(tokens))
         token = tokens[1]
+        # (fn x y -> body) is a function definition
         if token == "fn"
-            # parse (fn x y z -> body) or (fn x,y,z -> body) or (fn _ _ _ -> body) or (fn _ -> body)
-            # or (fn -> body) for 0-argument lambda. A zero-argument lambda is actually just 
-            # syntactic sugar for a one-argument lambda with a unit argument.
-            tokens = view(tokens, 2:length(tokens))
-            num_args = 0
-
-            # Handle 0-argument lambda case
-            if tokens[1] == "->"
-                tokens = view(tokens, 2:length(tokens))
-                # Add dummy unit variable to environment
-                env = ["_", env...]
-                body, tokens = parse_with_env(tokens, state, env)
-                tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after lambda body")
-                return Abs(Symbol("_"))(body), view(tokens, 2:length(tokens))
-            end
-
-            # Handle regular lambda cases
-            while true
-                name = tokens[1]
-                Base.isidentifier(name) || parse_error(state, tokens, "expected identifier for `fn` argument, got $name")
-                env = [name, env...]
-                num_args += 1
-                tokens = view(tokens, 2:length(tokens))
-                tokens[1] == "," && parse_error(state, tokens, "unnecessary comma in `fn` argument list")
-                if tokens[1] == "->" # end of arg list
-                    tokens = view(tokens, 2:length(tokens))
-                    break
-                end
-            end
-            body, tokens = parse_with_env(tokens, state, env)
-            for i ∈ 1:num_args
-                body = Abs(Symbol(env[i]))(body)
-            end
-            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after fn body")
-            return body, view(tokens, 2:length(tokens))
+            return parse_fn(tokens, state, env)
+        # (if c a b) is an if-then-else expression
         elseif token == "if"
-            # Parse an if
-            tokens = view(tokens, 2:length(tokens))
-            cond, tokens = parse_expr_inner(tokens, state)
-            then_expr, tokens = parse_expr_inner(tokens, state)
-            else_expr, tokens = parse_expr_inner(tokens, state)
-            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after if expression")
-            # Parse as a CaseOf expression.
-            # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
-            return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
+            return parse_if(tokens, state)
+        # (match e Cons x xs -> e1 Nil -> e2) is a match expression
         elseif token == "match"
-            # case e1 of Cons -> (fn _->(fn _->e2)) | Nil -> e3
-            tokens = view(tokens, 2:length(tokens))
-            scrutinee, tokens = parse_expr_inner(tokens, state)
-            guards = CaseOfGuard[]
-            branches = PExpr[]
-            while tokens[1] != ")"
-                tokens[1] != "(" || parse_error(state, tokens, "unnecessary parens around match guard") # common mistake
-                tokens[1] == "|" && parse_error(state, tokens, "unnecessary `|` in match expression")
-
-                constructor = Symbol(tokens[1])
-                tokens = view(tokens, 2:length(tokens))
-                args = Symbol[]
-                # parse `Cons x xs -> body`
-                new_env = env
-                while tokens[1] != "->"
-                    push!(args, Symbol(tokens[1]))
-                    new_env = [tokens[1], new_env...]
-                    tokens = view(tokens, 2:length(tokens))
-                end
-                tokens = view(tokens, 2:length(tokens))
-                body, tokens = parse_with_env(tokens, state, new_env)
-                # Wrap body in Abs for each argument, in the proper order.
-                any(g -> g.constructor == constructor, guards) && parse_error(state, tokens, "duplicate constructor $constructor in match expression")
-
-                guard = CaseOfGuard(constructor, args)
-                push!(guards, guard)
-                push!(branches, body)
-                if tokens[1] == "|"
-                    tokens = view(tokens, 2:length(tokens))
-                end
-            end
-            return CaseOf(guards)(scrutinee, branches...), view(tokens, 2:length(tokens))
+            return parse_match(tokens, state, env)
+        # (let [x e1 y e2] e3) is a let expression
         elseif token == "let"
-            # Parse a let expression
-            tokens = view(tokens, 2:length(tokens))
-            (tokens[1] == "(" || tokens[1] == "[") || parse_error(state, tokens, "expected opening parenthesis or bracket after `let`")
-            close_token = tokens[1] == "(" ? ")" : "]"
-            tokens = view(tokens, 2:length(tokens))
-
-            bindings = []
-            while tokens[1] != close_token
-                # Handle both formats:
-                # 1. Flat list: var1 val1 var2 val2
-                # 2. Nested pairs: (var1 val1) (var2 val2)
-                if tokens[1] == "("
-                    # Nested pair format
-                    tokens = view(tokens, 2:length(tokens))  # Skip opening paren
-                    var = tokens[1]
-                    tokens = view(tokens, 2:length(tokens))
-                    val, tokens = parse_with_env(tokens, state, env)
-                    tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis in `let` binding")
-                    tokens = view(tokens, 2:length(tokens))  # Skip closing paren
-                else
-                    # Flat list format
-                    var = tokens[1]
-                    tokens = view(tokens, 2:length(tokens))
-                    val, tokens = parse_with_env(tokens, state, env)
-                end
-                push!(bindings, (var, val))
-                env = [var, env...]
-            end
-            tokens = view(tokens, 2:length(tokens))  # Skip closing paren of bindings list
-            body, tokens = parse_with_env(tokens, state, env)
-
-            tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis at end of let expression")
-
-            # Desugar to nested lambdas and applications
-            expr = body
-            for (var, val) in reverse(bindings)
-                expr = App()(Abs(Symbol(var))(expr), val)
-            end
-
-            return expr, view(tokens, 2:length(tokens))
+            return parse_let(tokens, state, env)
+        # (Foo e1 e2) is a Construct
         elseif haskey(args_of_constructor, Symbol(token))
-            # parse a sum product type constructor
-            constructor = Symbol(token)
-            type = type_of_constructor[constructor]
-            args = args_of_constructor[constructor]
-            tokens = view(tokens, 2:length(tokens))
-            args = []
-            while tokens[1] != ")"
-                    arg, tokens = parse_expr_inner(tokens, state)
-                push!(args, arg)
-            end
-            length(args) == length(args_of_constructor[constructor]) || parse_error(state, tokens, "wrong number of arguments for constructor $constructor: expected $(length(args_of_constructor[constructor])), got $(length(args))")
-            return Construct(constructor)(args...), view(tokens, 2:length(tokens))
+            return parse_constructor_expr(tokens, state, token)
+        # (primitive-op arg1 arg2 ...)
         elseif has_prim(String(token)) && !haskey(state.defs, Symbol(token))
-            head_type = lookup_prim(String(token))
-            arity = prim_arity(head_type)
-            tokens = view(tokens, 2:length(tokens))
-            head = head_type()
-            args = PExpr[]
-            for i ∈ 1:arity
-                arg, tokens = parse_expr_inner(tokens, state)
-                push!(args, arg)
-            end
-            tokens[1] == ")" || parse_error(state, tokens, "wrong number of arguments for primitive $token: expected $arity, got $(length(args))")
-            return head(args...), view(tokens, 2:length(tokens))
+            return parse_primitive(tokens, state, token)
+        # (discrete [expr prob] ...)
         elseif token == "discrete"
-            # Parse (discrete (e1 p1) (e2 p2) ...)
-            tokens = view(tokens, 2:length(tokens))
-
-            options = PExpr[]
-            probabilities = Float64[]
-
-            while tokens[1] != ")"
-                tokens[1] == "(" || parse_error(state, tokens, "expected opening paren in discrete distribution pair")
-                tokens = view(tokens, 2:length(tokens))
-
-                # Parse the expression
-                expr, tokens = parse_expr_inner(tokens, state)
-                push!(options, expr)
-
-                # Parse the probability (must be a literal number)
-                prob_str = tokens[1]
-                all(c -> isdigit(c) || c == '.' || c =='e' || c == '-', prob_str) || parse_error(state, tokens, "probability must be a literal number in discrete distribution, got $prob_str")
-                prob = parse(Float64, prob_str)
-                push!(probabilities, prob)
-
-                tokens = view(tokens, 2:length(tokens))  # Skip probability and closing paren
-                tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in discrete distribution pair")
-                tokens = view(tokens, 2:length(tokens))
-            end
-
-            # Generate the nested if-expression using the discrete function
-            expr_str = discrete(options, probabilities)
-            expr, rest = parse_expr_inner(tokenize(expr_str), state)
-            isempty(rest) || parse_error(state, rest, "unexpected tokens after discrete expression")
-
-            return expr, view(tokens, 2:length(tokens))
+            return parse_discrete(tokens, state)
+        # (uniform expr1 expr2 ...)
         elseif token == "uniform"
-            # Parse (uniform e1 e2 e3 ...)
-            tokens = view(tokens, 2:length(tokens))
-            options = PExpr[]
-            while tokens[1] != ")"
-                expr, tokens = parse_expr_inner(tokens, state)
-                push!(options, expr)
-            end
-
-            n = length(options)
-            probabilities = fill(1.0/n, n)
-
-            # Generate the nested if-expression using the discrete function
-            expr_str = discrete(options, probabilities)
-            expr, rest = parse_expr_inner(tokenize(expr_str), state)
-            isempty(rest) || parse_error(state, rest, "unexpected tokens after uniform expression")
-
-            return expr, view(tokens, 2:length(tokens))
+            return parse_uniform(tokens, state)
+        # (fn-expr arg1 arg2 ...)
         else
-            # Parse an application
-            f, tokens = parse_expr_inner(tokens, state)
-            args = []
-            while tokens[1] != ")"
-                arg, tokens = parse_expr_inner(tokens, state)
-                push!(args, arg)
-            end
-
-            # If no arguments provided, insert Unit constructor
-            if isempty(args)
-                args = [Construct(:Unit)()]
-            end
-
-            expr = f
-            for arg in args
-                expr = App()(expr, arg)
-            end
-            return expr, view(tokens, 2:length(tokens))
+            return parse_application(tokens, state)
         end
+    # UNPARENTHESIZED EXPRESSION
+    # 'foo is a symbol
     elseif token[1] == '\''
-        # parse a symbol
-        sym = Symbol(token[2:end])
-        return ConstNative(sym)(), view(tokens, 2:length(tokens))
+        return parse_symbol(tokens)
+    # 0cX is a byte literal
     elseif startswith(token, "0c") && length(token) == 3
-        # byte literal: 0cX for a single ASCII byte X
-        inner = token[3]
-        ncodeunits(string(inner)) == 1 || parse_error(state, tokens, "byte literal must be exactly one byte, got \"$inner\"")
-        byte = Int(codeunit(string(inner), 1))
-        bitwidth = ConstNative(8)()
-        val = ConstNative(byte)()
-        return MkIntOp()(bitwidth, val), view(tokens, 2:length(tokens))
+        return parse_byte_literal(tokens, state)
+    # "foo" is a string literal
     elseif startswith(token, "\"") && endswith(token, "\"")
-        # string literal -> list of 8-bit ints
-        # Use proper character indexing for UTF-8 safety
-        start_idx = nextind(token, firstindex(token))
-        end_idx = prevind(token, lastindex(token))
-        inner = token[start_idx:end_idx]
-        bytes = collect(codeunits(inner))
-        expr = Construct(:Nil)()
-        for b in reverse(bytes)
-            bitwidth = ConstNative(8)()
-            val = ConstNative(Int(b))()
-            expr = Construct(:Cons)(MkIntOp()(bitwidth, val), expr)
-        end
-        return expr, view(tokens, 2:length(tokens))
+        return parse_string_literal(tokens)
+    # [e1 e2 e3 ...] is a list
     elseif token == "["
-        # parse a list: parse expressions until ]
-        tokens = view(tokens, 2:length(tokens))
-        vals = []
-        while tokens[1] != "]"
-            head, tokens = parse_expr_inner(tokens, state)
-            tokens[1] == "," && parse_error(state, tokens, "unexpected comma in list")
-            push!(vals, head)
-        end
-        tokens = view(tokens, 2:length(tokens))
-        expr = Construct(:Nil)()
-        for val in reverse(vals)
-            expr = Construct(:Cons)(val, expr)
-        end
-        return expr, tokens
+        return parse_list(tokens, state)
     # @45 is a native integer literal
     elseif token[1] == '@'
         return ConstNative(parse(Int, token[2:end]))(), view(tokens, 2:length(tokens))
     # 45 is a peano number
     elseif all(isdigit, token)
-        val = parse(Int, token)
-        expr = Construct(:O)()
-        for _ in 1:val
-            expr = Construct(:S)(expr)
-        end
-        return expr, view(tokens, 2:length(tokens))
-    # 45.0 or 45.0e10 is a native float literal
+        return parse_peano_number(tokens)
+    # 45.0 is a native float literal
     elseif all(c -> isdigit(c) || c == '.', token)
         return ConstNative(parse(Float64, token))(), view(tokens, 2:length(tokens))
     # true is a boolean literal
@@ -459,15 +240,304 @@ function parse_expr_inner(tokens, state)
     # false is a boolean literal
     elseif token == "false"
         return Construct(:False)(), view(tokens, 2:length(tokens))
-    # foo is a variable if it's in the environment
+    # foo is a variable reference if it's in the environment
     elseif token ∈ env
         return Var(Symbol(token))(), view(tokens, 2:length(tokens))
-    # foo is a defined function if it's in the definitions
-    elseif haskey(state.defs, Symbol(token)) 
+    # foo is a defined function reference if it's in the definitions (and not in the environment)
+    elseif haskey(state.defs, Symbol(token))
         return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
         parse_error(state, tokens, "unexpected token for start of an expression: $token")
     end
+end
+
+function parse_fn(tokens, state, env)
+    # parse (fn x y z -> body) or (fn x,y,z -> body) or (fn _ _ _ -> body) or (fn _ -> body)
+    # or (fn -> body) for 0-argument lambda. A zero-argument lambda is actually just
+    # syntactic sugar for a one-argument lambda with a unit argument.
+    tokens = view(tokens, 2:length(tokens))
+    num_args = 0
+
+    # Handle 0-argument lambda case
+    if tokens[1] == "->"
+        tokens = view(tokens, 2:length(tokens))
+        # Add dummy unit variable to environment
+        env = ["_", env...]
+        body, tokens = parse_with_env(tokens, state, env)
+        tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after lambda body")
+        return Abs(Symbol("_"))(body), view(tokens, 2:length(tokens))
+    end
+
+    # Handle regular lambda cases
+    while true
+        name = tokens[1]
+        Base.isidentifier(name) || parse_error(state, tokens, "expected identifier for `fn` argument, got $name")
+        env = [name, env...]
+        num_args += 1
+        tokens = view(tokens, 2:length(tokens))
+        tokens[1] == "," && parse_error(state, tokens, "unnecessary comma in `fn` argument list")
+        if tokens[1] == "->" # end of arg list
+            tokens = view(tokens, 2:length(tokens))
+            break
+        end
+    end
+    body, tokens = parse_with_env(tokens, state, env)
+    for i ∈ 1:num_args
+        body = Abs(Symbol(env[i]))(body)
+    end
+    tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after fn body")
+    return body, view(tokens, 2:length(tokens))
+end
+
+function parse_if(tokens, state)
+    # Parse an if
+    tokens = view(tokens, 2:length(tokens))
+    cond, tokens = parse_expr_inner(tokens, state)
+    then_expr, tokens = parse_expr_inner(tokens, state)
+    else_expr, tokens = parse_expr_inner(tokens, state)
+    tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after if expression")
+    return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
+end
+
+function parse_match(tokens, state, env)
+    # case e1 of Cons -> (fn _->(fn _->e2)) | Nil -> e3
+    tokens = view(tokens, 2:length(tokens))
+    scrutinee, tokens = parse_expr_inner(tokens, state)
+    guards = CaseOfGuard[]
+    branches = PExpr[]
+    while tokens[1] != ")"
+        tokens[1] != "(" || parse_error(state, tokens, "unnecessary parens around match guard") # common mistake
+        tokens[1] == "|" && parse_error(state, tokens, "unnecessary `|` in match expression")
+
+        constructor = Symbol(tokens[1])
+        tokens = view(tokens, 2:length(tokens))
+        args = Symbol[]
+        # parse `Cons x xs -> body`
+        new_env = env
+        while tokens[1] != "->"
+            push!(args, Symbol(tokens[1]))
+            new_env = [tokens[1], new_env...]
+            tokens = view(tokens, 2:length(tokens))
+        end
+        tokens = view(tokens, 2:length(tokens))
+        body, tokens = parse_with_env(tokens, state, new_env)
+        # Wrap body in Abs for each argument, in the proper order.
+        any(g -> g.constructor == constructor, guards) && parse_error(state, tokens, "duplicate constructor $constructor in match expression")
+
+        guard = CaseOfGuard(constructor, args)
+        push!(guards, guard)
+        push!(branches, body)
+        if tokens[1] == "|"
+            tokens = view(tokens, 2:length(tokens))
+        end
+    end
+    return CaseOf(guards)(scrutinee, branches...), view(tokens, 2:length(tokens))
+end
+
+function parse_let(tokens, state, env)
+    # Parse a let expression
+    tokens = view(tokens, 2:length(tokens))
+    (tokens[1] == "(" || tokens[1] == "[") || parse_error(state, tokens, "expected opening parenthesis or bracket after `let`")
+    close_token = tokens[1] == "(" ? ")" : "]"
+    tokens = view(tokens, 2:length(tokens))
+
+    bindings = []
+    while tokens[1] != close_token
+        # Handle both formats:
+        # 1. Flat list: var1 val1 var2 val2
+        # 2. Nested pairs: (var1 val1) (var2 val2)
+        if tokens[1] == "("
+            # Nested pair format
+            tokens = view(tokens, 2:length(tokens))  # Skip opening paren
+            var = tokens[1]
+            tokens = view(tokens, 2:length(tokens))
+            val, tokens = parse_with_env(tokens, state, env)
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis in `let` binding")
+            tokens = view(tokens, 2:length(tokens))  # Skip closing paren
+        else
+            # Flat list format
+            var = tokens[1]
+            tokens = view(tokens, 2:length(tokens))
+            val, tokens = parse_with_env(tokens, state, env)
+        end
+        push!(bindings, (var, val))
+        env = [var, env...]
+    end
+    tokens = view(tokens, 2:length(tokens))  # Skip closing paren of bindings list
+    body, tokens = parse_with_env(tokens, state, env)
+
+    tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis at end of let expression")
+
+    # Desugar to nested lambdas and applications
+    expr = body
+    for (var, val) in reverse(bindings)
+        expr = App()(Abs(Symbol(var))(expr), val)
+    end
+
+    return expr, view(tokens, 2:length(tokens))
+end
+
+function parse_constructor_expr(tokens, state, token)
+    # parse a sum product type constructor
+    constructor = Symbol(token)
+    type = type_of_constructor[constructor]
+    args = args_of_constructor[constructor]
+    tokens = view(tokens, 2:length(tokens))
+    args = []
+    while tokens[1] != ")"
+        arg, tokens = parse_expr_inner(tokens, state)
+        push!(args, arg)
+    end
+    length(args) == length(args_of_constructor[constructor]) || parse_error(state, tokens, "wrong number of arguments for constructor $constructor: expected $(length(args_of_constructor[constructor])), got $(length(args))")
+    return Construct(constructor)(args...), view(tokens, 2:length(tokens))
+end
+
+function parse_primitive(tokens, state, token)
+    head_type = lookup_prim(String(token))
+    arity = prim_arity(head_type)
+    tokens = view(tokens, 2:length(tokens))
+    head = head_type()
+    args = PExpr[]
+    for i ∈ 1:arity
+        arg, tokens = parse_expr_inner(tokens, state)
+        push!(args, arg)
+    end
+    tokens[1] == ")" || parse_error(state, tokens, "wrong number of arguments for primitive $token: expected $arity, got $(length(args))")
+    return head(args...), view(tokens, 2:length(tokens))
+end
+
+function parse_discrete(tokens, state)
+    # Parse (discrete (e1 p1) (e2 p2) ...)
+    tokens = view(tokens, 2:length(tokens))
+
+    options = PExpr[]
+    probabilities = Float64[]
+
+    while tokens[1] != ")"
+        tokens[1] == "(" || parse_error(state, tokens, "expected opening paren in discrete distribution pair")
+        tokens = view(tokens, 2:length(tokens))
+
+        # Parse the expression
+        expr, tokens = parse_expr_inner(tokens, state)
+        push!(options, expr)
+
+        # Parse the probability (must be a literal number)
+        prob_str = tokens[1]
+        all(c -> isdigit(c) || c == '.' || c =='e' || c == '-', prob_str) || parse_error(state, tokens, "probability must be a literal number in discrete distribution, got $prob_str")
+        prob = parse(Float64, prob_str)
+        push!(probabilities, prob)
+
+        tokens = view(tokens, 2:length(tokens))  # Skip probability and closing paren
+        tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in discrete distribution pair")
+        tokens = view(tokens, 2:length(tokens))
+    end
+
+    # Generate the nested if-expression using the discrete function
+    expr_str = discrete(options, probabilities)
+    expr, rest = parse_expr_inner(tokenize(expr_str), state)
+    isempty(rest) || parse_error(state, rest, "unexpected tokens after discrete expression")
+
+    return expr, view(tokens, 2:length(tokens))
+end
+
+function parse_uniform(tokens, state)
+    # Parse (uniform e1 e2 e3 ...)
+    tokens = view(tokens, 2:length(tokens))
+    options = PExpr[]
+    while tokens[1] != ")"
+        expr, tokens = parse_expr_inner(tokens, state)
+        push!(options, expr)
+    end
+
+    n = length(options)
+    probabilities = fill(1.0/n, n)
+
+    # Generate the nested if-expression using the discrete function
+    expr_str = discrete(options, probabilities)
+    expr, rest = parse_expr_inner(tokenize(expr_str), state)
+    isempty(rest) || parse_error(state, rest, "unexpected tokens after uniform expression")
+
+    return expr, view(tokens, 2:length(tokens))
+end
+
+function parse_application(tokens, state)
+    # Parse an application
+    f, tokens = parse_expr_inner(tokens, state)
+    args = []
+    while tokens[1] != ")"
+        arg, tokens = parse_expr_inner(tokens, state)
+        push!(args, arg)
+    end
+
+    # If no arguments provided, insert Unit constructor
+    if isempty(args)
+        args = [Construct(:Unit)()]
+    end
+
+    expr = f
+    for arg in args
+        expr = App()(expr, arg)
+    end
+    return expr, view(tokens, 2:length(tokens))
+end
+
+function parse_symbol(tokens)
+    # parse a symbol
+    sym = Symbol(tokens[1][2:end])
+    return ConstNative(sym)(), view(tokens, 2:length(tokens))
+end
+
+function parse_byte_literal(tokens, state)
+    # byte literal: 0cX for a single ASCII byte X
+    inner = tokens[1][3]
+    ncodeunits(string(inner)) == 1 || parse_error(state, tokens, "byte literal must be exactly one byte, got \"$inner\"")
+    byte = Int(codeunit(string(inner), 1))
+    bitwidth = ConstNative(8)()
+    val = ConstNative(byte)()
+    return MkIntOp()(bitwidth, val), view(tokens, 2:length(tokens))
+end
+
+function parse_string_literal(tokens)
+    # string literal -> list of 8-bit ints
+    # Use proper character indexing for UTF-8 safety
+    start_idx = nextind(tokens[1], firstindex(tokens[1]))
+    end_idx = prevind(tokens[1], lastindex(tokens[1]))
+    inner = tokens[1][start_idx:end_idx]
+    bytes = collect(codeunits(inner))
+    expr = Construct(:Nil)()
+    for b in reverse(bytes)
+        bitwidth = ConstNative(8)()
+        val = ConstNative(Int(b))()
+        expr = Construct(:Cons)(MkIntOp()(bitwidth, val), expr)
+    end
+    return expr, view(tokens, 2:length(tokens))
+end
+
+function parse_list(tokens, state)
+    # parse a list: parse expressions until ]
+    tokens = view(tokens, 2:length(tokens))
+    vals = []
+    while tokens[1] != "]"
+        head, tokens = parse_expr_inner(tokens, state)
+        tokens[1] == "," && parse_error(state, tokens, "unexpected comma in list")
+        push!(vals, head)
+    end
+    tokens = view(tokens, 2:length(tokens))
+    expr = Construct(:Nil)()
+    for val in reverse(vals)
+        expr = Construct(:Cons)(val, expr)
+    end
+    return expr, tokens
+end
+
+function parse_peano_number(tokens)
+    # parse peano number
+    val = parse(Int, tokens[1])
+    expr = Construct(:O)()
+    for _ in 1:val
+        expr = Construct(:S)(expr)
+    end
+    return expr, view(tokens, 2:length(tokens))
 end
 
 
