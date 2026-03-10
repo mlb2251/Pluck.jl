@@ -21,29 +21,27 @@
         (c_)
         (d_)))))
 
-(define strings_eq
-  (Y (fn strings_eq l1 l2 -> (match l1
+(define (strings_eq l1 l2)
+  (match l1
     Nil => (match l2 Nil => true | Cons _ _ => false)
-    Cons c1 c2 => (match l2 Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))))))
+    Cons c1 c2 => (match l2 Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))))
 
 (define char_to_num (fn c -> (match c a_ => 0 | b_ => 1 | c_ => 2 | d_ => 3)))
 
-(define rotate_char
-  (Y (fn rotate_char n c ->
-    (match n
-      O => c
-      | S m => (rotate_char m (match c
-        a_ => (b_)
-        b_ => (c_)
-        c_ => (d_)
-        d_ => (a_)))))))
+(define (rotate_char n c)
+  (match n
+    O => c
+    | S m => (rotate_char m (match c
+      a_ => (b_)
+      b_ => (c_)
+      c_ => (d_)
+      d_ => (a_)))))
 
 (define encrypt_message
   (fn key message -> (map (fn c -> (rotate_char key c)) message)))
 
-(define random_string
-  (Y (fn random_string n ->
-    (match n O => [] | S m => (Cons (random_char) (random_string m))))))
+(define (random_string n)
+  (match n O => [] | S m => (Cons (random_char) (random_string m))))
 
 (define caesar
   (fn observed -> (let

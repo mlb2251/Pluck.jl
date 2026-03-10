@@ -4,15 +4,13 @@
 ;; Original: Pluck.define_type!(:pcfg_grammar_symbol Dict(:SS => Symbol[] :XX => Symbol[] :YY => Symbol[] :a => Symbol[] :b => Symbol[] :c => Symbol[]))
 (define-type pcfg_grammar_symbol (SS) (XX) (YY) (a) (b) (c))
 
-(define generate_pcfg_grammar
-  (Y (fn generate symbol ->
-    (match symbol
-      SS => (let (xgen (generate ( XX )) ygen (generate (YY)) order (flip 0.5))
-        (if order (append xgen ygen) (append ygen xgen)))
-      XX => (if (flip 0.5) [(a)] (Cons (b) (append (generate (XX)) (generate (XX)))))
-      YY => (Cons (c) (if (flip 0.5) [] (generate (if (flip 0.5) (XX) (SS)))))
-    )
-  )))
+(define (generate_pcfg_grammar symbol)
+  (match symbol
+    SS => (let (xgen (generate_pcfg_grammar ( XX )) ygen (generate_pcfg_grammar (YY)) order (flip 0.5))
+      (if order (append xgen ygen) (append ygen xgen)))
+    XX => (if (flip 0.5) [(a)] (Cons (b) (append (generate_pcfg_grammar (XX)) (generate_pcfg_grammar (XX)))))
+    YY => (Cons (c) (if (flip 0.5) [] (generate_pcfg_grammar (if (flip 0.5) (XX) (SS)))))
+  ))
 
 (define symbol_equals
   (fn symbol1 symbol2 ->
@@ -32,17 +30,15 @@
     )
   ))
 
-(define list_symbols_equal
-  (Y (fn rec list1 list2 ->
-    (match list1
-      Nil => (match list2
-        Nil => true
-        Cons _ _ => false)
-      Cons hd1 tl1 => (match list2
-        Nil => false
-        Cons hd2 tl2 => (and (symbol_equals hd1 hd2) (rec tl1 tl2)))
-    )
-  )))
+(define (list_symbols_equal list1 list2)
+  (match list1
+    Nil => (match list2
+      Nil => true
+      Cons _ _ => false)
+    Cons hd1 tl1 => (match list2
+      Nil => false
+      Cons hd2 tl2 => (and (symbol_equals hd1 hd2) (list_symbols_equal tl1 tl2)))
+  ))
 
 ;; Query: pcfg_query() =
 ;;   (list_symbols_equal (generate_pcfg_grammar (SS)) <test_example_string>)

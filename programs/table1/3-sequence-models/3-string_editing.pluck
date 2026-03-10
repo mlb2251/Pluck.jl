@@ -8,34 +8,28 @@
 (define (random_char)
   (uniform (a_) (b_) (c_) (d_) (e_)))
 
-(define strings_eq
-  (Y (fn strings_eq l1 l2 -> (match l1
+(define (strings_eq l1 l2)
+  (match l1
     Nil => (match l2 Nil => true | Cons _ _ => false)
-    Cons c1 c2 => (match l2 Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))
-  ))))
+    Cons c1 c2 => (match l2 Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))))
 
-(define random_string
-  (Y (fn random_string p ->
-    (if (flip p)
-      []
-      (Cons (random_char) (random_string p))
-    )
-  )))
+(define (random_string p)
+  (if (flip p)
+    []
+    (Cons (random_char) (random_string p))))
 
 ;; note during artifact construction: this is the one we're using
-(define perturb
-  (Y (fn perturb s ->
-      (match s
-        Nil => (random_string 0.99)
-        Cons c cs =>
-        (let
-          (do_delete (flip 0.01)
-           insertion (random_string 0.99)
-           perturbed_cs (perturb cs))
-          (if do_delete
-              perturbed_cs
-              (append insertion (Cons (if (flip 0.01) (random_char) c) perturbed_cs))
-              ))))))
+(define (perturb s)
+  (match s
+    Nil => (random_string 0.99)
+    Cons c cs =>
+    (let
+      (do_delete (flip 0.01)
+       insertion (random_string 0.99)
+       perturbed_cs (perturb cs))
+      (if do_delete
+          perturbed_cs
+          (append insertion (Cons (if (flip 0.01) (random_char) c) perturbed_cs))))))
 
 ;; Query: string_editing_query(4, 5) =
 ;;   (strings_eq (perturb <long_string_1[1:4]>) <long_string_2[1:5]>)
