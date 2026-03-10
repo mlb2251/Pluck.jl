@@ -1,7 +1,7 @@
 ;; PCFG benchmark
 ;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/pcfg.jl
 
-;; Original: Pluck.define_type!(:pcfg_grammar_symbol Dict(:SS -> Symbol[] :XX -> Symbol[] :YY -> Symbol[] :a -> Symbol[] :b -> Symbol[] :c -> Symbol[]))
+;; Original: Pluck.define_type!(:pcfg_grammar_symbol Dict(:SS -> Symbol[] :XX -> Symbol[] :YY -> Symbol[] :A -> Symbol[] :B -> Symbol[] :C -> Symbol[]))
 (define-type pcfg_grammar_symbol (SS) (XX) (YY) (A) (B) (C))
 
 (define (generate_pcfg_grammar symbol)
@@ -15,18 +15,18 @@
 (define symbol_equals
   (fn symbol1 symbol2 ->
     (match symbol1
-      a -> (match symbol2
-        a -> true
-        b -> false
-        c -> false)
-      b -> (match symbol2
-        a -> false
-        b -> true
-        c -> false)
-      c -> (match symbol2
-        a -> false
-        b -> false
-        c -> true)
+      A -> (match symbol2
+        A -> true
+        B -> false
+        C -> false)
+      B -> (match symbol2
+        A -> false
+        B -> true
+        C -> false)
+      C -> (match symbol2
+        A -> false
+        B -> false
+        C -> true)
     )
   ))
 
