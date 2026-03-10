@@ -91,8 +91,6 @@ function LazyKCState(cfg::LazyKCConfig)
     return state
 end
 
-get_config(state::LazyKCState) = state.cfg
-
 function traced_compile_inner(expr, env, path_condition, state::LazyKCState, strict_order_index)
     # Check whether path_condition is false.
     if bdd_is_false(path_condition) &&!state.cfg.disable_used_information

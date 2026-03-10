@@ -23,22 +23,7 @@ Base.copy(e::PExpr) = PExpr(e.head, Any[copy(arg) for arg in e.args])
 
 (head::H where {H <: Head})(args...) = PExpr(head, collect(args))
 
-
-function bottomup_descendants(e::PExpr)
-    worklist = Vector{PExpr}(e)
-    result = Vector{PExpr}(e)
-    while !isempty(worklist)
-        e = popfirst!(worklist)
-        push!(result, e)
-        for arg in e.args
-            push!(worklist, arg)
-        end
-    end
-    result
-end
-
 # default PExpr methods
-shortname(e::PExpr) = string(e.head)
 function Base.show(io::IO, e::PExpr)
     print(io, "(", e.head)
     for arg in e.args
@@ -53,7 +38,6 @@ end
 
 # Function application
 @auto_hash_equals struct App <: Head end
-Base.show(io::IO, e::App) = print(io, "App")
 function Base.show(io::IO, e::PExpr{App})
     # show (App (λ x -> e) arg) as (let [x e] arg)
     # and show (App (λ x -> (App (λ x -> e) ey)) ex) as (let [x ex y ey] e) 
@@ -110,13 +94,6 @@ function getarg(e::PExpr{App}, i)
     getx(e)
 end
 
-function argpath(e::PExpr{App}, i)
-    which_app = num_apps(e) - i + 1
-    path = ones(Int, which_app-1) # index into `f` that many times
-    push!(path, 2) # index into `x`
-    path
-end
-
 # Function abstraction
 @auto_hash_equals struct Abs <: Head
     var::Symbol
@@ -135,38 +112,20 @@ end
 @auto_hash_equals struct Var <: Head
     name::Symbol
 end
-Base.show(io::IO, h::Var) = print(io, "\$", h.name)
 Base.show(io::IO, e::PExpr{Var}) = print(io, e.head)
 
 @auto_hash_equals struct Defined <: Head
     name::Symbol
 end
-Base.show(io::IO, h::Defined) = print(io, h.name)
-Base.show(io::IO, e::PExpr{Defined}) = print(io, e.head)
-
-@auto_hash_equals struct GSymbol <: Head
-    name::Symbol
-end
-Base.show(io::IO, h::GSymbol) = print(io, "?", h.name)
-Base.show(io::IO, e::PExpr{GSymbol}) = print(io, e.head)
-
-@auto_hash_equals struct GVarSymbol <: Head
-    name::Symbol
-end
-Base.show(io::IO, h::GVarSymbol) = print(io, "#", h.name)
-Base.show(io::IO, e::PExpr{GVarSymbol}) = print(io, e.head)
-
+Base.show(io::IO, e::PExpr{Defined}) = print(io, e.head.name)
 @auto_hash_equals struct ConstNative <: Head
     val::Any
 end
-getval(e::PExpr{ConstNative}) = e.head.val
 function Base.show(io::IO, e::ConstNative)
     if e.val isa Int
         print(io, "@")
     elseif e.val isa Symbol
         print(io, "'")
-    elseif e.val isa PExpr
-        print(io, "`")
     end
     print(io, e.val)
 end
@@ -276,9 +235,6 @@ define_parser!("get_args", GetArgsOp, 1)
 
 struct GetConstructorOp <: Head end
 define_parser!("get_constructor", GetConstructorOp, 1)
-
-struct GetConfig <: Head end
-define_parser!("get_config", GetConfig, 0)
 
 struct AbstractTypeOp <: Head end
 define_parser!("abstract_type", AbstractTypeOp, 1)
