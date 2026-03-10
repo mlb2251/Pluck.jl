@@ -327,8 +327,8 @@ end
 function parse_let(tokens, state, env)
     # Parse a let expression
     tokens = view(tokens, 2:length(tokens))
-    (tokens[1] == "(" || tokens[1] == "[") || parse_error(state, tokens, "expected opening parenthesis or bracket after `let`")
-    close_token = tokens[1] == "(" ? ")" : "]"
+    (tokens[1] == "(") || parse_error(state, tokens, "expected opening parenthesis after `let`")
+    close_token = ")"
     tokens = view(tokens, 2:length(tokens))
 
     bindings = []
