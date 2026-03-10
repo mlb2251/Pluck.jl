@@ -70,17 +70,17 @@
    (people (map random-person (range num-people)))
    (refs (map (fn i -> (index i people)) indices))
    (names (map render-person refs)))
-   (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) people)
+   (PosteriorSamples (map (fn p -> (match p Person f m l => [f m l])) people)
                      ((list=? string=?)
                       names
-                      ["Jordan B. Fisher", "J. Fisher", "JCF", "AKL", "Jesse"]) 10)))
+                      ["Jordan B. Fisher" "J. Fisher" "JCF" "AKL" "Jesse"]) 10)))
 
 (query
  'strings-people-2
  (let
-  ((obs ["JBF", "Jacob", "JCF", "J. Fry"])
+  ((obs ["JBF" "Jacob" "JCF" "J. Fry"])
    (mentions (generate-mentions (length obs) (Nil))))
-   (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) (snd mentions))
+   (PosteriorSamples (map (fn p -> (match p Person f m l => [f m l])) (snd mentions))
                      ((list=? string=?) (fst mentions)
                                         obs) 10)))
 
@@ -93,11 +93,11 @@
    (refs (map (fn i -> (index i people)) indices))
    (names (map render-person refs))
    (mentions (map (fn name -> (append (random-printable-string) (Cons (car " ") (append name (Cons (car " ") (random-printable-string)))))) names)))
-   (PosteriorSamples (map (fn p -> (match p Person f m l => [f,m,l])) people)
+   (PosteriorSamples (map (fn p -> (match p Person f m l => [f m l])) people)
                      ((list=? string=?)
                       mentions
-                      ["so I talked to Jordan B. Fisher yesterday",
-                       "If J. Fisher were here",
-                       "when I met MBJ it was summer",
-                       "a Book Signed By Michael B. Jordan and Sold For Millions",
+                      ["so I talked to Jordan B. Fisher yesterday"
+                       "If J. Fisher were here"
+                       "when I met MBJ it was summer"
+                       "a Book Signed By Michael B. Jordan and Sold For Millions"
                        "it was Josh Tenenbaum who The Company saw first"]) 10)))

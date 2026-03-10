@@ -139,7 +139,7 @@ function tokenize(s)
             col += 2
             i = nextind(s, nextind(s, i))
             continue
-        elseif c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', 'λ')
+        elseif c in ('(', ')', '{', '}', '[', ']', '`')
             # Single character token
             push!(tokens, Token(string(c), token_line, token_col, token_offset))
             col += 1
@@ -151,7 +151,7 @@ function tokenize(s)
             start_col = col
             while i <= lastindex(s)
                 c = s[i]
-                if isspace(c) || c in ('(', ')', '{', '}', '[', ']', ',', '~', '`', '"', 'λ')
+                if isspace(c) || c in ('(', ')', '{', '}', '[', ']', '`', '"')
                     break
                 elseif c == '-' && i < lastindex(s) && s[nextind(s, i)] == '>'
                     break
@@ -203,13 +203,11 @@ function parse_expr_inner(tokens, state)
             # Handle regular lambda cases
             while true
                 name = tokens[1]
-                Base.isidentifier(name) || parse_error(state, tokens, "expected identifier for lambda argument, got $name")
+                Base.isidentifier(name) || parse_error(state, tokens, "expected identifier for `fn` argument, got $name")
                 env = [name, env...]
                 num_args += 1
                 tokens = view(tokens, 2:length(tokens))
-                if tokens[1] == "," # optional comma
-                    tokens = view(tokens, 2:length(tokens))
-                end
+                tokens[1] == "," && parse_error(state, tokens, "unnecessary comma in `fn` argument list")
                 if tokens[1] == "->" # end of arg list
                     tokens = view(tokens, 2:length(tokens))
                     break
@@ -219,7 +217,7 @@ function parse_expr_inner(tokens, state)
             for i ∈ 1:num_args
                 body = Abs(Symbol(env[i]))(body)
             end
-            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after lambda body")
+            tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after fn body")
             return body, view(tokens, 2:length(tokens))
         elseif token == "if"
             # Parse an if

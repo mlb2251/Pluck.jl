@@ -52,8 +52,8 @@
 
 
 ;; LAFI examples
-;; [3,7,2,6] → [4,8,1,5]
-;; [1,8,6,5,7] → [2,7,5,6,8]
+;; [3 7 2 6] → [4 8 1 5]
+;; [1 8 6 5 7] → [2 7 5 6 8]
 
 ;; (define (lafi-examples) ;; input-output list
 ;;   (Cons (Pair ;; input-output pair

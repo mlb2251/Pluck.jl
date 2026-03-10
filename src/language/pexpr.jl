@@ -97,7 +97,7 @@ end
     var::Symbol
 end
 Base.copy(h::Abs) = h
-Base.show(io::IO, h::Abs) = print(io, "λ", h.var)
+Base.show(io::IO, h::Abs) = print(io, "fn ", h.var)
 function Base.show(io::IO, e::PExpr{Abs})
     print(io, "(fn ", e.head.var)
     while e.args[1] isa PExpr{Abs}

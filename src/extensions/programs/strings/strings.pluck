@@ -33,8 +33,8 @@
    (Posterior
     [s1, s2]
     (string=? s "Hello uncertain world!")))
- (["Hello uncertain", "world!"] 0.5000000000000001)
- (["Hello", "uncertain world!"] 0.49999999999999994))
+ (["Hello uncertain" "world!"] 0.5000000000000001)
+ (["Hello" "uncertain world!"] 0.49999999999999994))
 
 ;; People have first and last names but sometimes we see initials
 (define-type person (Person first middle last))
@@ -73,9 +73,9 @@
     names ;; (map (fn p -> (match p Person f m l => [f,m,l])) people)
     (string=? obs "EmilyJaneMcClellan")))
  (["Emily Jane McClellan"] 0.9365920405321279)
- (["Emily", "Jane McClellan"] 0.05853700253325799)
- (["Emily Jane Mc", "Clellan"] 0.004584430056107424)
- (["Emily", "Jane Mc", "Clellan"] 0.000286526878506714))
+ (["Emily" "Jane McClellan"] 0.05853700253325799)
+ (["Emily Jane Mc" "Clellan"] 0.004584430056107424)
+ (["Emily" "Jane Mc" "Clellan"] 0.000286526878506714))
 
 (define (trunc-geom n m)
   (match n
