@@ -7,6 +7,10 @@ using JSON: JSON
 
 const ENABLE_INTDISTS = false
 const ENABLE_SAMPLE_VALUE = false
+const ENABLE_LPSMC = false
+const ENABLE_OPTIMIZE = false
+const ENABLE_LOGGING = false
+const ENABLE_POSTERIOR_SAMPLING = false
 
 include("RSDD/RSDD.jl")
 using .RSDD
@@ -31,14 +35,19 @@ include("likelihood/lazy_knowledge_compilation/lazy_knowledge_compilation.jl")
 include("likelihood/lazy_knowledge_compilation/thunks.jl")
 include("likelihood/lazy_knowledge_compilation/monad.jl")
 include("likelihood/lazy_knowledge_compilation/compile_inner.jl")
-include("extensions/logging.jl")
+if ENABLE_LOGGING
+    include("extensions/logging.jl")
+end
 
+if ENABLE_OPTIMIZE
+    include("extensions/optimize.jl")
+end
 
-include("extensions/optimize.jl")
 include("likelihood/full_dist.jl")
 
-
-include("extensions/LPSMC.jl")
+if ENABLE_LPSMC
+    include("extensions/LPSMC.jl")
+end
 
 if ENABLE_SAMPLE_VALUE
     include("extensions/sample_value/sample_value.jl")
@@ -52,7 +61,9 @@ if ENABLE_SAMPLE_VALUE
     end
 end
 
-include("extensions/posterior_sampling.jl")
+if ENABLE_POSTERIOR_SAMPLING
+    include("extensions/posterior_sampling.jl")
+end
 
 include("toplevel/parsing.jl")
 include("toplevel/query.jl")

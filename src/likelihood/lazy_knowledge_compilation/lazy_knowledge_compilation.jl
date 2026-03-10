@@ -120,12 +120,12 @@ function traced_compile_inner(expr, env, path_condition, state::LazyKCState, str
         record_forward!(state.viz, expr, env, path_condition, strict_order_index)
     end
 
-    print_enter(expr, env, state)
+    if ENABLE_LOGGING
+        print_enter(expr, env, state)
+    end
     result, used_information = compile_inner(expr, env, path_condition, state)
-    print_exit(expr, result, env, state)
-
-    if state.cfg.log
-        record_result!(state.viz, result, used_information)
+    if ENABLE_LOGGING
+        print_exit(expr, result, env, state)
     end
 
     pop!(state.callstack)

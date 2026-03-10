@@ -22,7 +22,9 @@ end
 
 function make_thunk(expr, env, strict_order_index, state::LazyKCState)
     thunk = LazyKCThunk(expr, env, strict_order_index, state)
-    print_make_thunk(thunk, state)
+    if ENABLE_LOGGING
+        print_make_thunk(thunk, state)
+    end
     return thunk
 end
 
@@ -84,7 +86,9 @@ function evaluate(thunk::LazyKCThunkUnion, path_condition::BDD, state::LazyKCSta
 end
 
 function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
-    print_thunk_enter(thunk, state)
+    if ENABLE_LOGGING
+        print_thunk_enter(thunk, state)
+    end
     old_callstack = state.callstack
     state.callstack = thunk.callstack
     old_stacktrace = state.stacktrace
@@ -94,7 +98,9 @@ function evaluate_no_cache(thunk::LazyKCThunk, path_condition, state)
 
     state.callstack = old_callstack
     state.stacktrace = old_stacktrace
-    print_thunk_exit(thunk, result, state)
+    if ENABLE_LOGGING
+        print_thunk_exit(thunk, result, state)
+    end
     return result
 end
 
