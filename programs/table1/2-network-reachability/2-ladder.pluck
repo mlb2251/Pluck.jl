@@ -11,9 +11,9 @@
 
 (define run_ladder_network
   (fn m ->
-    (case ((Y (fn run_ladder_network n ->
-        (case n of O => (Cons true false) |
-                   S m => (case (run_ladder_network m) of Cons i1 i2 => (ladder_network i1 i2))))) m)
+    (match ((Y (fn run_ladder_network n ->
+        (match n O => (Cons true false) |
+                   S m => (match (run_ladder_network m) Cons i1 i2 => (ladder_network i1 i2))))) m)
     of Cons i1 i2 => i1)))
 
 ;; Query: (run_ladder_network 100)

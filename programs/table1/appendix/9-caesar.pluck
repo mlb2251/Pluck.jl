@@ -22,17 +22,17 @@
         (d_)))))
 
 (define strings_eq
-  (Y (fn strings_eq l1 l2 -> (case l1 of
-    Nil => (case l2 of Nil => true | Cons _ _ => false)
-    Cons c1 c2 => (case l2 of Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))))))
+  (Y (fn strings_eq l1 l2 -> (match l1
+    Nil => (match l2 Nil => true | Cons _ _ => false)
+    Cons c1 c2 => (match l2 Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))))))
 
-(define char_to_num (fn c -> (case c of a_ => 0 | b_ => 1 | c_ => 2 | d_ => 3)))
+(define char_to_num (fn c -> (match c a_ => 0 | b_ => 1 | c_ => 2 | d_ => 3)))
 
 (define rotate_char
   (Y (fn rotate_char n c ->
-    (case n of
+    (match n
       O => c
-      | S m => (rotate_char m (case c of
+      | S m => (rotate_char m (match c
         a_ => (b_)
         b_ => (c_)
         c_ => (d_)
@@ -43,7 +43,7 @@
 
 (define random_string
   (Y (fn random_string n ->
-    (case n of O => (Nil) | S m => (Cons (random_char) (random_string m))))))
+    (match n O => (Nil) | S m => (Cons (random_char) (random_string m))))))
 
 (define caesar
   (fn observed -> (let

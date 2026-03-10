@@ -9,9 +9,9 @@
   (uniform (a_) (b_) (c_) (d_) (e_)))
 
 (define strings_eq
-  (Y (fn strings_eq l1 l2 -> (case l1 of
-    Nil => (case l2 of Nil => true | Cons _ _ => false)
-    Cons c1 c2 => (case l2 of Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))
+  (Y (fn strings_eq l1 l2 -> (match l1
+    Nil => (match l2 Nil => true | Cons _ _ => false)
+    Cons c1 c2 => (match l2 Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))
   ))))
 
 (define random_string
@@ -25,7 +25,7 @@
 ;; note during artifact construction: this is the one we're using
 (define perturb
   (Y (fn perturb s ->
-      (case s of
+      (match s
         Nil => (random_string 0.99)
         Cons c cs =>
         (let

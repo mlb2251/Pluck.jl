@@ -9,7 +9,7 @@
 
 (define diamond_network
   (Y (fn network n ->
-    (case n of
+    (match n
       O => true |
       S m => (diamond (network m))))))
 

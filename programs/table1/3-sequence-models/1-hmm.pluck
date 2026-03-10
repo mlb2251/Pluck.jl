@@ -8,12 +8,12 @@
 
 (define prefix_equals?
   (Y (fn rec xs ys ->
-    (case ys of Nil => true |
-                Cons yhd ytl => (case xs of Nil => false |
+    (match ys Nil => true |
+                Cons yhd ytl => (match xs Nil => false |
                                             Cons xhd xtl => (and (constructors_equal xhd yhd) (rec xtl ytl)))))))
 
 (define generate_observations
-  (Y (fn rec n -> (case n of O => (Nil) | S => (fn npred -> (Cons (True) (rec npred)))))))
+  (Y (fn rec n -> (match n O => (Nil) | S => (fn npred -> (Cons (True) (rec npred)))))))
 
 ;; Query: (hmm_example 50) = (prefix_equals? (hmm (False)) (generate_observations 50))
 (assert-query
