@@ -2,13 +2,13 @@
 ;; Translated from PluckArtifact.jl/src/table1/network_verification/pluck/diamond.jl
 
 (define diamond
-  (λ s1 ->
+  (fn s1 ->
     (let (route (flip 0.5)
           drop  (flip 0.0001))
       (and (or (not drop) route) s1))))
 
 (define diamond_network
-  (Y (λ network n ->
+  (Y (fn network n ->
     (case n of
       O => true |
       S m => (diamond (network m))))))

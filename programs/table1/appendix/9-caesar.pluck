@@ -22,14 +22,14 @@
         (d_)))))
 
 (define strings_eq
-  (Y (λ strings_eq l1 l2 -> (case l1 of
+  (Y (fn strings_eq l1 l2 -> (case l1 of
     Nil => (case l2 of Nil => true | Cons _ _ => false)
     Cons c1 c2 => (case l2 of Nil => false | Cons c3 c4 => (and (constructors_equal c1 c3) (strings_eq c2 c4)))))))
 
-(define char_to_num (lambda c -> (case c of a_ => 0 | b_ => 1 | c_ => 2 | d_ => 3)))
+(define char_to_num (fn c -> (case c of a_ => 0 | b_ => 1 | c_ => 2 | d_ => 3)))
 
 (define rotate_char
-  (Y (λ rotate_char n c ->
+  (Y (fn rotate_char n c ->
     (case n of
       O => c
       | S m => (rotate_char m (case c of
@@ -39,14 +39,14 @@
         d_ => (a_)))))))
 
 (define encrypt_message
-  (λ key message -> (map (λ c -> (rotate_char key c)) message)))
+  (fn key message -> (map (fn c -> (rotate_char key c)) message)))
 
 (define random_string
-  (Y (λ random_string n ->
+  (Y (fn random_string n ->
     (case n of O => (Nil) | S m => (Cons (random_char) (random_string m))))))
 
 (define caesar
-  (λ observed -> (let
+  (fn observed -> (let
     (key (random_key)
      msg (random_string (length observed))
      encrypted (encrypt_message (char_to_num key) msg))
@@ -62,7 +62,7 @@
   ((c_) 1.0))
 
 (define caesar_given
-  (λ observed -> (let
+  (fn observed -> (let
     (key (random_key)
      msg (random_string (length observed))
      encrypted (encrypt_message (char_to_num key) msg))

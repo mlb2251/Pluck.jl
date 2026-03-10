@@ -2,7 +2,7 @@
 ;; Translated from PluckArtifact.jl/src/table1/network_verification/pluck/ladder.jl
 
 (define ladder_network
-  (lambda i1 i2 ->
+  (fn i1 i2 ->
     (let (output (flip 0.5)
           result (Cons output (not output))
           fail_result (Cons false false))
@@ -10,8 +10,8 @@
       (if i2 result fail_result)))))
 
 (define run_ladder_network
-  (lambda m ->
-    (case ((Y (lambda run_ladder_network n ->
+  (fn m ->
+    (case ((Y (fn run_ladder_network n ->
         (case n of O => (Cons true false) |
                    S m => (case (run_ladder_network m) of Cons i1 i2 => (ladder_network i1 i2))))) m)
     of Cons i1 i2 => i1)))

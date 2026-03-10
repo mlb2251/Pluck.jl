@@ -2,7 +2,7 @@
 ;; Iterates a noisy boolean channel 100 times
 
 (define dice_figure_1_fn
-  (Y (λ rec x n -> (case n of O => x | S => (λn ->
+  (Y (fn rec x n -> (case n of O => x | S => (λn ->
     (let ((x2 (if x (flip 0.2) (flip 0.3))))
       (rec x2 n)))))))
 

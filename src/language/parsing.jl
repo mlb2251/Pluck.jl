@@ -183,9 +183,9 @@ function parse_expr_inner(tokens, state)
         # Possible expression heads
         tokens = view(tokens, 2:length(tokens))
         token = tokens[1]
-        if token == "lam" || token == "lambda" || token == "λ" || token == "fn"
-            # parse (λx y z -> body) or (λx,y,z -> body) or (λ_ _ _ -> body) or (λ_ -> body)
-            # or (λ -> body) for 0-argument lambda. A zero-argument lambda is actually just 
+        if token == "fn"
+            # parse (fn x y z -> body) or (fn x,y,z -> body) or (fn _ _ _ -> body) or (fn _ -> body)
+            # or (fn -> body) for 0-argument lambda. A zero-argument lambda is actually just 
             # syntactic sugar for a one-argument lambda with a unit argument.
             tokens = view(tokens, 2:length(tokens))
             num_args = 0

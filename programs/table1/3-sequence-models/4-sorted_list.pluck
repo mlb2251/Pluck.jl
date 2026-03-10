@@ -2,13 +2,13 @@
 ;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/sorted_list.jl
 
 (define nats_equal
-  (Y (λ rec m n -> (case m of
+  (Y (fn rec m n -> (case m of
     O => (case n of O => true | S npred => false)
     S mpred => (case n of O => false | S npred => (rec mpred npred)))
   )))
 
 (define nat_lists_equal
-  (Y (λ rec xs ys -> (case xs of
+  (Y (fn rec xs ys -> (case xs of
     Nil => (case ys of Nil => true | Cons yhd ytl => false)
     Cons xhd xtl => (case ys of Nil => false | Cons yhd ytl => (and (nats_equal xhd yhd) (rec xtl ytl)))))))
 
@@ -16,7 +16,7 @@
   (λmin -> (+ (randnat) min)))
 
 (define random_num_larger_than_fuel
-  (Y (λ rec fuel min ->
+  (Y (fn rec fuel min ->
     (case fuel of
     S fuel =>
       (if (flip 0.5)
@@ -27,10 +27,10 @@
   )))
 
 (define generate_sorted_list
-  (Y (λ rec min -> (if (flip 0.5) (Nil) (let (m (random_num_larger_than min)) (Cons m (rec m)))))))
+  (Y (fn rec min -> (if (flip 0.5) (Nil) (let (m (random_num_larger_than min)) (Cons m (rec m)))))))
 
 (define generate_sorted_list_fuel
-  (Y (λ rec fuel fuel_num min ->
+  (Y (fn rec fuel fuel_num min ->
     (case fuel of
     S fuel =>
         (if (flip 0.5) (Nil) (let (m (random_num_larger_than_fuel fuel_num min)) (Cons m (rec fuel fuel_num m))))

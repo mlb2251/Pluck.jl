@@ -5,7 +5,7 @@
 (define-type pcfg_grammar_symbol (SS) (XX) (YY) (a) (b) (c))
 
 (define generate_pcfg_grammar
-  (Y (λ generate symbol ->
+  (Y (fn generate symbol ->
     (case symbol of
       SS => (let (xgen (generate ( XX )) ygen (generate (YY)) order (flip 0.5))
         (if order (append xgen ygen) (append ygen xgen)))
@@ -15,7 +15,7 @@
   )))
 
 (define symbol_equals
-  (λ symbol1 symbol2 ->
+  (fn symbol1 symbol2 ->
     (case symbol1 of
       a => (case symbol2 of
         a => true
@@ -33,7 +33,7 @@
   ))
 
 (define list_symbols_equal
-  (Y (λ rec list1 list2 ->
+  (Y (fn rec list1 list2 ->
     (case list1 of
       Nil => (case list2 of
         Nil => true
