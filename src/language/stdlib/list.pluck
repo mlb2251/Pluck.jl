@@ -40,15 +40,17 @@
     Nil => []
     Cons x xs => (Cons (f x) (map f xs))))
 
+;; mapi-helper : ((a, Nat) -> b, List a, Nat) -> List b
+;; Helper for mapi with index parameter
+(define (mapi-helper f xs i)
+  (match xs
+    Nil => []
+    Cons x xs => (Cons (f x i) (mapi-helper f xs (S i)))))
+
 ;; mapi : ((a, Nat) -> b, List a) -> List b
 ;; Map with element index (zero-based)
 (define (mapi f xs)
-  (let ((helper
-         (Y (fn rec xs i ->
-              (match xs
-                Nil => []
-                Cons x xs => (Cons (f x i) (rec xs (S i))))))))
-    (helper xs 0)))
+  (mapi-helper f xs 0))
 
 ;; filter : (a -> Bool, List a) -> List a
 ;; Keep elements satisfying predicate
@@ -72,31 +74,35 @@
     Nil => (True)
     Cons x xs => (and (f x) (all f xs))))
 
+;; filteri-helper : ((a, Nat) -> Bool, List a, Nat) -> List a
+;; Helper for filteri with index parameter
+(define (filteri-helper f xs i)
+  (match xs
+    Nil => []
+    Cons x xs => (let (xs (filteri-helper f xs (S i)))
+                   (if (f x i) (Cons x xs) xs))))
+
 ;; filteri : ((a, Nat) -> Bool, List a) -> List a
 ;; Filter with element index (zero-based)
 (define (filteri f xs)
-  (let ((helper
-         (Y (fn rec xs i ->
-              (match xs
-                Nil => []
-                Cons x xs => (let (xs (rec xs (S i)))
-                               (if (f x i) (Cons x xs) xs)))))))
-    (helper xs 0)))
+  (filteri-helper f xs 0))
 
 ;; length : List a -> Nat
 ;; Count elements in list
 (define (length xs)
   (fold (fn acc x -> (inc acc)) 0 xs))
 
+;; range-helper : (Nat, Nat) -> List Nat
+;; Helper for range - accumulates from m to n
+(define (range-helper n m)
+  (if (nat=? m n)
+    []
+    (Cons m (range-helper n (S m)))))
+
 ;; range : Nat -> List Nat
 ;; Generate list [0, 1, ..., n-1]
 (define (range n)
-  (let ((helper
-         (Y (fn rec m ->
-              (if (nat=? m n)
-                []
-                (Cons m (rec (S m))))))))
-    (helper 0)))
+  (range-helper n 0))
 
 ;; index : (Nat, List a) -> a
 ;; Get element at index (partial: crashes if out of bounds)

@@ -8,11 +8,14 @@
     (if i1 (if (flip 0.001) fail_result result)
     (if i2 result fail_result))))
 
+;;  run_ladder_network-helper : Nat -> (List Bool)
+;; Helper for run_ladder_network
+(define (run_ladder_network-helper n)
+  (match n O => (Cons true false)
+             S m => (match (run_ladder_network-helper m) Cons i1 i2 => (ladder_network i1 i2))))
+
 (define (run_ladder_network m)
-  (match ((Y (fn run_ladder_network n ->
-      (match n O => (Cons true false)
-                 S m => (match (run_ladder_network m) Cons i1 i2 => (ladder_network i1 i2))))) m)
-  Cons i1 i2 => i1))
+  (match (run_ladder_network-helper m) Cons i1 i2 => i1))
 
 ;; Query: (run_ladder_network 100)
 (assert-query

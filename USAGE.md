@@ -467,7 +467,7 @@ The top-level form `(define (<func-name> <arg-1> ... <arg-n>) <body>)` can be us
 
 As sugar, `(define (<fname>) <body>)`, `(lambda -> <body>)`, and `(<expr>)` can be used as shorthand for `(define (<fname> _) <body>)`, `(lambda _ -> <body>)`, and `(<expr> (Unit))`, respectively.
 
-Functions defined with `define` may use any previously defined name in their body, including the name being defined (for recursive definitions). Anonymous recursive functions can be defined using the built-in Y-combinator `(Y (lambda <fname> <arg-1> ... <arg-n> -> <body>))`. We do not have special syntax for mutually recursive functions, but it is possible to define them using `Pair`, e.g.
+Functions defined with `define` may use any previously defined name in their body, including the name being defined (for recursive definitions). Anonymous recursive functions can be defined using the Y-combinator from stdlib `(Y (lambda <fname> <arg-1> ... <arg-n> -> <body>))`. We do not have special syntax for mutually recursive functions, but it is possible to define them using `Pair`, e.g.
 
 ```scheme
 (define even-and-odd
