@@ -236,3 +236,9 @@ function join_value!(post_val::IntDist, pre_and_post, join_results, state)
     push!(join_results.int_dist_results, (post_val, pre_and_post))
     return
 end
+
+function print_intdist_as_string(io::IO, x::IntDist)
+    bytes = [bools_to_uint8(Bool[y.bits...]) for y in to_list(x)]
+    str = String(bytes)
+    print(io, "\"", str, "\"")
+end

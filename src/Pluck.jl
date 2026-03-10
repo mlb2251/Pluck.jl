@@ -5,7 +5,7 @@ using JSON: JSON
 # include("util/timing.jl")
 # using .Timing
 
-const ENABLE_INTDISTS = true
+const ENABLE_INTDISTS = false
 
 include("RSDD/RSDD.jl")
 using .RSDD
@@ -44,6 +44,7 @@ include("extensions/sample_value/force_value.jl")
 include("extensions/sample_value/compile_inner.jl")
 include("extensions/sample_value/thunks.jl")
 include("extensions/sample_value/monad.jl")
+
 if ENABLE_INTDISTS
     include("extensions/sample_value/int_dists.jl")
 end

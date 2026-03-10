@@ -17,8 +17,10 @@ function force_thunks(worlds, state)
             continue
         end
 
-        if try_expand_intdist(current_val, path_condition, state, queue)
-            continue
+        if ENABLE_INTDISTS
+            if try_expand_intdist(current_val, path_condition, state, queue)
+                continue
+            end
         end
         
         bdd_is_false(path_condition) || push!(resolved, (current_val, path_condition))

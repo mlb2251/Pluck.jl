@@ -1,0 +1,5 @@
+(include "fig1-strings.pluck")
+(include "name_model.pluck")
+(include "regex.pluck")
+(include "strings.pluck")
+(include "surname_model.pluck")

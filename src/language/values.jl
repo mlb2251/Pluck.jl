@@ -183,11 +183,11 @@ function Base.show(io::IO, x::Value)
         return
     end
 
-    if is_all_intdist(x)
-        bytes = [bools_to_uint8(Bool[y.bits...]) for y in to_list(x)]
-        str = String(bytes)
-        print(io, "\"", str, "\"")
-        return
+    if ENABLE_INTDISTS
+        if is_all_intdist(x)
+            print_intdist_as_string(io, x)
+            return
+        end
     end
 
     if (x.constructor == :Cons || x.constructor == :Nil) && ends_in_nil(x)
