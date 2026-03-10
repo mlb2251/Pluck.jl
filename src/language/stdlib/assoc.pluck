@@ -8,8 +8,8 @@
 ;; Look up key in association list (returns first match)
 (define (assoc-get xs key)
     (match xs
-        Nil => (None)
-        Cons entry tail => (if (=? (fst entry) key) (Some (snd entry)) (assoc-get tail key))))
+        Nil -> (None)
+        Cons entry tail -> (if (=? (fst entry) key) (Some (snd entry)) (assoc-get tail key))))
 
 ;; in : (List a, a) -> Bool
 ;; Check if element is in list (uses generic =? equality)
@@ -20,18 +20,18 @@
 ;; Find first element satisfying predicate
 (define (find-first p xs)
     (match xs
-        Nil => (None)
-        Cons x xs => (if (p x) (Some x) (find-first p xs))))
+        Nil -> (None)
+        Cons x xs -> (if (p x) (Some x) (find-first p xs))))
 
 ;; replace-at-index : (List a, Nat, a) -> List a
 ;; Replace element at given index with new value
 (define (replace-at-index xs idx new-value)
   (match xs
-    Nil => []
-    Cons x xs =>
+    Nil -> []
+    Cons x xs ->
       (match idx
-        O => (Cons new-value xs)
-        S n => (Cons x (replace-at-index xs n new-value)))))
+        O -> (Cons new-value xs)
+        S n -> (Cons x (replace-at-index xs n new-value)))))
 
 ;; sorted-insert-idx : (List Nat, Nat) -> Option Nat
 ;; Find first index in sorted list where x should be inserted

@@ -8,8 +8,8 @@
 
 (define (network n)
   (match n
-    O => (True)
-    S m => (diamond (network m))))
+    O -> (True)
+    S m -> (diamond (network m))))
 
 (assert-query
  'network-100

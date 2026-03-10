@@ -4,27 +4,27 @@
 ;; Get first element of list (partial: crashes on Nil)
 (define (car l)
   (match l
-    Cons x xs => x))
+    Cons x xs -> x))
 
 ;; cdr : List a -> List a
 ;; Get tail of list (partial: crashes on Nil)
 (define (cdr l)
   (match l
-    Cons x xs => xs))
+    Cons x xs -> xs))
 
 ;; cdr_safe : List a -> List a
 ;; Get tail of list, returning Nil for empty list
 (define (cdr_safe l)
   (match l
-    Nil => []
-    Cons x xs => xs))
+    Nil -> []
+    Cons x xs -> xs))
 
 ;; isempty : List a -> Bool
 ;; Check if list is empty
 (define (isempty l)
   (match l
-    Nil => (True)
-    Cons x xs => (False)))
+    Nil -> (True)
+    Cons x xs -> (False)))
 
 ;; fold : ((b, a) -> b, b, List a) -> b
 ;; Right fold over list
@@ -37,15 +37,15 @@
 ;; Apply function to each element
 (define (map f xs)
   (match xs
-    Nil => []
-    Cons x xs => (Cons (f x) (map f xs))))
+    Nil -> []
+    Cons x xs -> (Cons (f x) (map f xs))))
 
 ;; mapi-helper : ((a, Nat) -> b, List a, Nat) -> List b
 ;; Helper for mapi with index parameter
 (define (mapi-helper f xs i)
   (match xs
-    Nil => []
-    Cons x xs => (Cons (f x i) (mapi-helper f xs (S i)))))
+    Nil -> []
+    Cons x xs -> (Cons (f x i) (mapi-helper f xs (S i)))))
 
 ;; mapi : ((a, Nat) -> b, List a) -> List b
 ;; Map with element index (zero-based)
@@ -56,30 +56,30 @@
 ;; Keep elements satisfying predicate
 (define (filter f xs)
   (match xs
-    Nil => []
-    Cons x xs => (let (xs (filter f xs))
+    Nil -> []
+    Cons x xs -> (let (xs (filter f xs))
                    (if (f x) (Cons x xs) xs))))
 
 ;; any : (a -> Bool, List a) -> Bool
 ;; Check if any element satisfies predicate
 (define (any f xs)
   (match xs
-    Nil => (False)
-    Cons x xs => (or (f x) (any f xs))))
+    Nil -> (False)
+    Cons x xs -> (or (f x) (any f xs))))
 
 ;; all : (a -> Bool, List a) -> Bool
 ;; Check if all elements satisfy predicate
 (define (all f xs)
   (match xs
-    Nil => (True)
-    Cons x xs => (and (f x) (all f xs))))
+    Nil -> (True)
+    Cons x xs -> (and (f x) (all f xs))))
 
 ;; filteri-helper : ((a, Nat) -> Bool, List a, Nat) -> List a
 ;; Helper for filteri with index parameter
 (define (filteri-helper f xs i)
   (match xs
-    Nil => []
-    Cons x xs => (let (xs (filteri-helper f xs (S i)))
+    Nil -> []
+    Cons x xs -> (let (xs (filteri-helper f xs (S i)))
                    (if (f x i) (Cons x xs) xs))))
 
 ;; filteri : ((a, Nat) -> Bool, List a) -> List a
@@ -108,16 +108,16 @@
 ;; Get element at index (partial: crashes if out of bounds)
 (define (index n xs)
   (match xs
-    Cons x xs => (match n
-                   O => x
-                   S m => (index m xs))))
+    Cons x xs -> (match n
+                   O -> x
+                   S m -> (index m xs))))
 
 ;; append : (List a, List a) -> List a
 ;; Concatenate two lists
 (define (append xs ys)
   (match xs
-    Nil => ys
-    Cons x xs => (Cons x (append xs ys))))
+    Nil -> ys
+    Cons x xs -> (Cons x (append xs ys))))
 
 ;; append_one : (List a, a) -> List a
 ;; Append single element to end of list
@@ -127,14 +127,14 @@
 ;; List equality using element comparator
 (define (list=? elem=? xs ys)
   (match xs
-    Nil =>
+    Nil ->
     (match ys
-      Nil => (True)
-      Cons y ys => (False))
-    Cons x xs =>
+      Nil -> (True)
+      Cons y ys -> (False))
+    Cons x xs ->
     (match ys
-      Nil => (False)
-      Cons y ys => (if (elem=? x y)
+      Nil -> (False)
+      Cons y ys -> (if (elem=? x y)
                      (list=? elem=? xs ys)
                      (False)))))
 
@@ -142,23 +142,23 @@
 ;; Take first n elements
 (define (take n xs)
   (match xs
-    Nil => []
-    Cons x xs => (match n
-                   O => []
-                   S n => (Cons x (take n xs)))))
+    Nil -> []
+    Cons x xs -> (match n
+                   O -> []
+                   S n -> (Cons x (take n xs)))))
 
 ;; zip_with : ((a, b) -> c, List a, List b) -> List c
 ;; Zip two lists using combiner function
 (define (zip_with f xs ys)
   (match xs
-    Nil => []
-    Cons x xs => (match ys
-                  Nil => []
-                  Cons y ys => (Cons (f x y) (zip_with f xs ys)))))
+    Nil -> []
+    Cons x xs -> (match ys
+                  Nil -> []
+                  Cons y ys -> (Cons (f x y) (zip_with f xs ys)))))
 
 ;; head-or : (List a, a) -> a
 ;; Get first element or return default value
 (define (head-or xs x)
   (match xs
-    Nil => x
-    Cons hd _ => hd))
+    Nil -> x
+    Cons hd _ -> hd))

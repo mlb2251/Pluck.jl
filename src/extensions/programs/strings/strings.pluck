@@ -42,7 +42,7 @@
   (Person (random-name) (random-name) (random-surname)))
 (define (render-person p)
   (match p
-    Person first middle last =>
+    Person first middle last ->
     (uniform
      first
      (Cons (car first) (append (if (flip 0.5) " " ". ") last))
@@ -55,8 +55,8 @@
 
 (define (append-all xs)
   (match xs
-    Nil => ""
-    Cons s xs => (append s (append-all xs))))
+    Nil -> ""
+    Cons s xs -> (append s (append-all xs))))
 
 (define (remove-spaces s)
   (filter (fn c -> (not (char=? c (car " ")))) s))
@@ -70,7 +70,7 @@
   ;;  (names (map render-person people))
    (obs (remove-spaces (append-all names))))
    (Posterior
-    names ;; (map (fn p -> (match p Person f m l => [f,m,l])) people)
+    names ;; (map (fn p -> (match p Person f m l -> [f,m,l])) people)
     (string=? obs "EmilyJaneMcClellan")))
  (["Emily Jane McClellan"] 0.9365920405321279)
  (["Emily" "Jane McClellan"] 0.05853700253325799)
@@ -79,13 +79,13 @@
 
 (define (trunc-geom n m)
   (match n
-    O => (Pair true m)
-    S k => (if (flip 0.3) (Pair false m) (trunc-geom k (S m)))))
+    O -> (Pair true m)
+    S k -> (if (flip 0.3) (Pair false m) (trunc-geom k (S m)))))
 
 (define (generate-mentions n people-so-far)
   (match n
-    O => (Pair [] people-so-far)
-    S m =>
+    O -> (Pair [] people-so-far)
+    S m ->
     (let
      ((idx (trunc-geom (length people-so-far) 0))
       (need-new? (fst idx))

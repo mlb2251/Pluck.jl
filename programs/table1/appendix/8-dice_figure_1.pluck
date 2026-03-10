@@ -2,7 +2,7 @@
 ;; Iterates a noisy boolean channel 100 times
 
 (define (dice_figure_1_fn x n)
-  (match n O => x  S => (fn n ->
+  (match n O -> x  S -> (fn n ->
     (let ((x2 (if x (flip 0.2) (flip 0.3))))
       (dice_figure_1_fn x2 n)))))
 

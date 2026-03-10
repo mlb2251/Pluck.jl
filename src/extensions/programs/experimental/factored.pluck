@@ -7,12 +7,12 @@
 
 (define (factored=? x y)
   (match (pbool (constructor=? x y))
-    PBool p_true con_equal => (match con_equal
-                                True => (Prob p_true (get_constructor x) (zip_with factored=? (get_args x) (get_args y))))))
+    PBool p_true con_equal -> (match con_equal
+                                True -> (Prob p_true (get_constructor x) (zip_with factored=? (get_args x) (get_args y))))))
 
 (define (factored-run ios f)
   (map (fn io -> (match io
-                  Pair i o => (factored=? i (f o))
+                  Pair i o -> (factored=? i (f o))
                   )) ios))
 
 ;; length ~ (geom p_length) and values ~iid (geom p_values)
@@ -137,9 +137,9 @@
 ;;     ;; (Prob p_same (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
 ;;     ;; (if same_constructor p_same p_same)
 ;;     (match same_constructor
-;;           True => p_same
-;;       ;; (PBool p_true p_false true) => (Prob p_true (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
-;;       ;; (PBool p_true p_false false) => (Prob p_false (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
+;;           True -> p_same
+;;       ;; (PBool p_true p_false true) -> (Prob p_true (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
+;;       ;; (PBool p_true p_false false) -> (Prob p_false (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
 ;;       )
 
 ;;     ))
@@ -151,7 +151,7 @@
 ;; (define (factored=? x y)
 ;;   (let ((p_same (pbool (constructors_equal x y))))
 ;;     (match p_same
-;;       PBool p_true p_false con_equal => (True)
+;;       PBool p_true p_false con_equal -> (True)
 ;;     )
 ;;   )
 ;; )
@@ -175,21 +175,21 @@
 
 ;; (define (factor-list xs)
 ;;   (match xs
-;;     Nil => (FProb [])
-;;     Cons x xs => (FProb (Cons x (factor-list xs)))))
+;;     Nil -> (FProb [])
+;;     Cons x xs -> (FProb (Cons x (factor-list xs)))))
 
 ;; (define (factored=? qry prog)
 ;;   (match qry
-;;     FProb q => (match (pbool (constructors_equal q prog))
-;;       PBool p_true p_false con_equal => (match con_equal
-;;         True => (Prob p_true p_false (get_constructor q) (zip_with factored=? (get_args q) (get_args prog)))))
-;;     FAny => (Prob 1.0 0.0 (FAny) (Unit))
-;;     _ => 
+;;     FProb q -> (match (pbool (constructors_equal q prog))
+;;       PBool p_true p_false con_equal -> (match con_equal
+;;         True -> (Prob p_true p_false (get_constructor q) (zip_with factored=? (get_args q) (get_args prog)))))
+;;     FAny -> (Prob 1.0 0.0 (FAny) (Unit))
+;;     _ -> 
 ;;     )
 ;; )
 
 ;; (match p_same
-;;         True => (Prob p_same (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
+;;         True -> (Prob p_same (get_constructor x) (zip_with factored=? (get_args x) (get_args y)))
 ;;   )
 
 ;; (factored=? (Cons Any Any) (if (flip 0.2) (Cons 0 []) []))

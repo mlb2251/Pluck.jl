@@ -2,19 +2,19 @@
 
 (define (all pred lst)
   (match lst
-    Nil => (True)
-    Cons x xs => (and (pred x) (all pred xs))))
+    Nil -> (True)
+    Cons x xs -> (and (pred x) (all pred xs))))
 
 (define (nodes tree)
   (match tree
-    Leaf => []
-    Node n left right =>
+    Leaf -> []
+    Node n left right ->
     (Cons n (append (nodes left) (nodes right)))))
 
 (define (isBST tree min-val max-val)
   (match tree
-    Leaf => (True)
-    Node n left right =>
+    Leaf -> (True)
+    Node n left right ->
     (and
      (and (> n min-val)
           (< n max-val))

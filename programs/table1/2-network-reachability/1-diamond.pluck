@@ -9,8 +9,8 @@
 
 (define (diamond_network n)
   (match n
-    O => true 
-    S m => (diamond (diamond_network m))))
+    O -> true 
+    S m -> (diamond (diamond_network m))))
 
 ;; Query: (diamond_network 100)
 (assert-query

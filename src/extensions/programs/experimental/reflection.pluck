@@ -4,33 +4,33 @@
 ;; Check if value is a symbol
 (define (is-sym x)
     (match (abstract_type x)
-        NativeValue ty => (=? ty 'Symbol)
-        Value => (False)
-        Closure => (False)))
+        NativeValue ty -> (=? ty 'Symbol)
+        Value -> (False)
+        Closure -> (False)))
 
 ;; is-native-value : a -> Bool
 ;; Check if value is a native value (int, float, symbol, etc.)
 (define (is-native-value x)
     (match (abstract_type x)
-        NativeValue ty => (True)
-        Value => (False)
-        Closure => (False)))
+        NativeValue ty -> (True)
+        Value -> (False)
+        Closure -> (False)))
 
 ;; is-value : a -> Bool
 ;; Check if value is an ADT value (constructed with a data constructor)
 (define (is-value x)
     (match (abstract_type x)
-        NativeValue ty => (False)
-        Value => (True)
-        Closure => (False)))
+        NativeValue ty -> (False)
+        Value -> (True)
+        Closure -> (False)))
 
 ;; is-closure : a -> Bool
 ;; Check if value is a closure (function)
 (define (is-closure x)
     (match (abstract_type x)
-        NativeValue ty => (False)
-        Value => (False)
-        Closure => (True)))
+        NativeValue ty -> (False)
+        Value -> (False)
+        Closure -> (True)))
 
 (define-type type
     (Arrow arg_type return_type)
@@ -40,15 +40,15 @@
 ;; Get argument type of an arrow type (errors on Base)
 (define (arrow-car t)
     (match t
-        Arrow arg_type _ => arg_type
-        Base _ => (error 'not-an-arrow)))
+        Arrow arg_type _ -> arg_type
+        Base _ -> (error 'not-an-arrow)))
 
 ;; arrow-cdr : Type -> Type
 ;; Get return type of an arrow type (errors on Base)
 (define (arrow-cdr t)
     (match t
-        Arrow _ return_type => return_type
-        Base _ => (unreachable)))
+        Arrow _ return_type -> return_type
+        Base _ -> (unreachable)))
 
 ;; is-type : a -> Bool
 ;; Check if value is a Type (Arrow or Base)
@@ -64,22 +64,22 @@
     (if (is-sym t)
         (Base t) ;; symbols are just base types
         (match t
-            Cons t ts =>
+            Cons t ts ->
                 (let (head_type (parse-type t))
                     (if (isempty ts) head_type ;; singleton lists or last elements of lists can be base or arrow however theyre written
                         (Arrow head_type (parse-type ts))))
-            Nil => (error 'empty-arrow))))
+            Nil -> (error 'empty-arrow))))
 
 ;; type-args : Type -> List Type
 ;; Get list of argument types from a function type
 (define (type-args t)
     (match t
-        Base sym => []
-        Arrow argtype rettype => (Cons argtype (type-args rettype))))
+        Base sym -> []
+        Arrow argtype rettype -> (Cons argtype (type-args rettype))))
 
 ;; type-returns : Type -> Type
 ;; Get the final return type of a (possibly multi-argument) function type
 (define (type-returns t)
     (match t
-        Base sym => t
-        Arrow argtype rettype => (type-returns rettype)))
+        Base sym -> t
+        Arrow argtype rettype -> (type-returns rettype)))

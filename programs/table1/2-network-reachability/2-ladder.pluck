@@ -11,11 +11,11 @@
 ;;  run_ladder_network-helper : Nat -> (List Bool)
 ;; Helper for run_ladder_network
 (define (run_ladder_network-helper n)
-  (match n O => (Cons true false)
-             S m => (match (run_ladder_network-helper m) Cons i1 i2 => (ladder_network i1 i2))))
+  (match n O -> (Cons true false)
+             S m -> (match (run_ladder_network-helper m) Cons i1 i2 -> (ladder_network i1 i2))))
 
 (define (run_ladder_network m)
-  (match (run_ladder_network-helper m) Cons i1 i2 => i1))
+  (match (run_ladder_network-helper m) Cons i1 i2 -> i1))
 
 ;; Query: (run_ladder_network 100)
 (assert-query

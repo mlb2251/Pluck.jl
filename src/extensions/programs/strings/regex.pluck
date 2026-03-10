@@ -40,15 +40,15 @@
 
 (define (generate-from re)
   (match re
-    String s => s
-    KleeneStar re1 => (let (s (generate-from re1)) (if (flip 0.5) s (append s (generate-from re))))
-    Concat re1 re2 => (append (generate-from re1) (generate-from re2))
-    Sum re1 re2 => (if (flip 0.5) (generate-from re1) (generate-from re2))))
+    String s -> s
+    KleeneStar re1 -> (let (s (generate-from re1)) (if (flip 0.5) s (append s (generate-from re))))
+    Concat re1 re2 -> (append (generate-from re1) (generate-from re2))
+    Sum re1 re2 -> (if (flip 0.5) (generate-from re1) (generate-from re2))))
 
 (define (escape s)
   (match s
-    Nil => ""
-    Cons a b =>
+    Nil -> ""
+    Cons a b ->
     (if (or (char=? a (car "("))
             (or (char=? a (car ")"))
                 (or (char=? a (car "|"))
@@ -58,10 +58,10 @@
 
 (define (render-re re)
   (match re
-    String s => (escape s)
-    KleeneStar re => (append "(" (append (render-re re) ")*"))
-    Concat re1 re2 => (append (render-re re1) (render-re re2))
-    Sum re1 re2 =>
+    String s -> (escape s)
+    KleeneStar re -> (append "(" (append (render-re re) ")*"))
+    Concat re1 re2 -> (append (render-re re1) (render-re re2))
+    Sum re1 re2 ->
     (append (append "(" (append (render-re re1) "|")) (append (render-re re2) ")"))))
 
 (assert-query
@@ -95,10 +95,10 @@
 
 (define (regex-size re)
   (match re
-    String s => 1
-    Concat r1 r2 => (S (+ (regex-size r1) (regex-size r2)))
-    Sum r1 r2 => (S (+ (regex-size r1) (regex-size r2)))
-    KleeneStar r => (S (regex-size r))))
+    String s -> 1
+    Concat r1 r2 -> (S (+ (regex-size r1) (regex-size r2)))
+    Sum r1 r2 -> (S (+ (regex-size r1) (regex-size r2)))
+    KleeneStar r -> (S (regex-size r))))
 
 (query
  'infer-re

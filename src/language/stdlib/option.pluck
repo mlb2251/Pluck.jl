@@ -8,5 +8,5 @@
 ;; Unwrap option value (errors on None)
 (define (Some.x o)
     (match o
-        Some value => value
-        None => (error 'unwrap-none)))
+        Some value -> value
+        None -> (error 'unwrap-none)))

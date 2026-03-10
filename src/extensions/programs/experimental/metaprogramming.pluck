@@ -10,8 +10,8 @@
 ;; Apply function to argument list (no Unit insertion for empty args)
 (define (make-apply-no-unit f xs)
   (match xs
-    Nil => f
-    Cons x xs => (make-apply-no-unit (App f x) xs)))
+    Nil -> f
+    Cons x xs -> (make-apply-no-unit (App f x) xs)))
 
 ;; make-apply : (PExpr, List PExpr) -> PExpr
 ;; Apply function to argument list (inserts Unit arg if list is empty)

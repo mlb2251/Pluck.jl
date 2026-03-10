@@ -8,8 +8,8 @@
 
 (define (type-size t)
     (match t
-        MyNat => 1
-        MyList t => (S (type-size t))
+        MyNat -> 1
+        MyList t -> (S (type-size t))
     )
 )
 
@@ -21,18 +21,18 @@
 
 ;; typeof is a little unusual - it gives a distribution over types!
 (define (typeof x) (match x
-    S _ => (MyNat)
-    O => (MyNat)
-    Cons x _ => (MyList (typeof x))
-    Nil => (MyList (rand-mytype))
+    S _ -> (MyNat)
+    O -> (MyNat)
+    Cons x _ -> (MyList (typeof x))
+    Nil -> (MyList (rand-mytype))
 ))
 
 
 
 (define (rand-myvalue type)
     (match type
-        MyNat => (if (flip 0.5) 0 (S (rand-myvalue (MyNat))))
-        MyList t => (if (flip 0.5) [] (Cons (rand-myvalue t) (rand-myvalue (MyList t))))))
+        MyNat -> (if (flip 0.5) 0 (S (rand-myvalue (MyNat))))
+        MyList t -> (if (flip 0.5) [] (Cons (rand-myvalue t) (rand-myvalue (MyList t))))))
 
 
 
@@ -40,14 +40,14 @@
 
 
 (define (my-add a b) (match a
-    S n => (S (my-add n b))
-    O => (match b ;; silly branch just to make sure it's a Nat
-        S _ => b
-        O => b)))
+    S n -> (S (my-add n b))
+    O -> (match b ;; silly branch just to make sure it's a Nat
+        S _ -> b
+        O -> b)))
 
 (define (my-map f l) (match l
-    Nil => []
-    Cons x xs => (Cons (f x) (my-map f xs))))
+    Nil -> []
+    Cons x xs -> (Cons (f x) (my-map f xs))))
 
 (assert-query
  'my-add-4-5
@@ -111,5 +111,5 @@
 
 ;; (define (mytype-args type)
 ;;     (match type
-;;         MyList t => [t]
-;;         MyNat => []))
+;;         MyList t -> [t]
+;;         MyNat -> []))

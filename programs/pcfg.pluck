@@ -3,13 +3,13 @@
 
 (define (generate nt)
   (match nt
-    Start => (uniform
+    Start -> (uniform
               (append (generate (XX)) (generate (YY)))
               (append (generate (YY)) (generate (XX))))
-    XX => (uniform
+    XX -> (uniform
            [(a_)]
            (Cons (b_) (append (generate (XX)) (generate (XX)))))
-    YY => (Cons (c_) (uniform
+    YY -> (Cons (c_) (uniform
                       []
                       (generate (XX))
                       (generate (Start))))))
@@ -55,18 +55,18 @@
 
 (define (generate-english nt)
   (match nt
-    Sent => (discrete
+    Sent -> (discrete
              ((append (generate-english (NP)) (generate-english (VP))) 0.7)
              ((append (append (generate-english (NP)) (generate-english (VP)))
                       (append (generate-english (Conj)) (generate-english (Sent)))) 0.3))
-    Conj => [(uniform (and_) (but_))]
-    NP => (append (generate-english (Det)) (generate-english (Noun)))
-    VP => (uniform (generate-english (Verb)) (append (generate-english (VT)) (generate-english (NP))))
-    Verb => [(uniform (barks_) (eats_))]
-    VT => [(eats_)]
-    Adj => [(uniform (happy_) (sad_) (tasty_))]
-    Det => [(uniform (the_) (a_))]
-    Noun => (discrete ((append (generate-english (Adj)) (generate-english (Noun))) 0.3)
+    Conj -> [(uniform (and_) (but_))]
+    NP -> (append (generate-english (Det)) (generate-english (Noun)))
+    VP -> (uniform (generate-english (Verb)) (append (generate-english (VT)) (generate-english (NP))))
+    Verb -> [(uniform (barks_) (eats_))]
+    VT -> [(eats_)]
+    Adj -> [(uniform (happy_) (sad_) (tasty_))]
+    Det -> [(uniform (the_) (a_))]
+    Noun -> (discrete ((append (generate-english (Adj)) (generate-english (Noun))) 0.3)
                       ([(uniform (cat_) (dog_) (bone_))] 0.7))))
 
 (assert-query

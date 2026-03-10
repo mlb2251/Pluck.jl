@@ -230,7 +230,7 @@ function parse_expr_inner(tokens, state)
             # return If(cond, then_expr, else_expr), view(tokens,2:length(tokens))
             return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
         elseif token == "match"
-            # case e1 of Cons => (fn _->(fn _->e2)) | Nil => e3
+            # case e1 of Cons -> (fn _->(fn _->e2)) | Nil -> e3
             tokens = view(tokens, 2:length(tokens))
             scrutinee, tokens = parse_expr_inner(tokens, state)
             guards = CaseOfGuard[]
@@ -238,21 +238,21 @@ function parse_expr_inner(tokens, state)
             while tokens[1] != ")"
                 tokens[1] != "(" || parse_error(state, tokens, "unnecessary parens around match guard") # common mistake
                 tokens[1] == "|" && parse_error(state, tokens, "unnecessary `|` in match expression")
-                
+
                 constructor = Symbol(tokens[1])
                 tokens = view(tokens, 2:length(tokens))
                 args = Symbol[]
-                # Else branch of this allows for the syntax (Cons x xs => body) instead of (Cons => (fn  x xs -> body))
-                if tokens[1] == "=>"
+                # Else branch of this allows for the syntax (Cons x xs -> body) instead of (Cons -> (fn  x xs -> body))
+                if tokens[1] == "->"
                     body, tokens = parse_expr_inner(view(tokens, 2:length(tokens)), state)
                     while body isa PExpr{Abs}
                         push!(args, body.head.var)
                         body = body.args[1]
                     end
                 else
-                    # parse `Cons x xs => body`
+                    # parse `Cons x xs -> body`
                     new_env = env
-                    while tokens[1] != "=>"
+                    while tokens[1] != "->"
                         push!(args, Symbol(tokens[1]))
                         new_env = [tokens[1], new_env...]
                         tokens = view(tokens, 2:length(tokens))

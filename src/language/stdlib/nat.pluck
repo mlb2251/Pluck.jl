@@ -7,40 +7,40 @@
 ;; dec : Nat -> Nat
 ;; Decrement by one (floors at zero)
 (define (dec x) (match x
-                  S m => m
-                  O => (O)))
+                  S m -> m
+                  O -> (O)))
 
 ;; + : (Nat, Nat) -> Nat
 ;; Addition
 (define (+ x y)
   (match y
-    O => x
-    S n => (S (+ x n))))
+    O -> x
+    S n -> (S (+ x n))))
 
 ;; - : (Nat, Nat) -> Nat
 ;; Subtraction (floors at zero)
 (define (- x y)
   (match y
-    O => x
-    S m => (match x
-             O => (O)
-             S n => (- n m))))
+    O -> x
+    S m -> (match x
+             O -> (O)
+             S n -> (- n m))))
 
 ;; * : (Nat, Nat) -> Nat
 ;; Multiplication
 (define (* x y)
   (match x
-    O => (O)
-    S n => (+ y (* n y))))
+    O -> (O)
+    S n -> (+ y (* n y))))
 
 ;; iseven : Nat -> Bool
 ;; Check if even
 (define (iseven n)
   (match n
-    O => (True)
-    S m => (match m
-             O => (False)
-             S k => (iseven k))))
+    O -> (True)
+    S m -> (match m
+             O -> (False)
+             S k -> (iseven k))))
 
 ;; isodd : Nat -> Bool
 ;; Check if odd
@@ -50,32 +50,32 @@
 ;; Natural number equality
 (define (== x y)
   (match x
-    O => (match y
-          O => (True)
-          S _ => (False))
-    S n => (match y
-            O => (False)
-            S m => (== n m))))
+    O -> (match y
+          O -> (True)
+          S _ -> (False))
+    S n -> (match y
+            O -> (False)
+            S m -> (== n m))))
 
 ;; > : (Nat, Nat) -> Bool
 ;; Strict greater than
 (define (> x y)
   (match x
-    O => (False)
-    S n => (match y
-             O => (True)
-             S m => (> n m))))
+    O -> (False)
+    S n -> (match y
+             O -> (True)
+             S m -> (> n m))))
 
 ;; < : (Nat, Nat) -> Bool
 ;; Strict less than
 (define (< x y)
   (match x
-    O => (match y
-           O => (False)
-           S n => (True))
-    S n => (match y
-             O => (False)
-             S m => (< n m))))
+    O -> (match y
+           O -> (False)
+           S n -> (True))
+    S n -> (match y
+             O -> (False)
+             S m -> (< n m))))
 
 ;; >= : (Nat, Nat) -> Bool
 ;; Greater than or equal
@@ -89,12 +89,12 @@
 ;; Natural number equality (same as == but with different name convention)
 (define (nat=? x y)
   (match x
-    O => (match y
-           O => (True)
-           S _ => (False))
-    S x2 => (match y
-              O => (False)
-              S y2 => (nat=? x2 y2))))
+    O -> (match y
+           O -> (True)
+           S _ -> (False))
+    S x2 -> (match y
+              O -> (False)
+              S y2 -> (nat=? x2 y2))))
 
 ;; mod : (Nat, Nat) -> Nat
 ;; Modulo (remainder after division)

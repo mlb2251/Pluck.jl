@@ -1,43 +1,43 @@
 ;; PCFG benchmark
 ;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/pcfg.jl
 
-;; Original: Pluck.define_type!(:pcfg_grammar_symbol Dict(:SS => Symbol[] :XX => Symbol[] :YY => Symbol[] :a => Symbol[] :b => Symbol[] :c => Symbol[]))
+;; Original: Pluck.define_type!(:pcfg_grammar_symbol Dict(:SS -> Symbol[] :XX -> Symbol[] :YY -> Symbol[] :a -> Symbol[] :b -> Symbol[] :c -> Symbol[]))
 (define-type pcfg_grammar_symbol (SS) (XX) (YY) (a) (b) (c))
 
 (define (generate_pcfg_grammar symbol)
   (match symbol
-    SS => (let (xgen (generate_pcfg_grammar ( XX )) ygen (generate_pcfg_grammar (YY)) order (flip 0.5))
+    SS -> (let (xgen (generate_pcfg_grammar ( XX )) ygen (generate_pcfg_grammar (YY)) order (flip 0.5))
       (if order (append xgen ygen) (append ygen xgen)))
-    XX => (if (flip 0.5) [(a)] (Cons (b) (append (generate_pcfg_grammar (XX)) (generate_pcfg_grammar (XX)))))
-    YY => (Cons (c) (if (flip 0.5) [] (generate_pcfg_grammar (if (flip 0.5) (XX) (SS)))))
+    XX -> (if (flip 0.5) [(a)] (Cons (b) (append (generate_pcfg_grammar (XX)) (generate_pcfg_grammar (XX)))))
+    YY -> (Cons (c) (if (flip 0.5) [] (generate_pcfg_grammar (if (flip 0.5) (XX) (SS)))))
   ))
 
 (define symbol_equals
   (fn symbol1 symbol2 ->
     (match symbol1
-      a => (match symbol2
-        a => true
-        b => false
-        c => false)
-      b => (match symbol2
-        a => false
-        b => true
-        c => false)
-      c => (match symbol2
-        a => false
-        b => false
-        c => true)
+      a -> (match symbol2
+        a -> true
+        b -> false
+        c -> false)
+      b -> (match symbol2
+        a -> false
+        b -> true
+        c -> false)
+      c -> (match symbol2
+        a -> false
+        b -> false
+        c -> true)
     )
   ))
 
 (define (list_symbols_equal list1 list2)
   (match list1
-    Nil => (match list2
-      Nil => true
-      Cons _ _ => false)
-    Cons hd1 tl1 => (match list2
-      Nil => false
-      Cons hd2 tl2 => (and (symbol_equals hd1 hd2) (list_symbols_equal tl1 tl2)))
+    Nil -> (match list2
+      Nil -> true
+      Cons _ _ -> false)
+    Cons hd1 tl1 -> (match list2
+      Nil -> false
+      Cons hd2 tl2 -> (and (symbol_equals hd1 hd2) (list_symbols_equal tl1 tl2)))
   ))
 
 ;; Query: pcfg_query() =

@@ -27,8 +27,8 @@
 ;; Check if all elements of a Boolean list are true.
 (define (all bs)
   (match bs
-    Nil => (True)
-    Cons b bs => (and b (all bs))))
+    Nil -> (True)
+    Cons b bs -> (and b (all bs))))
 
 ;; Posterior distribution of the 11th latent,
 ;; given that the first fifty observations are all true.

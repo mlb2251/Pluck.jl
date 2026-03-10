@@ -16,9 +16,9 @@
         (tb (abstract_type b)))
     (and (constructor=? ta tb) ;; reject comparing value to closure, or value to native value, etc
          (match ta
-            Closure => false ;; closures are never equal for now
-            NativeValue _ => (native_eq a b) ;; native equality
-            Value => (and (constructor=? a b) (list=? =? (get_args a) (get_args b)))))))
+            Closure -> false ;; closures are never equal for now
+            NativeValue _ -> (native_eq a b) ;; native equality
+            Value -> (and (constructor=? a b) (list=? =? (get_args a) (get_args b)))))))
 
 ;; adt=? : (a, b) -> Bool
 ;; ADT structural equality (compares constructor and all arguments recursively)

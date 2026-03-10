@@ -258,7 +258,7 @@ function generate_conditional_distribution(prob::ProbabilityStatement, variables
                 var = variables[prob.target]
                 values = [mk_int(var, val; use_int_dist=use_int_dist) for val in var.domain]
                 then_br = discrete(values, probs)
-                expr = "$val => $then_br"
+                expr = "$val -> $then_br"
                 push!(exprs, expr)
             end
             expr = "(match $parent $(join(exprs, " ")))"
@@ -326,7 +326,7 @@ function generate_conditional_distribution(prob::ProbabilityStatement, variables
             else
                 exprs = String[]
                 for (val, then_br) in cases_list
-                    e = "$val => $then_br"
+                    e = "$val -> $then_br"
                     push!(exprs, e)
                 end
                 expr = "(match $parent $(join(exprs, " ")))"
