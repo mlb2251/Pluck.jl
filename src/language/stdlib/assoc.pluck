@@ -14,7 +14,7 @@
 ;; in : (List a, a) -> Bool
 ;; Check if element is in list (uses generic =? equality)
 (define (in xs x)
-    (any (?= x) xs))
+    (any (=? x) xs))
 
 ;; find-first : (a -> Bool, List a) -> Option a
 ;; Find first element satisfying predicate

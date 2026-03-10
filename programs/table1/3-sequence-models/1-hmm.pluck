@@ -6,12 +6,12 @@
     (Cons (flip (if z1 0.3 0.6)) (hmm z1))))
 
 (define (prefix_equals? xs ys)
-  (match ys Nil => true |
-              Cons yhd ytl => (match xs Nil => false |
+  (match ys Nil => true 
+              Cons yhd ytl => (match xs Nil => false 
                                           Cons xhd xtl => (and (constructors_equal xhd yhd) (prefix_equals? xtl ytl)))))
 
 (define (generate_observations n)
-  (match n O => [] | S => (fn npred -> (Cons (True) (generate_observations npred)))))
+  (match n O => []  S => (fn npred -> (Cons (True) (generate_observations npred)))))
 
 ;; Query: (hmm_example 50) = (prefix_equals? (hmm (False)) (generate_observations 50))
 (assert-query

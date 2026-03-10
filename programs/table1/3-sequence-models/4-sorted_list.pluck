@@ -3,13 +3,13 @@
 
 (define (nats_equal m n)
   (match m
-    O => (match n O => true | S npred => false)
-    S mpred => (match n O => false | S npred => (nats_equal mpred npred))))
+    O => (match n O => true  S npred => false)
+    S mpred => (match n O => false  S npred => (nats_equal mpred npred))))
 
 (define (nat_lists_equal xs ys)
   (match xs
-    Nil => (match ys Nil => true | Cons yhd ytl => false)
-    Cons xhd xtl => (match ys Nil => false | Cons yhd ytl => (and (nats_equal xhd yhd) (nat_lists_equal xtl ytl)))))
+    Nil => (match ys Nil => true  Cons yhd ytl => false)
+    Cons xhd xtl => (match ys Nil => false  Cons yhd ytl => (and (nats_equal xhd yhd) (nat_lists_equal xtl ytl)))))
 
 (define random_num_larger_than
   (fn min -> (+ (randnat) min)))

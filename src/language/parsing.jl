@@ -237,9 +237,8 @@ function parse_expr_inner(tokens, state)
             branches = PExpr[]
             while tokens[1] != ")"
                 tokens[1] != "(" || parse_error(state, tokens, "unnecessary parens around match guard") # common mistake
-                if tokens[1] == "|"
-                    tokens = view(tokens, 2:length(tokens))
-                end
+                tokens[1] == "|" && parse_error(state, tokens, "unnecessary `|` in match expression")
+                
                 constructor = Symbol(tokens[1])
                 tokens = view(tokens, 2:length(tokens))
                 args = Symbol[]
@@ -449,32 +448,34 @@ function parse_expr_inner(tokens, state)
             expr = Construct(:Cons)(val, expr)
         end
         return expr, tokens
+    # @45 is a native integer literal
     elseif token[1] == '@'
-        idx = parse(Int, token[2:end])
-        return ConstNative(idx)(), view(tokens, 2:length(tokens))
+        return ConstNative(parse(Int, token[2:end]))(), view(tokens, 2:length(tokens))
+    # 45 is a peano number
     elseif all(isdigit, token)
         val = parse(Int, token)
-        return const_to_expr(val), view(tokens, 2:length(tokens))
-    elseif all(c -> isdigit(c) || c == '.', token)
-        val = parse(Float64, token)
-        res = const_to_expr(val)
-        return res, view(tokens, 2:length(tokens))
-    elseif token == "true" || token == "false"
-        val = parse(Bool, token)
-        return const_to_expr(val), view(tokens, 2:length(tokens))
-    elseif token == "nothing"
-        return Construct(:Unit)(), view(tokens, 2:length(tokens))
-    elseif token ∈ env || token[1] == '$' # leading with a $ forces variable parsing even if it isn't statically present in the environment
-        # Parse a var by name like "foo"
-        if token[1] == '$'
-            @assert length(token) > 1 "expected variable name after \$ around $(detokenize(tokens))"
-            token = token[2:end]
+        expr = Construct(:O)()
+        for _ in 1:val
+            expr = Construct(:S)(expr)
         end
+        return expr, view(tokens, 2:length(tokens))
+    # 45.0 or 45.0e10 is a native float literal
+    elseif all(c -> isdigit(c) || c == '.', token)
+        return ConstNative(parse(Float64, token))(), view(tokens, 2:length(tokens))
+    # true is a boolean literal
+    elseif token == "true"
+        return Construct(:True)(), view(tokens, 2:length(tokens))
+    # false is a boolean literal
+    elseif token == "false"
+        return Construct(:False)(), view(tokens, 2:length(tokens))
+    # foo is a variable if it's in the environment
+    elseif token ∈ env
         return Var(Symbol(token))(), view(tokens, 2:length(tokens))
-    elseif haskey(state.defs, Symbol(token)) || token[1] == '?' && token[2] == '='
+    # foo is a defined function if it's in the definitions
+    elseif haskey(state.defs, Symbol(token)) 
         return Defined(Symbol(token))(), view(tokens, 2:length(tokens))
     else
-        parse_error(state, tokens, "unknown token: $token")
+        parse_error(state, tokens, "unexpected token for start of an expression: $token")
     end
 end
 
