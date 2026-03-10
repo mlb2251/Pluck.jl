@@ -1,32 +1,10 @@
+
 function compile_inner(expr::PExpr{FlipOp}, env, path_condition, state)
-    npartials = state.manager.vector_size
+    if state.cfg.dual
+        return compile_flip_dual(expr, env, path_condition, state)
+    end
 
     bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
-        # handle dual number mode
-        if state.cfg.dual
-            # println("p: $p expr: $expr")
-            if p isa Value
-                pluck_error(state, "FlipOp: expected NativeValue, got $(p) :: $(typeof(p)) in $expr")
-            end
-            metaparam = p.value isa Int ? p.value : nothing
-            p = isnothing(metaparam) ? p.value : 0.5 # default value used in dual mode, can swap out for another later
-
-            push!(state.callstack, 1)
-            addr = current_address(state, p)
-
-            topvar = bdd_topvar(addr)
-            partials_hi = zeros(Float64, npartials)
-            partials_lo = zeros(Float64, npartials)
-
-            if !isnothing(metaparam)
-                state.var2metaparam[topvar] = metaparam
-                partials_hi[metaparam+1] = 1.0
-                partials_lo[metaparam+1] = -1.0
-            end
-            set_weight_deriv(state.manager.weights, topvar, 1.0 - p, partials_lo, p, partials_hi)
-            pop!(state.callstack)
-            return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
-        end
 
         p = p.value
 

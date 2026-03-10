@@ -1,4 +1,4 @@
-export PExpr, Head, Var, App, Abs, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, MkIntOp, UniformIntOp, UniformIntRangeOp, IntDistEqOp, GetArgsOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
+export PExpr, Head, Var, App, Abs, Defined, PExpr, CaseOf, Construct, FlipOp, NativeEqOp, GetArgsOp, GetConstructorOp, GetConfig, ConstNative, GSymbol, GVarSymbol, max_native_int_used
 
 import DataStructures: OrderedDict
 

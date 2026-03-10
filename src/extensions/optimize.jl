@@ -124,3 +124,40 @@ function set_metaparams!(weights, var2metaparam, metaparam_vals)
             partials_hi)
     end
 end
+
+function normalize_dual(results)
+    isempty(results) && return results
+    duals = [dual for (_, dual) in results]
+    primals = [primal for (primal, _) in duals]
+    derivs = [deriv for (_, deriv) in duals]
+    total_primal = sum(primals)
+    total_deriv = sum(derivs)
+
+    return [(world, (primal / total_primal, (total_primal*deriv - primal*total_deriv)/(total_primal^2))) for (world, (primal, deriv)) in results]
+end
+
+function compile_flip_dual(expr::PExpr{FlipOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do p, path_condition
+        if p isa Value
+            pluck_error(state, "FlipOp: expected NativeValue, got $(p) :: $(typeof(p)) in $expr")
+        end
+        metaparam = p.value isa Int ? p.value : nothing
+        p = isnothing(metaparam) ? p.value : 0.5 # default value used in dual mode, can swap out for another later
+
+        push!(state.callstack, 1)
+        addr = current_address(state, p)
+
+        topvar = bdd_topvar(addr)
+        partials_hi = zeros(Float64, state.manager.vector_size)
+        partials_lo = zeros(Float64, state.manager.vector_size)
+
+        if !isnothing(metaparam)
+            state.var2metaparam[topvar] = metaparam
+            partials_hi[metaparam+1] = 1.0
+            partials_lo[metaparam+1] = -1.0
+        end
+        set_weight_deriv(state.manager.weights, topvar, 1.0 - p, partials_lo, p, partials_hi)
+        pop!(state.callstack)
+        return if_then_else_monad(Pluck.TRUE_VALUE, Pluck.FALSE_VALUE, addr, path_condition, state)
+    end
+end

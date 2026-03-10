@@ -248,19 +248,6 @@ function normalize(weighted_worlds)
     return [(world, weight / total) for (world, weight) in weighted_worlds]
 end
 
-function normalize_dual(results)
-    isempty(results) && return results
-    duals = [dual for (_, dual) in results]
-    primals = [primal for (primal, _) in duals]
-    derivs = [deriv for (_, deriv) in duals]
-    total_primal = sum(primals)
-    total_deriv = sum(derivs)
-
-    return [(world, (primal / total_primal, (total_primal*deriv - primal*total_deriv)/(total_primal^2))) for (world, (primal, deriv)) in results]
-end
-
-
-
 function wmc(ret::LazyKCResult)
     return wmc(ret.worlds)
 end
