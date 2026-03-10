@@ -440,10 +440,7 @@ function parse_expr_inner(tokens, state)
         vals = []
         while tokens[1] != "]"
             head, tokens = parse_expr_inner(tokens, state)
-            # @assert tokens[1] == "," || tokens[1] == "]" "expected comma or closing bracket in list at $(detokenize(tokens))"
-            if tokens[1] == ","
-                tokens = view(tokens, 2:length(tokens))
-            end
+            tokens[1] == "," && parse_error(state, tokens, "unexpected comma in list")
             push!(vals, head)
         end
         tokens = view(tokens, 2:length(tokens))
