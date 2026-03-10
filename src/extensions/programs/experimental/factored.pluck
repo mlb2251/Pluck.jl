@@ -73,28 +73,28 @@
       [2 7 5 6 8])])
 
 
-;; λxs. randList(0.5, 0.3)
+;; fn xs. randList(0.5, 0.3)
 ;; length ~ (geom 0.5) and values ~iid (geom 0.3)
 (query
  (Marginal
   (factored-run (lafi-examples) (fn xs -> (randList 0.5 0.3)) )))
 
-;; λxs. map (fn x. geom(0.3)) xs
+;; fn xs. map (fn x. geom(0.3)) xs
 (query
   (Marginal
     (factored-run (lafi-examples) (fn xs -> (map (fn _ -> (geom 0.3)) xs)))))
 
-;; λxs. map (fn x. if flip(0.7) then inc(x) else geom(0.3)) xs
+;; fn xs. map (fn x. if flip(0.7) then inc(x) else geom(0.3)) xs
 (query
   (Marginal
     (factored-run (lafi-examples) (fn xs -> (map (fn x -> (if (flip 0.7) (inc x) (geom 0.3))) xs)))))
 
-;; λxs. map (fn x. if flip(0.7) then dec(x) else inc(x)) xs
+;; fn xs. map (fn x. if flip(0.7) then dec(x) else inc(x)) xs
 (query
   (Marginal
     (factored-run (lafi-examples) (fn xs -> (map (fn x -> (if (flip 0.7) (dec x) (inc x))) xs)))))
 
-;; λxs. map (fn x. if iseven(x) then dec(x) else inc(x)) xs
+;; fn xs. map (fn x. if iseven(x) then dec(x) else inc(x)) xs
 (query
   (Marginal
     (factored-run (lafi-examples) (fn xs -> (map (fn x -> (if (iseven x) (dec x) (inc x))) xs)))))
