@@ -252,24 +252,12 @@ function parse_expr_inner(tokens, state)
 end
 
 function parse_fn(tokens, state, env)
-    # parse (fn x y z -> body) or (fn x,y,z -> body) or (fn _ _ _ -> body) or (fn _ -> body)
-    # or (fn -> body) for 0-argument lambda. A zero-argument lambda is actually just
-    # syntactic sugar for a one-argument lambda with a unit argument.
     tokens = view(tokens, 2:length(tokens))
     num_args = 0
 
-    # Handle 0-argument lambda case
-    if tokens[1] == "->"
-        tokens = view(tokens, 2:length(tokens))
-        # Add dummy unit variable to environment
-        env = ["_", env...]
-        body, tokens = parse_with_env(tokens, state, env)
-        tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after lambda body")
-        return Abs(Symbol("_"))(body), view(tokens, 2:length(tokens))
-    end
-
     # Handle regular lambda cases
     while true
+        tokens[1] == "->" && parse_error(state, tokens, "fn missing argument list")
         name = tokens[1]
         Base.isidentifier(name) || parse_error(state, tokens, "expected identifier for `fn` argument, got $name")
         env = [name, env...]
@@ -310,6 +298,7 @@ function parse_match(tokens, state, env)
         tokens[1] == "|" && parse_error(state, tokens, "unnecessary `|` in match expression")
 
         constructor = Symbol(tokens[1])
+        isuppercase(tokens[1][1]) || parse_error(state, tokens, "constructor $constructor must be uppercase")
         tokens = view(tokens, 2:length(tokens))
         args = Symbol[]
         # parse `Cons x xs -> body`
