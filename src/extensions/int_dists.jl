@@ -3,7 +3,7 @@ struct IntDist
 end
 Base.show(io::IO, x::IntDist) = print(io, "IntDist{$(length(x.bits))}")
 
-function combine_int_dists(int_dist_results::Vector{Tuple{IntDist, BDD}}, mgr::RSDD.Manager)
+function combine_int_dists(int_dist_results, mgr)
     width = length(int_dist_results[1][1].bits)
     result = IntDist(fill(mgr.BDD_FALSE, width))
     overall_guard = mgr.BDD_FALSE
@@ -232,7 +232,7 @@ function try_expand_intdist(current_val, path_condition, state, queue)
     return true
 end
 
-function join_value!(post_val::IntDist, pre_and_post, join_results, state::LazyKCState)
+function join_value!(post_val::IntDist, pre_and_post, join_results, state)
     push!(join_results.int_dist_results, (post_val, pre_and_post))
     return
 end
