@@ -260,6 +260,7 @@ function parse_fn(tokens, state, env)
     while tokens[1] != "->"
         name = tokens[1]
         Base.isidentifier(name) || parse_error(state, tokens, "expected identifier for `fn` argument, got $name")
+        isuppercase(name[1]) && parse_error(state, tokens, "uppercase not allowed in variable position")
         env = [name, env...]
         num_args += 1
         tokens = view(tokens, 2:length(tokens))
@@ -304,6 +305,7 @@ function parse_match(tokens, state, env)
         new_env = env
         while tokens[1] != "->"
             push!(args, Symbol(tokens[1]))
+            isuppercase(tokens[1][1]) && parse_error(state, tokens, "uppercase not allowed in variable position")
             new_env = [tokens[1], new_env...]
             tokens = view(tokens, 2:length(tokens))
         end
@@ -338,6 +340,7 @@ function parse_let(tokens, state, env)
             # Nested pair format
             tokens = view(tokens, 2:length(tokens))  # Skip opening paren
             var = tokens[1]
+            isuppercase(var[1]) && parse_error(state, tokens, "uppercase not allowed in variable position")
             tokens = view(tokens, 2:length(tokens))
             val, tokens = parse_with_env(tokens, state, env)
             tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis in `let` binding")
