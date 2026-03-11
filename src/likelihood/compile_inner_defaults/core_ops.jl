@@ -41,6 +41,21 @@ function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
     return pure_monad(Value(expr.head.constructor, thunked_arguments), path_condition, state)
 end
 
+function compile_inner(expr::PExpr{If}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do cond, path_condition
+        cond isa Value || pluck_error(state, "at $expr: cond must a Value not a $(typeof(cond))\nCond: $cond")
+        if isgiven(cond) || iserror(cond)
+            return pure_monad(cond, path_condition, state)
+        end
+
+        cond.constructor === :True || cond.constructor === :False || pluck_error(state, "at $expr: cond must be True or False not a $(cond.constructor)")
+
+        strict_order_index = cond.constructor == :True ? 1 : 2
+        branch_expr = cond.constructor == :True ? expr.args[2] : expr.args[3]
+        return traced_compile_inner(branch_expr, env, path_condition, state, strict_order_index)
+    end
+end
+
 function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
     bind_compile(getscrutinee(expr), env, path_condition, state, 0) do scrutinee, path_condition
         scrutinee isa Value || pluck_error(state, "at $expr: scrutinee must a Value not a $(typeof(scrutinee))\nScrutinee: $scrutinee")

@@ -284,7 +284,8 @@ function parse_if(tokens, state)
     then_expr, tokens = parse_expr_inner(tokens, state)
     else_expr, tokens = parse_expr_inner(tokens, state)
     tokens[1] == ")" || parse_error(state, tokens, "expected closing paren after if expression")
-    return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
+    # return CaseOf(CaseOfGuard[CaseOfGuard(:True, Symbol[]), CaseOfGuard(:False, Symbol[])])(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
+    return If()(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
 end
 
 function parse_match(tokens, state, env)

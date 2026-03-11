@@ -140,6 +140,9 @@ function Base.show(io::IO, g::CaseOfGuard)
     end
 end
 
+@auto_hash_equals struct If <: Head end
+Base.show(io::IO, ::If) = print(io, "if")
+
 @auto_hash_equals struct CaseOf <: Head
     branches::Vector{CaseOfGuard}
 end
