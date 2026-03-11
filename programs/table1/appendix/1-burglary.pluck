@@ -3,12 +3,12 @@
 
 (assert-query
   'burglary-posterior
-  (let (earthquake   (flip 0.0001)
-        burglary     (flip 0.001)
-        alarm        (or earthquake burglary)
-        phoneWorking (flip (if earthquake 0.7 0.99))
-        maryWakes    (flip (if alarm (if earthquake 0.8 0.6) 0.2))
-        called       (and maryWakes phoneWorking))
+  (let ((earthquake   (flip 0.0001))
+        (burglary     (flip 0.001))
+        (alarm        (or earthquake burglary))
+        (phoneWorking (flip (if earthquake 0.7 0.99)))
+        (maryWakes    (flip (if alarm (if earthquake 0.8 0.6) 0.2)))
+        (called       (and maryWakes phoneWorking)))
     (Posterior burglary called))
   ((False) 0.9970065507586944)
   ((True) 0.0029934492413055437))
@@ -16,12 +16,12 @@
 (assert-query
   'burglary-given
   (NormalizedMarginal
-    (let (earthquake   (flip 0.0001)
-          burglary     (flip 0.001)
-          alarm        (or earthquake burglary)
-          phoneWorking (flip (if earthquake 0.7 0.99))
-          maryWakes    (flip (if alarm (if earthquake 0.8 0.6) 0.2))
-          called       (and maryWakes phoneWorking))
+    (let ((earthquake   (flip 0.0001))
+          (burglary     (flip 0.001))
+          (alarm        (or earthquake burglary))
+          (phoneWorking (flip (if earthquake 0.7 0.99)))
+          (maryWakes    (flip (if alarm (if earthquake 0.8 0.6) 0.2)))
+          (called       (and maryWakes phoneWorking)))
       (given called burglary)))
   ((False) 0.9970065507586944)
   ((True) 0.0029934492413055437))

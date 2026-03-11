@@ -1,7 +1,7 @@
 (define (mkSortedList n)
   (if (flip 0.5)
     []
-    (let (x (+ n (geom 0.5)))
+    (let ((x (+ n (geom 0.5))))
       (Cons x (mkSortedList x)))))
 
 (assert-query

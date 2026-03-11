@@ -57,7 +57,7 @@
 (define (filter f xs)
   (match xs
     Nil -> []
-    Cons x xs -> (let (xs (filter f xs))
+    Cons x xs -> (let ((xs (filter f xs)))
                    (if (f x) (Cons x xs) xs))))
 
 ;; any : (a -> Bool, List a) -> Bool
@@ -79,7 +79,7 @@
 (define (filteri-helper f xs i)
   (match xs
     Nil -> []
-    Cons x xs -> (let (xs (filteri-helper f xs (S i)))
+    Cons x xs -> (let ((xs (filteri-helper f xs (S i))))
                    (if (f x i) (Cons x xs) xs))))
 
 ;; filteri : ((a, Nat) -> Bool, List a) -> List a

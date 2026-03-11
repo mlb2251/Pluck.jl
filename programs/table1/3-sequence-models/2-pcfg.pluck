@@ -6,7 +6,7 @@
 
 (define (generate_pcfg_grammar symbol)
   (match symbol
-    SS -> (let (xgen (generate_pcfg_grammar ( XX )) ygen (generate_pcfg_grammar (YY)) order (flip 0.5))
+    SS -> (let ((xgen (generate_pcfg_grammar ( XX ))) (ygen (generate_pcfg_grammar (YY))) (order (flip 0.5)))
       (if order (append xgen ygen) (append ygen xgen)))
     XX -> (if (flip 0.5) [(A)] (Cons (B) (append (generate_pcfg_grammar (XX)) (generate_pcfg_grammar (XX)))))
     YY -> (Cons (C) (if (flip 0.5) [] (generate_pcfg_grammar (if (flip 0.5) (XX) (SS)))))

@@ -54,7 +54,7 @@
 ;; Check if value is a Type (Arrow or Base)
 (define (is-type t)
     (and (is-value t)
-        (let (c (get_constructor t))
+        (let ((c (get_constructor t)))
             (or (=? c 'Arrow)
                 (=? c 'Base)))))
 
@@ -65,7 +65,7 @@
         (Base t) ;; symbols are just base types
         (match t
             Cons t ts ->
-                (let (head_type (parse-type t))
+                (let ((head_type (parse-type t)))
                     (if (isempty ts) head_type ;; singleton lists or last elements of lists can be base or arrow however theyre written
                         (Arrow head_type (parse-type ts))))
             Nil -> (error 'empty-arrow))))

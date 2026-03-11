@@ -2,9 +2,9 @@
 ;; Translated from PluckArtifact.jl/src/table1/network_verification/pluck/ladder.jl
 
 (define (ladder_network i1 i2)
-  (let (output (flip 0.5)
-        result (Cons output (not output))
-        fail_result (Cons false false))
+  (let ((output (flip 0.5))
+        (result (Cons output (not output)))
+        (fail_result (Cons false false)))
     (if i1 (if (flip 0.001) fail_result result)
     (if i2 result fail_result))))
 

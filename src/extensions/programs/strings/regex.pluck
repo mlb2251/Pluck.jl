@@ -41,7 +41,7 @@
 (define (generate-from re)
   (match re
     String s -> s
-    KleeneStar re1 -> (let (s (generate-from re1)) (if (flip 0.5) s (append s (generate-from re))))
+    KleeneStar re1 -> (let ((s (generate-from re1))) (if (flip 0.5) s (append s (generate-from re))))
     Concat re1 re2 -> (append (generate-from re1) (generate-from re2))
     Sum re1 re2 -> (if (flip 0.5) (generate-from re1) (generate-from re2))))
 

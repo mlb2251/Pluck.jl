@@ -22,12 +22,12 @@
       (S (random_num_larger_than_fuel fuel min)))))
 
 (define (generate_sorted_list min)
-  (if (flip 0.5) [] (let (m (random_num_larger_than min)) (Cons m (generate_sorted_list m)))))
+  (if (flip 0.5) [] (let ((m (random_num_larger_than min))) (Cons m (generate_sorted_list m)))))
 
 (define (generate_sorted_list_fuel fuel fuel_num min)
   (match fuel
   S fuel ->
-      (if (flip 0.5) [] (let (m (random_num_larger_than_fuel fuel_num min)) (Cons m (generate_sorted_list_fuel fuel fuel_num m))))))
+      (if (flip 0.5) [] (let ((m (random_num_larger_than_fuel fuel_num min))) (Cons m (generate_sorted_list_fuel fuel fuel_num m))))))
 
 ;; Query: sorted_list_query() =
 ;;   (nat_lists_equal (generate_sorted_list (O)) <pluck_list([0, 3, 7, 12, 13, 15, 16, 20])>)

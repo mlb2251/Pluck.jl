@@ -2,7 +2,7 @@
 ;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/hmm.jl
 
 (define (hmm z0)
-  (let (z1 (flip (if z0 0.7 0.1)))
+  (let ((z1 (flip (if z0 0.7 0.1))))
     (Cons (flip (if z1 0.3 0.6)) (hmm z1))))
 
 (define (prefix_equals? xs ys)
