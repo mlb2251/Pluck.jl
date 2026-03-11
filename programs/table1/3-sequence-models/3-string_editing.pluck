@@ -2,7 +2,7 @@
 ;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/string_editing.jl
 
 ;; Original: Pluck.define_type!(:Char, Dict(Symbol("$(a)_") -> Symbol[] for a = 'a':'e'))
-(define-type Char (A_) (B_) (C_) (D_) (E_))
+;; (define-type Char (A_) (B_) (C_) (D_) (E_))
 
 ;; Original: make_uniform(CHARACTERS) — uniform over 5 chars via nested flips
 (define (random_char)

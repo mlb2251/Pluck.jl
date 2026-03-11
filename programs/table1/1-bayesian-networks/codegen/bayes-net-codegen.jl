@@ -76,7 +76,8 @@ end
 function generate_type_defs(types::Vector{PluckType})
     type_defs = String[]
     for type in types
-        push!(type_defs, "(define-type " * string(type.name) * " " * join(["($val)" for val in type.domain], " ") * ")")
+        # we no longer have typedefs
+        # push!(type_defs, "(define-type " * string(type.name) * " " * join(["($val)" for val in type.domain], " ") * ")")
     end
     return join(type_defs, "\n")
 end

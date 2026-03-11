@@ -1,4 +1,4 @@
-(define-type tree (Leaf) (Node nat tree tree))
+;; (define-type tree (Leaf) (Node nat tree tree))
 
 (define (all pred lst)
   (match lst

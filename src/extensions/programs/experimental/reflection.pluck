@@ -32,9 +32,9 @@
         Value -> (False)
         Closure -> (True)))
 
-(define-type type
-    (Arrow arg_type return_type)
-    (Base sym))
+;; (define-type type
+;;     (Arrow arg_type return_type)
+;;     (Base sym))
 
 ;; arrow-car : Type -> Type
 ;; Get argument type of an arrow type (errors on Base)

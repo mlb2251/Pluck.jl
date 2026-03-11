@@ -1,9 +1,9 @@
 
-(define-type prob
-  (Prob float constructor args))
+;; (define-type prob
+;;   (Prob float constructor args))
 
-(define-type pbool
-  (PBool float bool))
+;; (define-type pbool
+;;   (PBool float bool))
 
 (define (factored=? x y)
   (match (pbool (constructor=? x y))

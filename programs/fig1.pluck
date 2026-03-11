@@ -1,7 +1,7 @@
-(define-type char
-  (A_) (B_) (C_) (D_) (E_) (F_) (G_) (H_) (I_)
-  (J_) (K_) (L_) (M_) (N_) (O_) (P_) (Q_) (R_)
-  (S_) (T_) (U_) (V_) (W_) (X_) (Y_) (Z_))
+;; (define-type char
+;;   (A_) (B_) (C_) (D_) (E_) (F_) (G_) (H_) (I_)
+;;   (J_) (K_) (L_) (M_) (N_) (O_) (P_) (Q_) (R_)
+;;   (S_) (T_) (U_) (V_) (W_) (X_) (Y_) (Z_))
 
 ;; `uniform` is one of the built-in functions for sampling from discrete distributions.
 ;; The other built-in distribution primitives are:

@@ -4,10 +4,10 @@
 ;; Check if two values have the same constructor (wrapper around constructors_equal)
 (define (constructor=? a b) (constructors_equal a b))
 
-(define-type abstract_type
-  (Value)
-  (NativeValue type) ;; symbol representing the type
-  (Closure))
+;; (define-type abstract_type
+;;   (Value)
+;;   (NativeValue type) ;; symbol representing the type
+;;   (Closure))
 
 ;; =? : (a, b) -> Bool
 ;; Generic structural equality for values, native values, and closures

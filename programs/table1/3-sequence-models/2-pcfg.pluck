@@ -2,7 +2,7 @@
 ;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/pcfg.jl
 
 ;; Original: Pluck.define_type!(:pcfg_grammar_symbol Dict(:SS -> Symbol[] :XX -> Symbol[] :YY -> Symbol[] :A -> Symbol[] :B -> Symbol[] :C -> Symbol[]))
-(define-type pcfg_grammar_symbol (SS) (XX) (YY) (A) (B) (C))
+;; (define-type pcfg_grammar_symbol (SS) (XX) (YY) (A) (B) (C))
 
 (define (generate_pcfg_grammar symbol)
   (match symbol

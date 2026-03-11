@@ -1,5 +1,5 @@
-(define-type non-terminal (Start) (XX) (YY))
-(define-type terminal (A_) (B_) (C_))
+;; (define-type non-terminal (Start) (XX) (YY))
+;; (define-type terminal (A_) (B_) (C_))
 
 (define (generate nt)
   (match nt
@@ -50,8 +50,8 @@
  ([(C_) (C_) (A_) (A_) (A_)] 0.020833333331510415))
 
 ;; Simple English PCFG
-(define-type non-terminal (Sent) (NP) (VP) (Verb) (VT) (Det) (Adj) (Noun) (Conj))
-(define-type terminal (The_) (A_) (Cat_) (Dog_) (Barks_) (Eats_) (Bone_) (Happy_) (Sad_) (Tasty_) (And_) (But_))
+;; (define-type non-terminal (Sent) (NP) (VP) (Verb) (VT) (Det) (Adj) (Noun) (Conj))
+;; (define-type terminal (The_) (A_) (Cat_) (Dog_) (Barks_) (Eats_) (Bone_) (Happy_) (Sad_) (Tasty_) (And_) (But_))
 
 (define (generate-english nt)
   (match nt

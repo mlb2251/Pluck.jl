@@ -1,20 +1,20 @@
 ;;; conditioning.pluck - Suspendible computation types, conditioning, and query types
 
 
-(define-type given-type
-  (Given))
+;; (define-type given-type
+;;   (Given))
 
-(define-type error-type
-  (Error))
+;; (define-type error-type
+;;   (Error))
 
-(define-type suspendible-bool
-  (FinallyTrue)
-  (FinallyFalse)
-  (Suspend suspendible-bool))
+;; (define-type suspendible-bool
+;;   (FinallyTrue)
+;;   (FinallyFalse)
+;;   (Suspend suspendible-bool))
 
-(define-type suspendible-computation
-  (Return any)
-  (Suspend suspendible-computation))
+;; (define-type suspendible-computation
+;;   (Return any)
+;;   (Suspend suspendible-computation))
 
 ;; suspendible-list=? : ((a, a) -> Bool, List a, List a) -> SuspendibleComputation Bool
 ;; Lazy pairwise list equality with suspension between elements
@@ -41,13 +41,13 @@
     Suspend x -> (Suspend (given-suspend x q))
     Return x -> (given x q)))
 
-(define-type query
-  (Marginal any)
-  (NormalizedMarginal any)
-  (Posterior any bool)
-  (PosteriorSamples any bool int)
-  (SubproblemMonteCarlo int query)
-  (AdaptiveRejection any bool))
+;; (define-type query
+;;   (Marginal any)
+;;   (NormalizedMarginal any)
+;;   (Posterior any bool)
+;;   (PosteriorSamples any bool int)
+;;   (SubproblemMonteCarlo int query)
+;;   (AdaptiveRejection any bool))
 
-(define-type named-query
-  (NamedQuery sym query))
+;; (define-type named-query
+;;   (NamedQuery sym query))

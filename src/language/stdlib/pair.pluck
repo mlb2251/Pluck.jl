@@ -1,6 +1,6 @@
 ;;; pair.pluck - Pair type and accessors
 
-(define-type pair (Pair any any))
+;; (define-type pair (Pair any any))
 
 ;; fst : Pair a b -> a
 ;; Extract first element of pair

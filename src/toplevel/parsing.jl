@@ -50,26 +50,26 @@ function parse_toplevel(tokens, state)
 
         # Return IncludeOp with path as ConstNative
         return IncludeOp(full_path)(), view(tokens, 2:length(tokens))
-    elseif token == "define-type"
-        # Special parsing for define-type: (define-type name (Constructor1 args...) ...)
-        tokens = view(tokens, 2:length(tokens))
+    # elseif token == "define-type"
+    #     # Special parsing for define-type: (define-type name (Constructor1 args...) ...)
+    #     tokens = view(tokens, 2:length(tokens))
 
-        # Get the type name
-        type_name = Symbol(tokens[1])
-        tokens = view(tokens, 2:length(tokens))
+    #     # Get the type name
+    #     type_name = Symbol(tokens[1])
+    #     tokens = view(tokens, 2:length(tokens))
 
-        # Parse each constructor definition
-        while tokens[1] != ")"
-            # Each constructor is a parenthesized list
-            end_idx = findfirst(t -> t == ")", tokens)
-            constructor, args = parse_constructor(tokens[1:end_idx], state)
-            tokens = view(tokens, end_idx+1:length(tokens))
-        end
+    #     # Parse each constructor definition
+    #     while tokens[1] != ")"
+    #         # Each constructor is a parenthesized list
+    #         end_idx = findfirst(t -> t == ")", tokens)
+    #         constructor, args = parse_constructor(tokens[1:end_idx], state)
+    #         tokens = view(tokens, end_idx+1:length(tokens))
+    #     end
 
-        tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in define-type")
+    #     tokens[1] == ")" || parse_error(state, tokens, "expected closing paren in define-type")
 
-        # Return DefineTypeOp with type name and constructors as ConstNative
-        return ToplevelPassOp()(), view(tokens, 2:length(tokens))
+    #     # Return DefineTypeOp with type name and constructors as ConstNative
+    #     return ToplevelPassOp()(), view(tokens, 2:length(tokens))
     elseif token == "define"
         # Special parsing for define: (define (fname args...) body) or (define x expr)
         tokens = view(tokens, 2:length(tokens))

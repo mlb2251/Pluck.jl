@@ -1,10 +1,10 @@
 
 ;; playing with type inference
 
-(define-type my-type
-    (MyNat)
-    (MyList my-type)
-)
+;; (define-type my-type
+;;     (MyNat)
+;;     (MyList my-type)
+;; )
 
 (define (type-size t)
     (match t

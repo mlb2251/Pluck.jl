@@ -1,7 +1,7 @@
 ;; Caesar cipher inference
 ;; Adapted from the Dice artifact
 
-(define-type Char (A_) (B_) (C_) (D_))
+;; (define-type Char (A_) (B_) (C_) (D_))
 
 (define (random_key)
   (if (flip 0.25)

@@ -37,7 +37,7 @@
  (["Hello" "uncertain world!"] 0.49999999999999994))
 
 ;; People have first and last names but sometimes we see initials
-(define-type person (Person first middle last))
+;; (define-type person (Person first middle last))
 (define (random-person)
   (Person (random-name) (random-name) (random-surname)))
 (define (render-person p)

@@ -1,9 +1,9 @@
-(define-type
-  regex
-  (String string)
-  (KleeneStar regex)
-  (Concat regex regex)
-  (Sum regex regex))
+;; (define-type
+;;   regex
+;;   (String string)
+;;   (KleeneStar regex)
+;;   (Concat regex regex)
+;;   (Sum regex regex))
 
 (define (char=? a b)
   (int_dist_eq a b))

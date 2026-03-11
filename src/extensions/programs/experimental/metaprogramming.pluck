@@ -1,10 +1,10 @@
 ;;; metaprogramming.pluck - Program expression type and application builders
 
-(define-type pexpr
-  (Var sym)
-  (Abs sym expr)
-  (Defined sym)
-  (App f x))
+;; (define-type pexpr
+;;   (Var sym)
+;;   (Abs sym expr)
+;;   (Defined sym)
+;;   (App f x))
 
 ;; make-apply-no-unit : (PExpr, List PExpr) -> PExpr
 ;; Apply function to argument list (no Unit insertion for empty args)
