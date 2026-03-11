@@ -46,16 +46,6 @@
 ;; Check if odd
 (define (isodd n) (not (iseven n)))
 
-;; == : (Nat, Nat) -> Bool
-;; Natural number equality
-(define (== x y)
-  (match x
-    O -> (match y
-          O -> (True)
-          S _ -> (False))
-    S n -> (match y
-            O -> (False)
-            S m -> (== n m))))
 
 ;; > : (Nat, Nat) -> Bool
 ;; Strict greater than
@@ -86,7 +76,7 @@
 (define (<= x y) (not (> x y)))
 
 ;; nat=? : (Nat, Nat) -> Bool
-;; Natural number equality (same as == but with different name convention)
+;; Natural number equality
 (define (nat=? x y)
   (match x
     O -> (match y
