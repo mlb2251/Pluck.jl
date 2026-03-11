@@ -197,7 +197,7 @@ function parse_expr_inner(tokens, state)
         elseif token == "let"
             return parse_let(tokens, state, env)
         # (Foo e1 e2) is a Construct
-        elseif haskey(args_of_constructor, Symbol(token))
+        elseif isuppercase(token[1])
             return parse_constructor_expr(tokens, state, token)
         # (primitive-op arg1 arg2 ...)
         elseif has_prim(String(token)) && !haskey(state.defs, Symbol(token))
@@ -362,15 +362,12 @@ function parse_constructor_expr(tokens, state, token)
     # parse a sum product type constructor
     isuppercase(token[1]) || parse_error(state, tokens, "constructor $token must be uppercase")
     constructor = Symbol(token)
-    type = type_of_constructor[constructor]
-    args = args_of_constructor[constructor]
     tokens = view(tokens, 2:length(tokens))
     args = []
     while tokens[1] != ")"
         arg, tokens = parse_expr_inner(tokens, state)
         push!(args, arg)
     end
-    length(args) == length(args_of_constructor[constructor]) || parse_error(state, tokens, "wrong number of arguments for constructor $constructor: expected $(length(args_of_constructor[constructor])), got $(length(args))")
     return Construct(constructor)(args...), view(tokens, 2:length(tokens))
 end
 

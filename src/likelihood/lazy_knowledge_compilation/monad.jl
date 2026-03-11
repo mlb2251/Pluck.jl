@@ -85,9 +85,9 @@ end
 struct JoinResults
     join_results::Vector{World}
     index_of_result::Dict{AbstractValue, Int}
-    results_for_constructor::Dict{Symbol, Vector{Tuple{Value, BDD}}}
+    results_for_constructor::Dict{Tuple{Symbol, Int}, Vector{Tuple{Value, BDD}}}
     int_dist_results::Vector{Tuple{Any, BDD}}
-    JoinResults() = new(Vector{World}(), Dict{AbstractValue, Int}(), Dict{Symbol, Vector{Tuple{Value, BDD}}}(), Vector{Tuple{Any, BDD}}())
+    JoinResults() = new(Vector{World}(), Dict{AbstractValue, Int}(), Dict{Tuple{Symbol, Int}, Vector{Tuple{Value, BDD}}}(), Vector{Tuple{Any, BDD}}())
 end
 
 """
@@ -147,8 +147,8 @@ end
 
 function join_value!(post_val::Value, pre_and_post, join_results, state::LazyKCState)
     if state.cfg.use_thunk_unions
-        constructor = post_val.constructor
-        res = get!(Vector{Tuple{Value, BDD}}, join_results.results_for_constructor, constructor)
+        key = (post_val.constructor, length(post_val.args))
+        res = get!(Vector{Tuple{Value, BDD}}, join_results.results_for_constructor, key)
         push!(res, (post_val, pre_and_post))
         return
     end
@@ -170,9 +170,9 @@ end
 
 
 function join_thunk_unions!(join_results, state::LazyKCState)
-    for constructor in keys(join_results.results_for_constructor)
+    for ((constructor, arity), results) in join_results.results_for_constructor
         world_of_value = Dict{Value, World}()
-        for (post_val, pre_and_post) in join_results.results_for_constructor[constructor]
+        for (post_val, pre_and_post) in results
             old_world = get(world_of_value, post_val, nothing)
             old_guard = isnothing(old_world) ? state.manager.BDD_FALSE : old_world[2]
             new_guard = old_guard | pre_and_post
@@ -185,7 +185,7 @@ function join_thunk_unions!(join_results, state::LazyKCState)
 
         # multiple worlds case
         overall_guard = state.manager.BDD_FALSE
-        thunks_of_arg = [World[] for _ in 1:length(Pluck.args_of_constructor[constructor])]
+        thunks_of_arg = [World[] for _ in 1:arity]
         for (post_val, pre_and_post) in values(world_of_value)
             overall_guard |= pre_and_post
             for (i, arg) in enumerate(post_val.args)

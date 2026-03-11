@@ -297,8 +297,8 @@ function eval_toplevel(expr::PExpr{DefineOp}, toplevel_state)
     toplevel_state.defs[expr.head.name] = Definition(expr.head.name, expr.head.expr)
 end
 
-function eval_toplevel(expr::PExpr{DefineTypeOp}, toplevel_state)
-    define_type!(expr.head.name, expr.head.constructors)
+function eval_toplevel(expr::PExpr{ToplevelPassOp}, toplevel_state)
+    nothing
 end
 
 function eval_toplevel(expr::PExpr{IncludeOp}, toplevel_state)
