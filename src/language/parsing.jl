@@ -325,7 +325,7 @@ function parse_match(tokens, state, env)
 end
 
 function parse_let(tokens, state, env)
-    # Parse a let expression
+    # (let (x1 e1) (x2 e2) ... (xn en) e)
     tokens = view(tokens, 2:length(tokens))
     (tokens[1] == "(") || parse_error(state, tokens, "expected opening parenthesis after `let`")
     close_token = ")"
@@ -333,24 +333,14 @@ function parse_let(tokens, state, env)
 
     bindings = []
     while tokens[1] != close_token
-        # Handle both formats:
-        # 1. Flat list: var1 val1 var2 val2
-        # 2. Nested pairs: (var1 val1) (var2 val2)
-        if tokens[1] == "("
-            # Nested pair format
-            tokens = view(tokens, 2:length(tokens))  # Skip opening paren
-            var = tokens[1]
-            isuppercase(var[1]) && parse_error(state, tokens, "uppercase not allowed in variable position")
-            tokens = view(tokens, 2:length(tokens))
-            val, tokens = parse_with_env(tokens, state, env)
-            tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis in `let` binding")
-            tokens = view(tokens, 2:length(tokens))  # Skip closing paren
-        else
-            # Flat list format
-            var = tokens[1]
-            tokens = view(tokens, 2:length(tokens))
-            val, tokens = parse_with_env(tokens, state, env)
-        end
+        tokens[1] == "(" || parse_error(state, tokens, "expected opening parenthesis in `let` binding")
+        tokens = view(tokens, 2:length(tokens))  # Skip opening paren
+        var = tokens[1]
+        isuppercase(var[1]) && parse_error(state, tokens, "uppercase not allowed in variable position")
+        tokens = view(tokens, 2:length(tokens))
+        val, tokens = parse_with_env(tokens, state, env)
+        tokens[1] == ")" || parse_error(state, tokens, "expected closing parenthesis in `let` binding")
+        tokens = view(tokens, 2:length(tokens))  # Skip closing paren
         push!(bindings, (var, val))
         env = [var, env...]
     end

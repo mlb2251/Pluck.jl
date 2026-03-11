@@ -213,11 +213,11 @@ function generate_bayes_net_code(variables::Dict{Symbol, Variable}, probabilitie
             var = variables[prob.target]
             values = [mk_int(var, val; use_int_dist=use_int_dist) for val in var.domain]
             # add a new let binding for the target variable
-            push!(bindings, "$(prob.target) $(discrete(values, prob.probabilities))")
+            push!(bindings, "($(prob.target) $(discrete(values, prob.probabilities)))")
         else
             # Conditional probability
             expr = generate_conditional_distribution(prob, variables; use_int_dist=use_int_dist)
-            push!(bindings, "$(prob.target) $expr")
+            push!(bindings, "($(prob.target) $expr)")
         end
     end
 

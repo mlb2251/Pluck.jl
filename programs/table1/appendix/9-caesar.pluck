@@ -43,12 +43,11 @@
 (define (random_string n)
   (match n O -> []  S m -> (Cons (random_char) (random_string m))))
 
-(define caesar
-  (fn observed -> (let
-    (key (random_key)
-     msg (random_string (length observed))
-     encrypted (encrypt_message (char_to_num key) msg))
-    (Pair key (strings_eq observed encrypted)))))
+(define (caesar observed) (let
+    ((key (random_key))
+     (msg (random_string (length observed)))
+     (encrypted (encrypt_message (char_to_num key) msg)))
+    (Pair key (strings_eq observed encrypted))))
 
 (assert-query
   'caesar-posterior
@@ -59,12 +58,11 @@
   ((D_) 6.223015277861142e-61)
   ((C_) 1.0))
 
-(define caesar_given
-  (fn observed -> (let
-    (key (random_key)
-     msg (random_string (length observed))
-     encrypted (encrypt_message (char_to_num key) msg))
-    (given (strings_eq observed encrypted) key))))
+(define (caesar_given observed) (let
+    ((key (random_key))
+     (msg (random_string (length observed)))
+     (encrypted (encrypt_message (char_to_num key) msg)))
+    (given (strings_eq observed encrypted) key)))
 
 (assert-query
   'caesar-given
