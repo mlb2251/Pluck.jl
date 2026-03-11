@@ -1,5 +1,12 @@
 ;;; conditioning.pluck - Suspendible computation types, conditioning, and query types
 
+
+(define-type given-type
+  (Given))
+
+(define-type error-type
+  (Error))
+
 (define-type suspendible-bool
   (FinallyTrue)
   (FinallyFalse)
@@ -25,8 +32,7 @@
 ;; given : (Bool, a) -> a
 ;; Condition on predicate being true (fails if false)
 (define (given p q)
-  (match p
-    True -> q))
+  (if p q (Given)))
 
 ;; given-suspend : (SuspendibleComputation Bool, a) -> a
 ;; Condition with suspension support

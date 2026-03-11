@@ -403,11 +403,15 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
             all_passed = false
             printstyled("\nFAIL: $(expr.head.name): expected value $val_str not found in results"; color=:red)
         end
-        if !all_passed
-            printstyled("\nFull expected: $expected\nFull actual: $results\n"; color=:red)
-            # file path
-            printstyled("\nFile: $(toplevel_state.current_file)\n"; color=:blue)
-        end
+    end
+    if !all_passed
+        str_expected = string(expected)
+        str_expected = length(str_expected) > 1000 ? str_expected[1:1000] * "..." : str_expected
+        str_results = string(results)
+        str_results = length(str_results) > 1000 ? str_results[1:1000] * "..." : str_results
+        printstyled("\nFull expected: $str_expected\nFull actual: $str_results\n"; color=:red)
+        # file path
+        printstyled("\nFile: $(toplevel_state.current_file)\n"; color=:blue)
     end
 
     if toplevel_state.check

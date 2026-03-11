@@ -238,10 +238,10 @@ function is_deterministic(weight::Float64)
 end
 
 function normalize(weighted_worlds)
-    isempty(weighted_worlds) && return weighted_worlds
-    weights = [weight for (_, weight) in weighted_worlds]
-    total = sum(weights)
-    return [(world, weight / total) for (world, weight) in weighted_worlds]
+    total_error = sum(weight for (world, weight) in weighted_worlds if posterior_exclude(world); init=0.0)
+    total_no_error = sum(weight for (world, weight) in weighted_worlds if !posterior_exclude(world); init=0.0)
+    @assert isapprox(total_no_error + total_error, 1.0) "Total weight is not 1.0"
+    return [(world, exp(log(weight) - log(total_no_error))) for (world, weight) in weighted_worlds if !posterior_exclude(world)]
 end
 
 function wmc(ret::LazyKCResult)

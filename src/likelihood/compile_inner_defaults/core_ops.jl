@@ -42,18 +42,15 @@ function compile_inner(expr::PExpr{Construct}, env, path_condition, state)
 end
 
 function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
-    # caseof_type = type_of_constructor[first(keys(expr.cases))]
     bind_compile(getscrutinee(expr), env, path_condition, state, 0) do scrutinee, path_condition
-        # value_type = type_of_constructor[scrutinee.constructor]
-        # if !isempty(expr.cases) && !(value_type == caseof_type)
-        #     @warn "TypeError: Scrutinee constructor $(scrutinee.constructor) of type $value_type is not the same as the case statement type $caseof_type"
-        # end
-
         scrutinee isa Value || pluck_error(state, "at $expr: scrutinee must a Value not a $(typeof(scrutinee))\nScrutinee: $scrutinee")
+
+        if isgiven(scrutinee) || iserror(scrutinee)
+            return pure_monad(scrutinee, path_condition, state)
+        end
 
         idx = findfirst(g -> g.constructor == scrutinee.constructor, expr.head.branches)
         if isnothing(idx)
-            # println("Scrutinee not in case expression: $(scrutinee) in $(expr)")
             # pluck_error(state, "Scrutinee not in case expression: $(scrutinee) in $(expr)")
             return program_error_worlds(state)
         end

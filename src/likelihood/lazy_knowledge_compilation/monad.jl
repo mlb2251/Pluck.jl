@@ -1,9 +1,21 @@
+const ERROR_VALUE::Value = Value(:Error)
+iserror(val) = val isa Value && val.constructor == :Error
+
+const GIVEN_VALUE::Value = Value(:Given)
+isgiven(val) = val isa Value && val.constructor == :Given
+
+posterior_exclude(val) = iserror(val) || isgiven(val)
+
 """
 Shaves off probability. Used for the case where the path condition is not necessarily
 false, but rather there's some sort of program error (e.g. scrutinee not in case expression).
 """
 function program_error_worlds(state::LazyKCState)::GuardedWorlds
-    return World[], state.manager.BDD_TRUE
+    return pure_monad(ERROR_VALUE, state.manager.BDD_TRUE, state)
+end
+
+function given_worlds(state::LazyKCState)::GuardedWorlds
+    return pure_monad(GIVEN_VALUE, state.manager.BDD_TRUE, state)
 end
 
 """

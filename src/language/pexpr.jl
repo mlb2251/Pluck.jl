@@ -111,6 +111,7 @@ end
     name::Symbol
 end
 Base.show(io::IO, e::PExpr{Var}) = print(io, e.head)
+Base.show(io::IO, e::Var) = print(io, e.name)
 
 @auto_hash_equals struct Defined <: Head
     name::Symbol
