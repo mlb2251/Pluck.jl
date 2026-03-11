@@ -196,9 +196,10 @@ function parse_expr_inner(tokens, state)
         # (let [x e1 y e2] e3) is a let expression
         elseif token == "let"
             return parse_let(tokens, state, env)
-        # (Foo e1 e2) is a Construct
-        elseif isuppercase(token[1])
-            return parse_constructor_expr(tokens, state, token)
+        # (Foo e1 e2) is a Construct – just treat as an application
+        elseif isuppercase(token[1]) 
+            return parse_application(tokens, state)
+            # return parse_constructor_expr(tokens, state, token)
         # (primitive-op arg1 arg2 ...)
         elseif has_prim(String(token)) && !haskey(state.defs, Symbol(token))
             return parse_primitive(tokens, state, token)
@@ -214,7 +215,8 @@ function parse_expr_inner(tokens, state)
         end
     # UNPARENTHESIZED EXPRESSION
     elseif isuppercase(token[1])
-        parse_error(state, tokens, "non-constructor uppercase token is not allowed. This is not a constructor since it isn't wrapped in parentheses.")
+        # parse_error(state, tokens, "non-constructor uppercase token is not allowed. This is not a constructor since it isn't wrapped in parentheses.")
+        return Constructor(Symbol(token))(), view(tokens, 2:length(tokens))
     # 'foo is a symbol
     elseif token[1] == '\''
         return parse_symbol(tokens)
@@ -450,7 +452,7 @@ function parse_application(tokens, state)
     end
 
     # If no arguments provided, insert Unit constructor
-    if isempty(args)
+    if isempty(args) && !(f isa PExpr{Constructor})
         args = [Construct(:Unit)()]
     end
 

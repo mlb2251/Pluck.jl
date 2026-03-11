@@ -166,6 +166,12 @@ function Base.show(io::IO, e::PExpr{CaseOf})
     print(io, ")")
 end
 
+@auto_hash_equals struct Constructor <: Head
+    name::Symbol
+end
+Base.show(io::IO, h::Constructor) = print(io, h.name)
+
+
 @auto_hash_equals struct Construct <: Head
     constructor::Symbol
 end

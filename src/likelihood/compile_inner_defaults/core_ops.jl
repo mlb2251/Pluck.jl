@@ -3,6 +3,11 @@ function compile_inner(expr::PExpr{App}, env, path_condition, state)
     thunked_argument = make_thunk(expr.args[2], env, 1, state)
 
     return bind_compile(expr.args[1], env, path_condition, state, 0) do f, path_condition
+
+        if f isa Value
+            return pure_monad(Value(f.constructor, [f.args..., thunked_argument]), path_condition, state)
+        end
+
         f isa Closure || pluck_error(state, "App must be applied to a Closure, got $(f) :: $(typeof(f)) at $(expr)")
         new_env = EnvCons(f.name, thunked_argument, f.env)
         with_stacktrace(state, f.origin) do
@@ -71,7 +76,7 @@ function compile_inner(expr::PExpr{CaseOf}, env, path_condition, state)
         end
 
         case_expr = getbranch(expr, idx)
-        @assert length(scrutinee.args) == length(getguard(expr, idx).args) "wrorng number of arguments in caseof: guard is $(getguard(expr, idx))"
+        length(scrutinee.args) == length(getguard(expr, idx).args) || pluck_error(state, "wrong number of arguments in caseof")
 
         # In each of the scrutinee arguments, filter out options that contradict the available information.
         for (arg, name) in zip(scrutinee.args, getguard(expr, idx).args)
@@ -153,4 +158,8 @@ function compile_inner(expr::PExpr{NativeEqOp}, env, path_condition, state)
             return pure_monad(arg1.value == arg2.value ? Pluck.TRUE_VALUE : Pluck.FALSE_VALUE, path_condition, state)
         end
     end
+end
+
+function compile_inner(expr::PExpr{Constructor}, env, path_condition, state)
+    return pure_monad(Value(expr.head.name), path_condition, state)
 end
