@@ -19,9 +19,10 @@
 (define (talk-hypothesis-alt-1) (fn xs -> (filter (fn x -> (talk-randbool)) xs)))
 (define (talk-hypothesis-alt-2) (fn xs -> (Cons (talk-randnat) (talk-randnatlist))))
 
+
 (define (talk-evaluate program)
-    (and (=? (program (talk-inputs-1)) (talk-outputs-1))
-         (=? (program (talk-inputs-2)) (talk-outputs-2))))
+    (and (list=? nat=? (program (talk-inputs-1)) (talk-outputs-1))
+         (list=? nat=? (program (talk-inputs-2)) (talk-outputs-2))))
 
 (assert-query
  'talk-hypothesis-1
