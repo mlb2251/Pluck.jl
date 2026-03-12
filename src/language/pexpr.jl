@@ -252,3 +252,6 @@ define_parser!("error", ErrorOp, 1)
 
 struct TagOp <: Head end
 define_parser!("tag", TagOp, 1)
+
+struct NthArgOp <: Head end
+define_parser!("nth_arg", NthArgOp, 2)
