@@ -2,35 +2,35 @@
 
 ;; is-sym : a -> Bool
 ;; Check if value is a symbol
-(define (is-sym x)
-    (match (abstract_type x)
-        NativeValue ty -> (=? ty 'Symbol)
-        Value -> (False)
-        Closure -> (False)))
+;; (define (is-sym x)
+;;     (match (abstract_type x)
+;;         NativeValue ty -> (=? ty 'Symbol)
+;;         Value -> (False)
+;;         Closure -> (False)))
 
-;; is-native-value : a -> Bool
-;; Check if value is a native value (int, float, symbol, etc.)
-(define (is-native-value x)
-    (match (abstract_type x)
-        NativeValue ty -> (True)
-        Value -> (False)
-        Closure -> (False)))
+;; ;; is-native-value : a -> Bool
+;; ;; Check if value is a native value (int, float, symbol, etc.)
+;; (define (is-native-value x)
+;;     (match (abstract_type x)
+;;         NativeValue ty -> (True)
+;;         Value -> (False)
+;;         Closure -> (False)))
 
-;; is-value : a -> Bool
-;; Check if value is an ADT value (constructed with a data constructor)
-(define (is-value x)
-    (match (abstract_type x)
-        NativeValue ty -> (False)
-        Value -> (True)
-        Closure -> (False)))
+;; ;; is-value : a -> Bool
+;; ;; Check if value is an ADT value (constructed with a data constructor)
+;; (define (is-value x)
+;;     (match (abstract_type x)
+;;         NativeValue ty -> (False)
+;;         Value -> (True)
+;;         Closure -> (False)))
 
-;; is-closure : a -> Bool
-;; Check if value is a closure (function)
-(define (is-closure x)
-    (match (abstract_type x)
-        NativeValue ty -> (False)
-        Value -> (False)
-        Closure -> (True)))
+;; ;; is-closure : a -> Bool
+;; ;; Check if value is a closure (function)
+;; (define (is-closure x)
+;;     (match (abstract_type x)
+;;         NativeValue ty -> (False)
+;;         Value -> (False)
+;;         Closure -> (True)))
 
 ;; (define-type type
 ;;     (Arrow arg_type return_type)
