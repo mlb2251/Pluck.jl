@@ -312,6 +312,25 @@ function parse_match(tokens, state, env)
             tokens = view(tokens, 2:length(tokens))
         end
     end
+
+    """
+    Compile (match SCRUTINEE
+    TAG0 NAME00 NAME01 -> BR0
+    TAG1 -> BR1)
+    to:
+
+    (let ((scrutinee SCRUTINEE)
+        (tag (tagof scrutinee)))
+    (if (native_eq tag TAG0)
+        (let ((NAME00 (nth_arg '0 scrutinee))
+            (NAME01 (nth_arg '1 scrutinee)))
+        BR0)
+        (if (native_eq tag TAG1)
+        BR1
+        (Error))))
+    """
+
+
     return CaseOf(guards)(scrutinee, branches...), view(tokens, 2:length(tokens))
 end
 
