@@ -63,15 +63,6 @@ function parse_expr(s::String; defs=DEFINITIONS, env=[], filename="<unknown>")
     return expr
 end
 
-function const_to_expr(v::Int)
-    parse_expr(pluck_nat(v))
-end
-
-const_to_expr(v::Float64) = ConstNative(v)()
-const_to_expr(v::Bool) =
-    v ? Construct(:True)() : Construct(:False)()
-
-
 # Parse from Scheme notation (string) into PExpr
 function tokenize(s)
     # First remove line comments, but keep track of line positions
