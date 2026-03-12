@@ -330,8 +330,37 @@ function parse_match(tokens, state, env)
         (Error))))
     """
 
-
     return CaseOf(guards)(scrutinee, branches...), view(tokens, 2:length(tokens))
+
+
+    # Desugar match to if/tagof/nth_arg/let
+    scrut_sym = Symbol("##scrutinee")
+    tag_sym = Symbol("##tag")
+    scrut_var = Var(scrut_sym)()
+    tag_var = Var(tag_sym)()
+
+    # Build nested if chain from the bottom up, starting with Error
+    result = Construct(:Error)()
+    for i in length(guards):-1:1
+        guard = guards[i]
+        branch = branches[i]
+        # Wrap branch in let-bindings for constructor args
+        wrapped = branch
+        for (j, arg) in Iterators.reverse(enumerate(guard.args))
+            # let arg = (nth_arg 'j-1 scrutinee) in wrapped
+            nth = NthArgOp()(ConstNative(j - 1)(), scrut_var)
+            wrapped = App()(Abs(arg)(wrapped), nth)
+        end
+        cond = NativeEqOp()(tag_var, ConstNative(guard.constructor)())
+        result = If()(cond, wrapped, result)
+    end
+
+    # let tag = (tagof scrutinee) in result
+    result = App()(Abs(tag_sym)(result), TagOp()(scrut_var))
+    # let scrutinee = SCRUTINEE in result
+    result = App()(Abs(scrut_sym)(result), scrutinee)
+
+    return result, view(tokens, 2:length(tokens))
 end
 
 function parse_let(tokens, state, env)
