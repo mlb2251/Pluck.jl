@@ -140,14 +140,14 @@ rawstring(x::Any) = string(x)
 
 function ends_in_nil(x::Value)
     check_end = x
-    while check_end isa Value && check_end.constructor == :Cons
+    while check_end isa Value && check_end.constructor == :Cons && length(check_end.args) == 2
         check_end = check_end.args[2]
     end
     return check_end isa Value && check_end.constructor == :Nil
 end
 function ends_in_zero(x::Value)
     check_end = x
-    while check_end isa Value && check_end.constructor == :S
+    while check_end isa Value && check_end.constructor == :S && length(check_end.args) == 1
         check_end = check_end.args[1]
     end
     return check_end isa Value && check_end.constructor == :O

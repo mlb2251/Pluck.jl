@@ -47,7 +47,7 @@ function Base.show(io::IO, e::PExpr{App})
             body = body.args[1].args[1]
         end
 
-        print(io, "(let (()")
+        print(io, "(let (")
         for (i, (var, expr)) in enumerate(bindings)
             print(io, "($var $expr)")
             i < length(bindings) && print(io, " ")
@@ -253,5 +253,14 @@ define_parser!("error", ErrorOp, 1)
 struct TagOp <: Head end
 define_parser!("tagof", TagOp, 1)
 
-struct NthArgOp <: Head end
-define_parser!("nth_arg", NthArgOp, 2)
+# struct NthArgOp <: Head end
+# define_parser!("nth_arg", NthArgOp, 2)
+
+struct TagIs <: Head
+    tag::Symbol
+end
+Base.show(io::IO, head::TagIs) = print(io, "tagis ", head.tag)
+struct NthArgOp <: Head
+    idx::Int
+end
+Base.show(io::IO, head::NthArgOp) = print(io, "nth_arg ", head.idx)
