@@ -3,8 +3,12 @@
 
 (define (nats_equal m n)
   (match m
-    O -> (match n O -> true  S npred -> false)
-    S mpred -> (match n O -> false  S npred -> (nats_equal mpred npred))))
+    O -> (match n
+      O -> true
+      S npred -> false)
+    S mpred -> (match n
+      O -> false 
+      S npred -> (nats_equal mpred npred))))
 
 (define (nat_lists_equal xs ys)
   (match xs
@@ -19,7 +23,7 @@
 
 
 ;; Query: sorted_list_query() =
-;;   (nat_lists_equal (generate_sorted_list (O)) <pluck_list([0, 3, 7, 12, 13, 15, 16, 20])>)
+  ;; (nat_lists_equal (generate_sorted_list (O)) <pluck_list([0, 3, 7, 12, 13, 15, 16, 20])>)
 (assert-query
   'sorted-list
   (Marginal
