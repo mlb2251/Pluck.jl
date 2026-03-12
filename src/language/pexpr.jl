@@ -47,12 +47,12 @@ function Base.show(io::IO, e::PExpr{App})
             body = body.args[1].args[1]
         end
 
-        print(io, "(let [")
+        print(io, "(let (()")
         for (i, (var, expr)) in enumerate(bindings)
-            print(io, "$var $expr")
+            print(io, "($var $expr)")
             i < length(bindings) && print(io, " ")
         end
-        print(io, "] ")
+        print(io, ") ")
         print(io, body)
         print(io, ")")
         return
