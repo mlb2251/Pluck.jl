@@ -148,6 +148,21 @@ function compile_inner(expr::PExpr{AbstractTypeOp}, env, path_condition, state)
     end
 end
 
+function compile_inner(expr::PExpr{TagOp}, env, path_condition, state)
+    bind_compile(expr.args[1], env, path_condition, state, 0) do val, path_condition
+        if val isa Value
+            return pure_monad(NativeValue(val.constructor), path_condition, state)
+        elseif val isa NativeValue
+            return pure_monad(NativeValue(Symbol(typeof(val.value))), path_condition, state)
+        elseif val isa Closure
+            return pure_monad(NativeValue(:Closure), path_condition, state)
+        else
+            error("unreachable")
+        end
+    end
+end
+
+
 function compile_inner(expr::PExpr{ConstNative}, env, path_condition, state)
     return pure_monad(NativeValue(expr.head.val), path_condition, state)
 end

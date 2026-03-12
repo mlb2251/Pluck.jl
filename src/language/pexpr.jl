@@ -249,3 +249,6 @@ define_parser!("abstract_type", AbstractTypeOp, 1)
 
 struct ErrorOp <: Head end
 define_parser!("error", ErrorOp, 1)
+
+struct TagOp <: Head end
+define_parser!("tag", TagOp, 1)
