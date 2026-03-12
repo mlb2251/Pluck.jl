@@ -165,8 +165,7 @@ end
 function compile_inner(expr::PExpr{NthArgOp}, env, path_condition, state)
     bind_compile(expr.args[1], env, path_condition, state, 0) do idx, path_condition
         bind_compile(expr.args[2], env, path_condition, state, 1) do val, path_condition
-            @assert idx isa NativeValue{Int}
-            pure_monad(val.args[idx.value-1], path_condition, state)
+            evaluate(val.args[idx.value+1], path_condition, state)
         end
     end
 end
