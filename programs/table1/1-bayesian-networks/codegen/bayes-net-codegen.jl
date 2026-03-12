@@ -94,7 +94,7 @@ function mk_int(var::Variable, i::Int; use_int_dist=false)
     @assert use_int_dist
     @assert i > 0 && i <= length(var.domain)
     width = bitwidth(var)
-    return "(mk_int @$width @$(i-1))"
+    return "(mk_int '$width '$(i-1))"
 end
 
 function mk_int(var::Variable, val::Symbol; use_int_dist=false)

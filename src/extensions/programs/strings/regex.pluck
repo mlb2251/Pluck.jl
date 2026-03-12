@@ -18,7 +18,7 @@
 
 
 
-(define (random-printable-char) (uniform_int_range @8 @32 @126))
+(define (random-printable-char) (uniform_int_range '8 '32 '126))
 (define (random-printable-string)
   (if (flip 0.2) "" (Cons (random-printable-char) (random-printable-string))))
 

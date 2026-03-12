@@ -122,7 +122,7 @@ Base.show(io::IO, e::PExpr{Defined}) = print(io, e.head.name)
 end
 function Base.show(io::IO, e::ConstNative)
     if e.val isa Int
-        print(io, "@")
+        print(io, "'")
     elseif e.val isa Symbol
         print(io, "'")
     end

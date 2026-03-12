@@ -3,7 +3,7 @@
 ;;   - `(flip p)`, to sample from a Bernoulli distribution with probability `p` of heads.
 ;;   - `(discrete (e1 p1) (e2 p2) ...)`, to sample from a discrete distribution over `e1`, `e2`, etc. with probabilities `p1`, `p2`, etc. The probabilities must be floating-point literals and must sum to 1.
 ;;   - `(geom p)`, to sample from a geometric distribution on natural numbers with parameter `p`.
-;; (define (random_char) (uniform_int @8)) ;; probably should be more limited to ascii for random-char 
+;; (define (random_char) (uniform_int '8)) ;; probably should be more limited to ascii for random-char 
 ;; currently it's arbitrary 0-255, so we see � in the samples
 ;; (define (random_char) (uniform 0ca 0cb 0cc 0cd 0ce 0cf 0cg 
 ;;                                0ch 0ci 0cj 0ck 0cl 0cm 0cn 
@@ -13,7 +13,7 @@
 ;;                                0cJ 0cK 0cL 0cM 0cN 0cO 0cP
 ;;                                0cQ 0cR 0cS 0cT 0cU 0cV 0cW
 ;;                                0cX 0cY 0cZ)) 
-(define (random_char) (uniform_int_range @8 @32 @126))
+(define (random_char) (uniform_int_range '8 '32 '126))
 
 ;; list=? (defined in src/language/stdlib/stdlib.pluck) takes as an argument 
 ;; a predicate for comparing two elements for equality.

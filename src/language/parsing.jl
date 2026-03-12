@@ -217,7 +217,7 @@ function parse_expr_inner(tokens, state)
     elseif isuppercase(token[1])
         # parse_error(state, tokens, "non-constructor uppercase token is not allowed. This is not a constructor since it isn't wrapped in parentheses.")
         return Constructor(Symbol(token))(), view(tokens, 2:length(tokens))
-    # 'foo is a symbol
+    # 'foo is a symbol and '45 is a native integer literal
     elseif token[1] == '\''
         return parse_symbol(tokens)
     # 0cX is a byte literal
@@ -229,9 +229,6 @@ function parse_expr_inner(tokens, state)
     # [e1 e2 e3 ...] is a list
     elseif token == "["
         return parse_list(tokens, state)
-    # @45 is a native integer literal
-    elseif token[1] == '@'
-        return ConstNative(parse(Int, token[2:end]))(), view(tokens, 2:length(tokens))
     # 45 is a peano number
     elseif all(isdigit, token)
         return parse_peano_number(tokens)
@@ -464,9 +461,9 @@ function parse_application(tokens, state)
 end
 
 function parse_symbol(tokens)
-    # parse a symbol
-    sym = Symbol(tokens[1][2:end])
-    return ConstNative(sym)(), view(tokens, 2:length(tokens))
+    contents = tokens[1][2:end]
+    val = isdigit(contents[1]) ? parse(Int, contents) : Symbol(contents)
+    return ConstNative(val)(), view(tokens, 2:length(tokens))
 end
 
 function parse_byte_literal(tokens, state)

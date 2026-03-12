@@ -52,7 +52,7 @@ end
 all_symbols = sort!(collect(keys(counts)))
 
 function mk_int_literal(val::UInt8)
-    return "(mk_int @8 @$(Int(val)))"
+    return "(mk_int '8 '$(Int(val)))"
 end
 
 function render_discrete(inner::Dict{UInt8,Int})
@@ -68,7 +68,7 @@ function render_smoothed_discrete(inner::Dict{UInt8,Int})
     total = sum(values(inner))
     if total == 0
         # If no counts, just use uniform
-        return "(uniform_int_range @8 @32 @126)"
+        return "(uniform_int_range '8 '32 '126)"
     end
     
     # Smoothing: with probability 1/(1+total), use uniform; otherwise use learned dist
@@ -77,7 +77,7 @@ function render_smoothed_discrete(inner::Dict{UInt8,Int})
     
     # Add uniform_int_range as one option, then add all learned characters with scaled probabilities
     parts = String[]
-    push!(parts, "((uniform_int_range @8 @32 @126) $uniform_prob)")
+    push!(parts, "((uniform_int_range '8 '32 '126) $uniform_prob)")
     
     for (sym, cnt) in inner
         scaled_prob = (cnt / total) * learned_prob
@@ -95,10 +95,10 @@ function render_next_char()
     # Build a nested if chain using int_dist_eq; no match on IntDist support yet.
     if isempty(all_symbols)
         # Default case with small probability of uniform character
-        push!(lines, "  (discrete ((uniform_int_range @8 @32 @126) 0.01) (EOS 0.99))")
+        push!(lines, "  (discrete ((uniform_int_range '8 '32 '126) 0.01) (EOS 0.99))")
     else
         # Start with default: unseen characters get mostly EOS, but small chance of uniform
-        expr = "    (discrete ((uniform_int_range @8 @32 @126) 0.01) (EOS 0.99))"
+        expr = "    (discrete ((uniform_int_range '8 '32 '126) 0.01) (EOS 0.99))"
         for prev in reverse(all_symbols)
             cond = "(int_dist_eq prev $(mk_int_literal(prev)))"
             body = render_discrete(counts[prev])

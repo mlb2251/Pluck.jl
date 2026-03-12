@@ -2,7 +2,7 @@
 (include "surname_model.pluck")
 
 ;; Random printable ASCII character
-(define (random-printable-char) (uniform_int_range @8 @32 @126))
+(define (random-printable-char) (uniform_int_range '8 '32 '126))
 
 ;; (define (char=? a b) (int_dist_eq a b))
 ;; (define string=? (list=? char=?))
@@ -14,8 +14,8 @@
 ;; (define (random-list elem)
 ;;   (if (flip 0.8) (Cons (elem) (random-list elem)) []))
 
-;; (define (random-lowercase-char) (uniform_int_range @8 @97 @122))
-;; (define (random-uppercase-char) (uniform_int_range @8 @65 @90))
+;; (define (random-lowercase-char) (uniform_int_range '8 '97 '122))
+;; (define (random-uppercase-char) (uniform_int_range '8 '65 '90))
 
 ;; (define (random-name)
 ;;   (Cons (random-uppercase-char)
