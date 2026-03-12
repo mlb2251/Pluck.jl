@@ -181,6 +181,10 @@ function parse_expr_inner(tokens, state)
         # (if c a b) is an if-then-else expression
         elseif token == "if"
             return parse_if(tokens, state)
+        elseif token == "tagis"
+            return parse_tagis(tokens, state)
+        elseif token == "nth_arg"
+            return parse_nth_arg(tokens, state)
         # (match e Cons x xs -> e1 Nil -> e2) is a match expression
         elseif token == "match"
             return parse_match(tokens, state, env)
@@ -278,6 +282,21 @@ function parse_if(tokens, state)
     return If()(cond, then_expr, else_expr), view(tokens, 2:length(tokens))
 end
 
+function parse_tagis(tokens, state)
+    tokens = view(tokens, 2:length(tokens))
+    tag = Symbol(tokens[1])
+    tokens = view(tokens, 2:length(tokens))
+    return TagIs(tag)(), view(tokens, 2:length(tokens))
+end
+
+function parse_nth_arg(tokens, state)
+    tokens = view(tokens, 2:length(tokens))
+    idx = parse(Int, tokens[1])
+    tokens = view(tokens, 2:length(tokens))
+    return NthArgOp(idx)(), view(tokens, 2:length(tokens))
+end
+
+
 function parse_match(tokens, state, env)
     # case e1 of Cons -> (fn _->(fn _->e2)) | Nil -> e3
     tokens = view(tokens, 2:length(tokens))
@@ -332,12 +351,11 @@ function parse_match(tokens, state, env)
 
     return CaseOf(guards)(scrutinee, branches...), view(tokens, 2:length(tokens))
 
-
     # Desugar match to if/tagof/nth_arg/let
-    scrut_sym = Symbol("##scrutinee")
-    tag_sym = Symbol("##tag")
+    scrut_sym = scrutinee isa PExpr{Var} ? scrutinee.head.name : Symbol("##scrutinee")
+    # tag_sym = Symbol("##tag")
     scrut_var = Var(scrut_sym)()
-    tag_var = Var(tag_sym)()
+    # tag_var = Var(tag_sym)()
 
     # Build nested if chain from the bottom up, starting with Error
     result = Construct(:Error)()
@@ -348,17 +366,21 @@ function parse_match(tokens, state, env)
         wrapped = branch
         for (j, arg) in Iterators.reverse(enumerate(guard.args))
             # let arg = (nth_arg 'j-1 scrutinee) in wrapped
-            nth = NthArgOp()(ConstNative(j - 1)(), scrut_var)
+            # nth = NthArgOp()(ConstNative(j - 1)(), scrut_var)
+            nth = NthArgOp(j - 1)(scrut_var)
             wrapped = App()(Abs(arg)(wrapped), nth)
         end
-        cond = NativeEqOp()(tag_var, ConstNative(guard.constructor)())
+        # cond = NativeEqOp()(tag_var, ConstNative(guard.constructor)())
+        cond = TagIs(guard.constructor)(scrut_var)
         result = If()(cond, wrapped, result)
     end
 
     # let tag = (tagof scrutinee) in result
-    result = App()(Abs(tag_sym)(result), TagOp()(scrut_var))
+    # result = App()(Abs(tag_sym)(result), TagOp()(scrut_var))
     # let scrutinee = SCRUTINEE in result
-    result = App()(Abs(scrut_sym)(result), scrutinee)
+    result = scrutinee isa PExpr{Var} ? result : App()(Abs(scrut_sym)(result), scrutinee)
+
+    # println("result: $result")
 
     return result, view(tokens, 2:length(tokens))
 end
