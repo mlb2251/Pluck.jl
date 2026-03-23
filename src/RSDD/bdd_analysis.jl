@@ -42,6 +42,9 @@ function force(dbdd::DeferredBDD)::BDD
             b = force(dbdd.args[2])
             set_forced(dbdd, a | b)
         end
+    elseif dbdd.head isa DeferredNot
+        a = force(dbdd.args[1])
+        set_forced(dbdd, !a)
     end
     @assert dbdd.head isa Forced
     dbdd.head.bdd
