@@ -6,18 +6,18 @@ struct DeferredAnd <: DeferredHead end
 struct DeferredOr <: DeferredHead end
 struct DeferredNot <: DeferredHead end
 struct Forced <: DeferredHead
-    bdd::BDD
+    bdd::InnerBDD
 end
 
-mutable struct DeferredBDD
+mutable struct BDD
     head::DeferredHead
     possible_vars::Set{Label}
     maybe_const_true::Bool
     maybe_const_false::Bool
-    args::Vector{DeferredBDD}
+    args::Vector{BDD}
 end
 
-function bdd_is_false(a::DeferredBDD)
+function bdd_is_false(a::BDD)
     if !a.maybe_const_false
         return false # this is the key – all our savings come from this
     end
@@ -25,7 +25,14 @@ function bdd_is_false(a::DeferredBDD)
     return bdd_is_false(force(a))
 end
 
-function force(dbdd::DeferredBDD)::BDD
+function bdd_is_true(a::BDD)
+    if !a.maybe_const_true
+        return false
+    end
+    return bdd_is_true(force(a))
+end
+
+function force(dbdd::BDD)::InnerBDD
     if dbdd.head isa DeferredAnd
         a = force(dbdd.args[1])
         if bdd_is_false(a) # perhaps unnecessary optimization but yeah
@@ -50,7 +57,7 @@ function force(dbdd::DeferredBDD)::BDD
     dbdd.head.bdd
 end
 
-function set_forced(dbdd::DeferredBDD, bdd::BDD)
+function set_forced(dbdd::BDD, bdd::InnerBDD)
     dbdd.head = Forced(bdd)
     dbdd.possible_vars = bdd_get_vars(bdd)
     dbdd.maybe_const_true = bdd_is_true(bdd)
@@ -58,41 +65,47 @@ function set_forced(dbdd::DeferredBDD, bdd::BDD)
     empty!(dbdd.args)
 end
 
-function embed_bdd(bdd::BDD)::DeferredBDD
-    return DeferredBDD(Forced(bdd), bdd_get_vars(bdd), bdd_is_true(bdd), bdd_is_false(bdd), DeferredBDD[])
+function embed_bdd(bdd::InnerBDD)::BDD
+    return BDD(Forced(bdd), bdd_get_vars(bdd), bdd_is_true(bdd), bdd_is_false(bdd), BDD[])
 end
 
 
-function bdd_and(a::DeferredBDD, b::DeferredBDD)
+function bdd_and(a::BDD, b::BDD)
     possible_vars = a.possible_vars ∪ b.possible_vars
     maybe_const_true = a.maybe_const_true && b.maybe_const_true
     maybe_const_false = a.maybe_const_false || b.maybe_const_false || !isempty(a.possible_vars ∩ b.possible_vars)
-    return DeferredBDD(DeferredAnd(), possible_vars, maybe_const_true, maybe_const_false, [a, b])
+    return BDD(DeferredAnd(), possible_vars, maybe_const_true, maybe_const_false, [a, b])
 end
 
 # note you could also write Or just as !(!a & !b) which if you had complement pointers wouldnt be bad
 # but none of this matters for proof of concept
-function bdd_or(a::DeferredBDD, b::DeferredBDD)
+function bdd_or(a::BDD, b::BDD)
     possible_vars = a.possible_vars ∪ b.possible_vars
     maybe_const_true = a.maybe_const_true || b.maybe_const_true || !isempty(a.possible_vars ∩ b.possible_vars)
     maybe_const_false = a.maybe_const_false && b.maybe_const_false
-    return DeferredBDD(DeferredOr(), possible_vars, maybe_const_true, maybe_const_false, [a, b])
+    return BDD(DeferredOr(), possible_vars, maybe_const_true, maybe_const_false, [a, b])
 end
 
-function bdd_negate(a::DeferredBDD)
+function bdd_negate(a::BDD)
     # maybe true and maybe false swap
-    return DeferredBDD(DeferredNot(), a.possible_vars, a.maybe_const_false, a.maybe_const_true, [a])
+    return BDD(DeferredNot(), a.possible_vars, a.maybe_const_false, a.maybe_const_true, [a])
 end
 
-bdd_implies(a::DeferredBDD, b::DeferredBDD) = b | !a
+bdd_implies(a::BDD, b::BDD) = b | !a
 
-Base.:!(a::DeferredBDD) = bdd_negate(a)
-Base.:&(a::DeferredBDD, b::DeferredBDD) = bdd_and(a, b)
-Base.:|(a::DeferredBDD, b::DeferredBDD) = bdd_or(a, b)
+Base.:!(a::BDD) = bdd_negate(a)
+Base.:&(a::BDD, b::BDD) = bdd_and(a, b)
+Base.:|(a::BDD, b::BDD) = bdd_or(a, b)
 
-function wmc(bdd::DeferredBDD, params)
-    wmc(force(bdd), params)
+function bdd_wmc(bdd::BDD)
+    return bdd_wmc(force(bdd))
 end
 
+function bdd_topvar(bdd::BDD)
+    return bdd_topvar(force(bdd))
+end
 
+function bdd_size(bdd::BDD)
+    return bdd_size(force(bdd))
+end
 

@@ -5,7 +5,7 @@ module RSDD
 
 include("../util/timing.jl")
 using .Timing
-export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded, bdd_deep_copy, bdd_wmc_raw, bdd_wmc, bdd_num_recursive_calls
+export ttime, @ttime, ttime_init, ttime_deinit, blackbox, ttime_is_init, has_task_metrics, TimeState, lower_bound, upper_bound, task_time, upper_bound_julia, Ttimer, start!, stop!, elapsed, check_time_limit, elapsed_lower_bound, check_time_limit_lower_bound, remaining_time_lower_bound, bdd_start_ite_limit, bdd_stop_ite_limit, bdd_time_limit_exceeded, bdd_ite_limit_exceeded, bdd_deep_copy, bdd_wmc_raw, bdd_wmc, bdd_num_recursive_calls, bdd_get_vars, BDD, embed_bdd
 
 
 export WmcParams, 
@@ -20,7 +20,7 @@ export WmcParams,
     bdd_true,
     bdd_false
 
-export BDD,
+export InnerBDD,
     bdd_and,
     bdd_or,
     bdd_iff,
@@ -107,7 +107,7 @@ macro rsdd_time(expr)
         res = $(esc(expr))
         total_time = time() - tstart
         bdd_time = get_rsdd_time()
-        println("BDD time: $(100*round(bdd_time.rsdd_time / total_time, digits=2))%")
+        println("InnerBDD time: $(100*round(bdd_time.rsdd_time / total_time, digits=2))%")
         res
     end
 end
@@ -163,10 +163,10 @@ function Manager(; num_vars::Int=0, vector_size::Int=0, dual::Bool=false)
     return manager
 end
 
-struct BDD
+struct InnerBDD
     manager::Manager
     ptr::Csize_t
-    function BDD(manager::Manager, ptr::Csize_t)
+    function InnerBDD(manager::Manager, ptr::Csize_t)
         bdd = new(manager, ptr)
         push!(manager.bdds, bdd)
         return bdd
@@ -177,232 +177,232 @@ struct BDDRawPtr
     ptr::Csize_t
 end
 
-# Show method for BDD
-Base.show(io::IO, bdd::BDD) = print(io, print_bdd_string(bdd))
+# Show method for InnerBDD
+Base.show(io::IO, bdd::InnerBDD) = print(io, print_bdd_string(bdd))
 
 
 """
-Creates a new BDD variable.
-Returns: BDD
+Creates a new InnerBDD variable.
+Returns: InnerBDD
 """
 function bdd_new_var(manager::Manager, polarity::Bool)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_new_var(manager.ptr::ManagerPtr, polarity::Bool)::Csize_t
-    BDD(manager, ptr)
+    InnerBDD(manager, ptr)
 end
 
 """
 Performs logical AND operation on two BDDs.
-Returns: BDD
+Returns: InnerBDD
 """
-function bdd_and(a::BDD, b::BDD)
+function bdd_and(a::InnerBDD, b::InnerBDD)
     # tstart = time()
     @assert a.manager == b.manager "BDDs must belong to the same manager"
     ptr = @bdd_time_limit a.manager @rsdd_timed @ccall librsdd_path.bdd_and(a.manager.ptr::ManagerPtr, a.ptr::Csize_t, b.ptr::Csize_t)::Csize_t
     # tstop = time()
     # bdd_time.bdd_and += (tstop - tstart)
-    return BDD(a.manager, ptr)
+    return InnerBDD(a.manager, ptr)
 end
 
 """
 Performs logical OR operation on two BDDs.
-Returns: BDD
+Returns: InnerBDD
 """
-function bdd_or(a::BDD, b::BDD)
+function bdd_or(a::InnerBDD, b::InnerBDD)
     # tstart = time()
     @assert a.manager == b.manager "BDDs must belong to the same manager"
     ptr = @bdd_time_limit a.manager @rsdd_timed @ccall librsdd_path.bdd_or(a.manager.ptr::ManagerPtr, a.ptr::Csize_t, b.ptr::Csize_t)::Csize_t
     # tstop = time()
     # bdd_time.bdd_or += (tstop - tstart)
-    return BDD(a.manager, ptr)
+    return InnerBDD(a.manager, ptr)
 end
 
 """
 Performs logical IFF (if and only if) operation on two BDDs.
-Returns: BDD
+Returns: InnerBDD
 """
-function bdd_iff(a::BDD, b::BDD)
+function bdd_iff(a::InnerBDD, b::InnerBDD)
     @assert a.manager == b.manager "BDDs must belong to the same manager"
     ptr = @bdd_time_limit a.manager @rsdd_timed @ccall librsdd_path.bdd_iff(a.manager.ptr::ManagerPtr, a.ptr::Csize_t, b.ptr::Csize_t)::Csize_t
-    BDD(a.manager, ptr)
+    InnerBDD(a.manager, ptr)
 end
 
 """
 Performs logical XOR operation on two BDDs.
-Returns: BDD
+Returns: InnerBDD
 """
-function bdd_xor(a::BDD, b::BDD)
+function bdd_xor(a::InnerBDD, b::InnerBDD)
     @assert a.manager == b.manager "BDDs must belong to the same manager"
     bdd_ite(a, bdd_negate(b), b)
 end
 
 """
-Negates a BDD.
-Returns: BDD
+Negates a InnerBDD.
+Returns: InnerBDD
 """
-function bdd_negate(bdd::BDD)
+function bdd_negate(bdd::InnerBDD)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_negate(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Csize_t
-    BDD(bdd.manager, ptr)
+    InnerBDD(bdd.manager, ptr)
 end
 
 """
-Checks if a BDD represents the constant true.
+Checks if a InnerBDD represents the constant true.
 Returns: Bool
 """
-bdd_is_true(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_is_true(bdd.ptr::Csize_t)::Bool
+bdd_is_true(bdd::InnerBDD) = @rsdd_timed @ccall librsdd_path.bdd_is_true(bdd.ptr::Csize_t)::Bool
 
 """
-Checks if a BDD represents the constant false.
+Checks if a InnerBDD represents the constant false.
 Returns: Bool
 """
-bdd_is_false(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_is_false(bdd.ptr::Csize_t)::Bool
+bdd_is_false(bdd::InnerBDD) = @rsdd_timed @ccall librsdd_path.bdd_is_false(bdd.ptr::Csize_t)::Bool
 
 """
-Creates a BDD representing the constant true.
-Returns: BDD
+Creates a InnerBDD representing the constant true.
+Returns: InnerBDD
 """
 function bdd_true(manager::Manager)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_true(manager.ptr::ManagerPtr)::Csize_t
-    embed_bdd(BDD(manager, ptr))
+    embed_bdd(InnerBDD(manager, ptr))
 end
 
 """
-Creates a BDD representing the constant false.
-Returns: BDD
+Creates a InnerBDD representing the constant false.
+Returns: InnerBDD
 """
 function bdd_false(manager::Manager)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_false(manager.ptr::ManagerPtr)::Csize_t
-    embed_bdd(BDD(manager, ptr))
+    embed_bdd(InnerBDD(manager, ptr))
 end
 
 """
 Performs if-then-else operation on three BDDs.
-Returns: BDD
+Returns: InnerBDD
 """
-function bdd_ite(f::BDD, g::BDD, h::BDD)
+function bdd_ite(f::InnerBDD, g::InnerBDD, h::InnerBDD)
     @assert f.manager == g.manager == h.manager "BDDs must belong to the same manager"
     ptr = @bdd_time_limit f.manager @rsdd_timed @ccall librsdd_path.bdd_ite(f.manager.ptr::ManagerPtr, f.ptr::Csize_t, g.ptr::Csize_t, h.ptr::Csize_t)::Csize_t
-    BDD(f.manager, ptr)
+    InnerBDD(f.manager, ptr)
 end
 
 """
 Checks if two BDDs are equal.
 Returns: Bool
 """
-function bdd_eq(a::BDD, b::BDD)
+function bdd_eq(a::InnerBDD, b::InnerBDD)
     @assert a.manager == b.manager "BDDs must belong to the same manager"
     @rsdd_timed @ccall librsdd_path.bdd_eq(a.manager.ptr::ManagerPtr, a.ptr::Csize_t, b.ptr::Csize_t)::Bool
 end
 
 """
-Gets the high child of a BDD node.
-Returns: BDD
+Gets the high child of a InnerBDD node.
+Returns: InnerBDD
 """
-function bdd_high(bdd::BDD)
+function bdd_high(bdd::InnerBDD)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_high(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Csize_t
-    BDD(bdd.manager, ptr)
+    InnerBDD(bdd.manager, ptr)
 end
 
 """
-Gets the low child of a BDD node.
-Returns: BDD
+Gets the low child of a InnerBDD node.
+Returns: InnerBDD
 """
-function bdd_low(bdd::BDD)
+function bdd_low(bdd::InnerBDD)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_low(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Csize_t
-    BDD(bdd.manager, ptr)
+    InnerBDD(bdd.manager, ptr)
 end
 
 """
-Gets the top variable of a BDD.
+Gets the top variable of a InnerBDD.
 Returns: Label (Csize_t)
 """
-bdd_topvar(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_topvar(bdd.ptr::Csize_t)::Label
+bdd_topvar(bdd::InnerBDD) = @rsdd_timed @ccall librsdd_path.bdd_topvar(bdd.ptr::Csize_t)::Label
 
 """
-Gets the number of recursive calls made by the BDD manager.
+Gets the number of recursive calls made by the InnerBDD manager.
 Returns: Int
 """
 bdd_num_recursive_calls(manager::Manager) = @rsdd_timed Int(@ccall librsdd_path.bdd_num_recursive_calls(manager.ptr::ManagerPtr)::UInt64)
 
 """
-Prints a BDD to a string.
+Prints a InnerBDD to a string.
 Returns: String
 """
-function print_bdd_string(bdd::BDD)
+function print_bdd_string(bdd::InnerBDD)
     cstr = @rsdd_timed @ccall librsdd_path.print_bdd(bdd.ptr::Csize_t)::Ptr{Cchar}
     return unsafe_string(cstr)
 end
 
 """
-Prints a BDD to a JSON string.
+Prints a InnerBDD to a JSON string.
 Returns: String
 """
-function bdd_json(bdd::BDD)
+function bdd_json(bdd::InnerBDD)
     cstr = @rsdd_timed @ccall librsdd_path.bdd_json(bdd.ptr::Csize_t)::Ptr{Cchar}
     return unsafe_string(cstr)
 end
 
 """
-Existentially quantifies a variable in a BDD.
-Returns: BDD
+Existentially quantifies a variable in a InnerBDD.
+Returns: InnerBDD
 """
-function bdd_exists(bdd::BDD, var::Label)
+function bdd_exists(bdd::InnerBDD, var::Label)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_exists(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, var::Label)::Csize_t
-    BDD(bdd.manager, ptr)
+    InnerBDD(bdd.manager, ptr)
 end
 
 """
-Conditions a BDD on a variable.
-Returns: BDD
+Conditions a InnerBDD on a variable.
+Returns: InnerBDD
 """
-function bdd_condition(bdd::BDD, var::Label, value::Bool)
+function bdd_condition(bdd::InnerBDD, var::Label, value::Bool)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_condition(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, var::Label, value::Bool)::Csize_t
-    BDD(bdd.manager, ptr)
+    InnerBDD(bdd.manager, ptr)
 end
 
 """
-Composes a BDD by substituting a variable with another BDD.
-Returns: BDD
+Composes a InnerBDD by substituting a variable with another InnerBDD.
+Returns: InnerBDD
 """
-function bdd_compose(f::BDD, var::Label, g::BDD)
+function bdd_compose(f::InnerBDD, var::Label, g::InnerBDD)
     @assert f.manager == g.manager "BDDs must belong to the same manager"
     ptr = @rsdd_timed @ccall librsdd_path.bdd_compose(f.manager.ptr::ManagerPtr, f.ptr::Csize_t, var::Label, g.ptr::Csize_t)::Csize_t
-    BDD(f.manager, ptr)
+    InnerBDD(f.manager, ptr)
 end
 
 """
-Checks if one BDD implies another.
+Checks if one InnerBDD implies another.
 Returns: Bool
 """
-bdd_implies(a::BDD, b::BDD) = b | !a
+bdd_implies(a::InnerBDD, b::InnerBDD) = b | !a
 
 """
-Gets the size of a BDD.
+Gets the size of a InnerBDD.
 Returns: Int
 """
-bdd_size(bdd::BDD) = @rsdd_timed Int(@ccall librsdd_path.bdd_size(bdd.ptr::Csize_t)::UInt64)
+bdd_size(bdd::InnerBDD) = @rsdd_timed Int(@ccall librsdd_path.bdd_size(bdd.ptr::Csize_t)::UInt64)
 
 """
-Checks if a BDD represents a variable.
+Checks if a InnerBDD represents a variable.
 Returns: Bool
 """
-bdd_is_var(bdd::BDD) = @rsdd_timed @ccall librsdd_path.bdd_is_var(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Bool
+bdd_is_var(bdd::InnerBDD) = @rsdd_timed @ccall librsdd_path.bdd_is_var(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t)::Bool
 
 """
-Prints statistics about the BDD manager.
+Prints statistics about the InnerBDD manager.
 """
 man_print_stats(manager::Manager) = @rsdd_timed @ccall librsdd_path.man_print_stats(manager.ptr::ManagerPtr)::Cvoid
 
 """
-Checks if a BDD represents a constant (true or false).
+Checks if a InnerBDD represents a constant (true or false).
 Returns: Bool
 """
-bdd_is_const(bdd::BDD) = !bdd_is_var(bdd)
+bdd_is_const(bdd::InnerBDD) = !bdd_is_var(bdd)
 
 """
-Composes multiple variables into a BDD according to given BDDs.
-Returns: BDD
+Composes multiple variables into a InnerBDD according to given BDDs.
+Returns: InnerBDD
 """
-function bdd_vector_compose(f::BDD, vars::Vector{Label}, bdds::Vector{BDD})
+function bdd_vector_compose(f::InnerBDD, vars::Vector{Label}, bdds::Vector{InnerBDD})
     @assert length(vars) == length(bdds) "Number of variables must match number of BDDs"
     result = f
     for (var, bdd) in zip(vars, bdds)
@@ -411,26 +411,26 @@ function bdd_vector_compose(f::BDD, vars::Vector{Label}, bdds::Vector{BDD})
     result
 end
 
-function Base.isequal(a::BDD, b::BDD)
+function Base.isequal(a::InnerBDD, b::InnerBDD)
     return bdd_eq(a, b)
 end
 
 
 """
-Checks if a BDD has a variable.
+Checks if a InnerBDD has a variable.
 Returns: Bool
 """
-bdd_has_variable(bdd::BDD, var::Label) = @rsdd_timed @ccall librsdd_path.bdd_has_variable(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, var::Label)::Bool
+bdd_has_variable(bdd::InnerBDD, var::Label) = @rsdd_timed @ccall librsdd_path.bdd_has_variable(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, var::Label)::Bool
 
 # Convenience operators
-Base.:&(a::BDD, b::BDD) = bdd_and(a, b)
-Base.:|(a::BDD, b::BDD) = bdd_or(a, b)
-Base.:!(a::BDD) = bdd_negate(a)
-Base.:⊻(a::BDD, b::BDD) = bdd_xor(a, b)
-Base.:(==)(a::BDD, b::BDD) = bdd_eq(a, b)
-Base.:(!=)(a::BDD, b::BDD) = !bdd_eq(a, b)
-(⟺)(a::BDD, b::BDD) = bdd_iff(a, b)
-Base.:~(a::BDD) = bdd_negate(a)
+Base.:&(a::InnerBDD, b::InnerBDD) = bdd_and(a, b)
+Base.:|(a::InnerBDD, b::InnerBDD) = bdd_or(a, b)
+Base.:!(a::InnerBDD) = bdd_negate(a)
+Base.:⊻(a::InnerBDD, b::InnerBDD) = bdd_xor(a, b)
+Base.:(==)(a::InnerBDD, b::InnerBDD) = bdd_eq(a, b)
+Base.:(!=)(a::InnerBDD, b::InnerBDD) = !bdd_eq(a, b)
+(⟺)(a::InnerBDD, b::InnerBDD) = bdd_iff(a, b)
+Base.:~(a::InnerBDD) = bdd_negate(a)
 
 """
 Creates a new WmcParams object for floating-point weights.
@@ -490,10 +490,10 @@ function var_partial(partials::Ptr{Float64}, metaparam::UInt, size::UInt)
 end
 
 """
-Performs weighted model counting on a BDD.
+Performs weighted model counting on a InnerBDD.
 Returns: Float64
 """
-function bdd_wmc(bdd::BDD)
+function bdd_wmc(bdd::InnerBDD)
     bdd_wmc_raw(bdd.ptr, bdd.manager.weights)
 end
 
@@ -509,14 +509,14 @@ function bdd_wmc_raw(bdd_ptr::Csize_t, params::WmcParams)
 end
 
 # """
-# Frees the memory associated with a BDD.
+# Frees the memory associated with a InnerBDD.
 # """
-function free_bdd(bdd::BDD)
+function free_bdd(bdd::InnerBDD)
     @rsdd_timed @ccall librsdd_path.free_bdd(bdd.ptr::Csize_t)::Cvoid
 end
 
 """
-Frees the memory associated with a BDD manager.
+Frees the memory associated with a InnerBDD manager.
 """
 function free_bdd_manager(manager::Manager)
     manager.freed && return
@@ -550,19 +550,19 @@ function free_wmc_dual_derivatives(ptr::Ptr{Float64}, size::Integer)
 end
 
 """
-Creates a new variable at a specified position in the BDD manager's variable order.
+Creates a new variable at a specified position in the InnerBDD manager's variable order.
 
 # Arguments
-- `manager::Manager`: The BDD manager.
+- `manager::Manager`: The InnerBDD manager.
 - `position::Integer`: The position at which to insert the new variable.
 - `polarity::Bool`: The polarity of the new variable (true for positive, false for negative).
 
 # Returns
-A new BDD representing the variable.
+A new InnerBDD representing the variable.
 """
 function bdd_new_var_at_position(manager::Manager, position::Integer, polarity::Bool)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_new_var_at_position(manager.ptr::ManagerPtr, position::Csize_t, polarity::Bool)::Csize_t
-    BDD(manager, ptr)
+    InnerBDD(manager, ptr)
 end
 
 """
@@ -585,25 +585,25 @@ struct WeightedSampleResult
 end
 
 """
-Performs weighted sampling on a BDD.
-Returns: Tuple of (BDD, Float64) representing the sampled BDD and its probability
+Performs weighted sampling on a InnerBDD.
+Returns: Tuple of (InnerBDD, Float64) representing the sampled InnerBDD and its probability
 """
-function bdd_weighted_sample(bdd::BDD)
+function bdd_weighted_sample(bdd::InnerBDD)
     result = @rsdd_timed @ccall librsdd_path.robdd_weighted_sample(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, bdd.manager.weights.ptr::Ptr{Cvoid})::WeightedSampleResult
 
-    sample_bdd = BDD(bdd.manager, result.sample)
+    sample_bdd = InnerBDD(bdd.manager, result.sample)
     probability = result.probability
 
     return (sample_bdd, probability)
 end
 
-function bdd_top_k_paths(bdd::BDD, k::Integer)
+function bdd_top_k_paths(bdd::InnerBDD, k::Integer)
     ptr = @rsdd_timed @ccall librsdd_path.robdd_top_k_paths(bdd.manager.ptr::ManagerPtr, bdd.ptr::Csize_t, k::Csize_t, bdd.manager.weights.ptr::Ptr{Cvoid})::Csize_t
-    BDD(bdd.manager, ptr)
+    InnerBDD(bdd.manager, ptr)
 end
 
 """
-Sets a time limit for the BDD manager and starts the clock.
+Sets a time limit for the InnerBDD manager and starts the clock.
 """
 function bdd_set_time_limit(manager::Manager, time_limit)
     if !isnothing(time_limit)
@@ -623,7 +623,7 @@ function bdd_stop_ite_limit(manager::Manager)
 end
 
 """
-Sets a time limit for the BDD manager and starts the clock.
+Sets a time limit for the InnerBDD manager and starts the clock.
 """
 function bdd_start_time_limit(manager::Manager)
     if !isnothing(manager.active_time_limit) && !isnothing(manager.active_time_limit.time_limit)
@@ -633,7 +633,7 @@ function bdd_start_time_limit(manager::Manager)
 end
 
 """
-Stops the BDD manager time limit.
+Stops the InnerBDD manager time limit.
 """
 function bdd_stop_time_limit(manager::Manager)
     if !isnothing(manager.active_time_limit)
@@ -644,7 +644,7 @@ function bdd_stop_time_limit(manager::Manager)
 end
 
 """
-Checks if the BDD manager time limit has been exceeded.
+Checks if the InnerBDD manager time limit has been exceeded.
 Returns: Bool
 """
 function bdd_time_limit_exceeded(manager::Manager)
@@ -655,13 +655,30 @@ function bdd_ite_limit_exceeded(manager::Manager)
     @ccall librsdd_path.bdd_manager_ite_limit_exceeded(manager.ptr::ManagerPtr)::Bool
 end
 
-function bdd_deep_copy(bdd::BDD)
+function bdd_deep_copy(bdd::InnerBDD)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_deep_copy(bdd.ptr::Csize_t)::Csize_t
     BDDRawPtr(ptr)
 end
 
 function bdd_free_deep_copy(bdd::BDDRawPtr)
     @rsdd_timed @ccall librsdd_path.bdd_free_deep_copy(bdd.ptr::Csize_t)::Cvoid
+end
+
+struct VarArray
+    data::Ptr{UInt64}
+    len::Csize_t
+end
+
+function bdd_get_vars(bdd::InnerBDD)::Set{Label}
+    arr = @rsdd_timed @ccall librsdd_path.bdd_get_vars(bdd.ptr::Csize_t)::VarArray
+    vars = Set{Label}()
+    for i in 1:arr.len
+        push!(vars, unsafe_load(arr.data, i))
+    end
+    if arr.len > 0
+        @ccall librsdd_path.free_var_array(arr::VarArray)::Cvoid
+    end
+    return vars
 end
 
 include("bdd_analysis.jl")
