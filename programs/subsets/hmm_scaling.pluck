@@ -1,0 +1,60 @@
+;; HMM benchmark
+;; Translated from PluckArtifact.jl/src/table1/sequence_models/pluck/hmm.jl
+
+(define (hmm z0)
+  (let ((z1 (flip (if z0 0.7 0.1))))
+    (Cons (flip (if z1 0.3 0.6)) (hmm z1))))
+
+(define (prefix_equals? xs ys)
+  (match ys Nil -> true 
+              Cons yhd ytl -> (match xs Nil -> false 
+                                          Cons xhd xtl -> (and (constructors_equal xhd yhd) (prefix_equals? xtl ytl)))))
+
+(define (generate_observations n)
+  (match n O -> []  S npred -> (Cons (True) (generate_observations npred))))
+
+
+(assert-query
+  'hmm-50
+  (Marginal
+    (prefix_equals? (hmm (False)) (generate_observations 50)))
+  ((False) 0.9999999999998197)
+  ((True) 1.802995485540675e-13))
+
+  (assert-query
+  'hmm-100
+  (Marginal
+    (prefix_equals? (hmm (False)) (generate_observations 100)))
+  ((False) 0.9999999999998197)
+  ((True) 1.802995485540675e-13))
+
+  (assert-query
+  'hmm-200
+  (Marginal
+    (prefix_equals? (hmm (False)) (generate_observations 200)))
+  ((False) 0.9999999999998197)
+  ((True) 1.802995485540675e-13))
+
+
+  (assert-query
+  'hmm-300
+  (Marginal
+    (prefix_equals? (hmm (False)) (generate_observations 300)))
+  ((False) 0.9999999999998197)
+  ((True) 1.802995485540675e-13))
+
+
+
+  (assert-query
+  'hmm-400
+  (Marginal
+    (prefix_equals? (hmm (False)) (generate_observations 400)))
+  ((False) 0.9999999999998197)
+  ((True) 1.802995485540675e-13))
+
+  (assert-query
+  'hmm-1000
+  (Marginal
+    (prefix_equals? (hmm (False)) (generate_observations 1000)))
+  ((False) 0.9999999999998197)
+  ((True) 1.802995485540675e-13))
