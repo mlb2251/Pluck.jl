@@ -262,7 +262,7 @@ Returns: BDD
 """
 function bdd_true(manager::Manager)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_true(manager.ptr::ManagerPtr)::Csize_t
-    BDD(manager, ptr)
+    embed_bdd(BDD(manager, ptr))
 end
 
 """
@@ -271,7 +271,7 @@ Returns: BDD
 """
 function bdd_false(manager::Manager)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_false(manager.ptr::ManagerPtr)::Csize_t
-    BDD(manager, ptr)
+    embed_bdd(BDD(manager, ptr))
 end
 
 """
@@ -663,6 +663,8 @@ end
 function bdd_free_deep_copy(bdd::BDDRawPtr)
     @rsdd_timed @ccall librsdd_path.bdd_free_deep_copy(bdd.ptr::Csize_t)::Cvoid
 end
+
+include("bdd_analysis.jl")
 
 # Add these to the exports at the end of the file
 export free_bdd, 
