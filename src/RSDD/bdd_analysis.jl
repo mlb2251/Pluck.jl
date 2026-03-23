@@ -90,7 +90,9 @@ Base.:!(a::DeferredBDD) = bdd_negate(a)
 Base.:&(a::DeferredBDD, b::DeferredBDD) = bdd_and(a, b)
 Base.:|(a::DeferredBDD, b::DeferredBDD) = bdd_or(a, b)
 
-
+function wmc(bdd::DeferredBDD, params)
+    wmc(force(bdd), params)
+end
 
 
 
