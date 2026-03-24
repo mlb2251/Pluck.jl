@@ -65,24 +65,45 @@ end
 
 
 function bdd_is_false(a::BDD)
-    if !isnothing(a.strict_bdd)
-        return bdd_is_false(a.strict_bdd)
+    # strict_false = bdd_is_false(a.strict_bdd)
+    # if !isnothing(a.strict_bdd)
+    #     return bdd_is_false(a.strict_bdd)
+    # end
+    # if !a.maybe_const_false
+    #     return false
+    # end
+    # is_false = bdd_is_false(a.strict_bdd)
+
+
+
+    # is_false = bdd_is_false(force(a))
+    is_false = bdd_is_false(a.strict_bdd)
+    if is_false
+        @assert a.maybe_const_false
     end
-    if !a.maybe_const_false
-        return false
-    end
-    return bdd_is_false(force(a))
+
+    # return bdd_is_false(a.strict_bdd)
+    return is_false
 end
 
 
 function bdd_is_true(a::BDD)
-    if !isnothing(a.strict_bdd)
-        return bdd_is_true(a.strict_bdd)
+    # if !isnothing(a.strict_bdd)
+    #     return bdd_is_true(a.strict_bdd)
+    # end
+    # if !a.maybe_const_true
+    #     return false
+    # end
+    # bdd_is_true(force(a))
+    # return bdd_is_true(a.strict_bdd)
+
+    # is_true = bdd_is_true(force(a))
+    is_true = bdd_is_true(a.strict_bdd)
+    if is_true
+        @assert a.maybe_const_true
     end
-    if !a.maybe_const_true
-        return false
-    end
-    return bdd_is_true(force(a))
+
+    return is_true
 end
 
 function force(dbdd::BDD)::InnerBDD
@@ -128,23 +149,26 @@ end
 
 function bdd_and(a::BDD, b::BDD)
     possible_vars = a.possible_vars ∪ b.possible_vars
-    possible_overlap = a.possible_overlap ∩ b.possible_overlap
+    possible_overlap = a.possible_vars ∩ b.possible_vars
     maybe_const_true = a.maybe_const_true && b.maybe_const_true
     maybe_const_false = a.maybe_const_false || b.maybe_const_false || !isempty(possible_overlap)
     strict_bdd = bdd_and(a.strict_bdd, b.strict_bdd)
     return BDD(DeferredAnd(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], strict_bdd)
 end
 
+function bdd_or(a::BDD, b::BDD)
+    return !(!a & !b)
+end
 # note you could also write Or just as !(!a & !b) which if you had complement pointers wouldnt be bad
 # but none of this matters for proof of concept
-function bdd_or(a::BDD, b::BDD)
-    possible_vars = a.possible_vars ∪ b.possible_vars
-    possible_overlap = a.possible_overlap ∩ b.possible_overlap
-    maybe_const_true = a.maybe_const_true || b.maybe_const_true || !isempty(possible_overlap)
-    maybe_const_false = a.maybe_const_false && b.maybe_const_false
-    strict_bdd = bdd_or(a.strict_bdd, b.strict_bdd)
-    return BDD(DeferredOr(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], strict_bdd)
-end
+# function bdd_or(a::BDD, b::BDD)
+#     possible_vars = a.possible_vars ∪ b.possible_vars
+#     possible_overlap = a.possible_overlap ∩ b.possible_overlap
+#     maybe_const_true = a.maybe_const_true || b.maybe_const_true || !isempty(possible_overlap)
+#     maybe_const_false = a.maybe_const_false && b.maybe_const_false
+#     strict_bdd = bdd_or(a.strict_bdd, b.strict_bdd)
+#     return BDD(DeferredOr(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], strict_bdd)
+# end
 
 function bdd_negate(a::BDD)
     strict_bdd = bdd_negate(a.strict_bdd)
