@@ -371,7 +371,7 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
         num_allocs = Int64((gc_after.malloc + gc_after.realloc + gc_after.poolalloc + gc_after.bigalloc) -
                            (gc_before.malloc + gc_before.realloc + gc_before.poolalloc + gc_before.bigalloc))
         stats = state.stats
-        time_ms = stats.time !== nothing ? round(task_time(stats.time) * 1000; digits=2) : elapsed_ms
+        time_ms = elapsed_ms
         push!(trials, CheckTrial(time_ms, stats.num_recursive_calls, stats.num_forward_calls, rsdd_ms, total_bdd_size, gc_time_ms, alloc_bytes, num_allocs))
 
         if !toplevel_state.check || (time() - wall_start) >= 1.0
