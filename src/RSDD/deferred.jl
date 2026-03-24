@@ -17,6 +17,7 @@ mutable struct BDD
     maybe_const_true::Bool
     maybe_const_false::Bool
     args::Vector{BDD}
+    strict_bdd::Union{InnerBDD, Nothing}
 end
 
 # function bdd_is_false(bdd::BDD)
@@ -64,6 +65,9 @@ end
 
 
 function bdd_is_false(a::BDD)
+    if !isnothing(a.strict_bdd)
+        return bdd_is_false(a.strict_bdd)
+    end
     if !a.maybe_const_false
         return false
     end
@@ -72,6 +76,9 @@ end
 
 
 function bdd_is_true(a::BDD)
+    if !isnothing(a.strict_bdd)
+        return bdd_is_true(a.strict_bdd)
+    end
     if !a.maybe_const_true
         return false
     end
@@ -79,6 +86,9 @@ function bdd_is_true(a::BDD)
 end
 
 function force(dbdd::BDD)::InnerBDD
+    if dbdd.strict_bdd !== nothing
+        return dbdd.strict_bdd
+    end
     if dbdd.head isa DeferredAnd
         a = force(dbdd.args[1])
         if bdd_is_false(a) # perhaps unnecessary optimization but yeah
@@ -112,7 +122,7 @@ function set_forced(dbdd::BDD, bdd::InnerBDD)
 end
 
 function embed_bdd(bdd::InnerBDD)::BDD
-    return BDD(Forced(bdd), bdd_get_vars(bdd), Set{Label}(),bdd_is_true(bdd), bdd_is_false(bdd), BDD[])
+    return BDD(Forced(bdd), bdd_get_vars(bdd), Set{Label}(),bdd_is_true(bdd), bdd_is_false(bdd), BDD[], bdd)
 end
 
 
@@ -121,7 +131,8 @@ function bdd_and(a::BDD, b::BDD)
     possible_overlap = a.possible_overlap ∩ b.possible_overlap
     maybe_const_true = a.maybe_const_true && b.maybe_const_true
     maybe_const_false = a.maybe_const_false || b.maybe_const_false || !isempty(possible_overlap)
-    return BDD(DeferredAnd(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b])
+    strict_bdd = bdd_and(a.strict_bdd, b.strict_bdd)
+    return BDD(DeferredAnd(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], strict_bdd)
 end
 
 # note you could also write Or just as !(!a & !b) which if you had complement pointers wouldnt be bad
@@ -131,12 +142,14 @@ function bdd_or(a::BDD, b::BDD)
     possible_overlap = a.possible_overlap ∩ b.possible_overlap
     maybe_const_true = a.maybe_const_true || b.maybe_const_true || !isempty(possible_overlap)
     maybe_const_false = a.maybe_const_false && b.maybe_const_false
-    return BDD(DeferredOr(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b])
+    strict_bdd = bdd_or(a.strict_bdd, b.strict_bdd)
+    return BDD(DeferredOr(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], strict_bdd)
 end
 
 function bdd_negate(a::BDD)
+    strict_bdd = bdd_negate(a.strict_bdd)
     # maybe true and maybe false swap
-    return BDD(DeferredNot(), a.possible_vars, Set{Label}(), a.maybe_const_false, a.maybe_const_true, [a])
+    return BDD(DeferredNot(), a.possible_vars, Set{Label}(), a.maybe_const_false, a.maybe_const_true, [a], strict_bdd)
 end
 
 bdd_implies(a::BDD, b::BDD) = b | !a
