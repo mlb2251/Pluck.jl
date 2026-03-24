@@ -68,18 +68,19 @@ function bdd_is_true(a::BDD)
     return bdd_is_true(force(a))
 end
 
-function force(dbdd::BDD)::InnerBDD
-    if dbdd.strict_bdd !== nothing
-        return dbdd.strict_bdd
+function force(bdd::BDD)::InnerBDD
+    node = bdd.node :: DeferredNode
+    if node.strict_bdd !== nothing
+        return bdd.negated ? bdd_negate(node.strict_bdd) : node.strict_bdd
     end
-    a = force(dbdd.left)
+    a = force(node.left)
     if bdd_is_false(a) # perhaps unnecessary optimization but yeah
-        set_strict(dbdd, a)
+        set_strict(node, a) # F & _ = F
     else
-        b = force(dbdd.right)
-        set_strict(dbdd, a & b)
+        b = force(node.right)
+        set_strict(node, a & b)
     end
-    return dbdd.strict_bdd
+    return bdd.negated ? bdd_negate(node.strict_bdd) : node.strict_bdd
 end
 
 function set_strict(node::DeferredNode, bdd::InnerBDD)
