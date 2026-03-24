@@ -10,7 +10,7 @@ node(bdd::BDD) :: DeferredNode = bdd.node
 
 mutable struct DeferredNode
     op::Symbol
-    possible_vars::Set{Int}
+    possible_vars::Vector{Int}
     maybe_const_true::Bool
     maybe_const_false::Bool
     left::Union{BDD, Nothing}
@@ -67,10 +67,10 @@ function set_strict(node::DeferredNode, bdd::InnerBDD)
     node.right = nothing
 end
 
-function embed_bdd(bdd::InnerBDD)::BDD
-    node = DeferredNode(:embedded, varset_of_bdd(bdd), bdd_is_true(bdd), bdd_is_false(bdd), nothing, nothing, bdd)
-    return BDD(node, false)
-end
+# function embed_bdd(bdd::InnerBDD)::BDD
+#     node = DeferredNode(:embedded, varset_of_bdd(bdd), bdd_is_true(bdd), bdd_is_false(bdd), nothing, nothing, bdd)
+#     return BDD(node, false)
+# end
 
 function var_bdd(bdd::InnerBDD, label::Int)::BDD
     node = DeferredNode(:var, varset_of_label(label), false, false, nothing, nothing, bdd)
@@ -114,29 +114,100 @@ bdd_wmc(a::BDD) = bdd_wmc(force(a))
 function varset_union(a, b)
     isempty(a) && return b
     isempty(b) && return a
-    return union(a, b)
+
+    c = empty!(Vector{Int}(undef, length(a) + length(b)))
+
+
+    ai = 1
+    bi = 1
+    while true
+        if a[ai] < b[bi]
+            push!(c, a[ai])
+            ai += 1
+        elseif a[ai] > b[bi]
+            push!(c, b[bi])
+            bi += 1
+        else
+            # both must be equal in this case
+            push!(c, a[ai])
+            ai += 1
+            bi += 1
+        end
+        if ai > length(a) || bi > length(b)
+            break
+        end
+    end
+
+    while ai <= length(a)
+        push!(c, a[ai])
+        ai += 1
+    end
+    while bi <= length(b)
+        push!(c, b[bi])
+        bi += 1
+    end
+
+    return c
 end
 
 function varset_empty_intersection(a, b)
     isempty(a) && return true
     isempty(b) && return true
-    for x in a
-        if x in b
+
+    ai = 1
+    bi = 1
+    while true
+        if a[ai] < b[bi]
+            ai += 1
+        elseif a[ai] > b[bi]
+            bi += 1
+        else
             return false
         end
+        if ai > length(a) || bi > length(b)
+            break
+        end
     end
+
     return true
 end
 
-function varset_of_bdd(bdd::InnerBDD)
-    return bdd_get_vars(bdd)
-end
-
 function varset_of_label(label::Int)
-    return Set{Int}([label])
+    return Int[label]
 end
 
 function empty_varset()
-    return Set{Int}()
+    return Int[]
 end
+
+# SET VERSION
+
+# function varset_union(a, b)
+#     isempty(a) && return b
+#     isempty(b) && return a
+#     return union(a, b)
+# end
+
+# function varset_empty_intersection(a, b)
+#     isempty(a) && return true
+#     isempty(b) && return true
+#     for x in a
+#         if x in b
+#             return false
+#         end
+#     end
+#     return true
+# end
+
+# function varset_of_bdd(bdd::InnerBDD)
+#     return bdd_get_vars(bdd)
+# end
+
+# function varset_of_label(label::Int)
+#     return Set{Int}([label])
+# end
+
+# function empty_varset()
+#     return Set{Int}()
+# end
 
