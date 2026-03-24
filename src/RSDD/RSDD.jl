@@ -681,7 +681,7 @@ function bdd_get_vars(bdd::InnerBDD)::Set{Label}
     return vars
 end
 
-include("bdd_analysis.jl")
+include("deferred.jl")
 
 # Add these to the exports at the end of the file
 export free_bdd, 
