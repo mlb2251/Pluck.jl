@@ -100,7 +100,7 @@ end
 
 function set_strict(node::DeferredNode, bdd::InnerBDD)
     node.strict_bdd = bdd
-    node.possible_vars = bdd_get_vars(bdd)
+    # node.possible_vars = bdd_get_vars(bdd)
     node.maybe_const_true = bdd_is_true(bdd)
     node.maybe_const_false = bdd_is_false(bdd)
     node.left = nothing
