@@ -42,9 +42,7 @@ function bdd_is_false(a::BDD)
     return bdd_is_false(force(a))
 end
 
-function bdd_is_true(a::BDD)
-    return bdd_is_false(!a)
-end
+bdd_is_true(a::BDD) = bdd_is_false(!a)
 
 function force(bdd::BDD)::InnerBDD
     node = bdd.node :: DeferredNode

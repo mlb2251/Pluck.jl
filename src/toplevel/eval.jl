@@ -78,7 +78,7 @@ function check_result_to_dict(r::CheckResult)
     d
 end
 
-function save_check_results(results::Vector{CheckResult})
+function save_check_results(results::Vector{CheckResult}; outfile=nothing)
     base = joinpath(@__DIR__, "..", "..", "check-results")
     mkpath(base)
 
