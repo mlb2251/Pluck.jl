@@ -10,7 +10,7 @@ node(bdd::BDD) :: DeferredNode = bdd.node
 
 mutable struct DeferredNode
     op::Symbol
-    possible_vars::Set{Label}
+    possible_vars::Set{Int}
     maybe_const_true::Bool
     maybe_const_false::Bool
     left::Union{BDD, Nothing}
@@ -72,7 +72,7 @@ function embed_bdd(bdd::InnerBDD)::BDD
     return BDD(node, false)
 end
 
-function var_bdd(bdd::InnerBDD, label::Label)::BDD
+function var_bdd(bdd::InnerBDD, label::Int)::BDD
     node = DeferredNode(:var, varset_of_label(label), false, false, nothing, nothing, bdd)
     return BDD(node, false)
 end
@@ -132,11 +132,11 @@ function varset_of_bdd(bdd::InnerBDD)
     return bdd_get_vars(bdd)
 end
 
-function varset_of_label(label::Label)
-    return Set{Label}([label])
+function varset_of_label(label::Int)
+    return Set{Int}([label])
 end
 
 function empty_varset()
-    return Set{Label}()
+    return Set{Int}()
 end
 

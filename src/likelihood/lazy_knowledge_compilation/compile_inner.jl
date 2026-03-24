@@ -58,10 +58,10 @@ function current_address(state::LazyKCState, p::Float64)
         i = searchsortedfirst(state.sorted_callstacks, (state.callstack, p); by = x -> x[1], rev = state.cfg.use_reverse_order)
         # Insert the callstack in the sorted list.
         inner_bdd = RSDD.bdd_new_var_at_position(state.manager, i - 1, true)
-        label = RSDD.bdd_topvar(inner_bdd)
+        label = Int(RSDD.bdd_topvar(inner_bdd))
         addr = var_bdd(inner_bdd, label) # Rust uses 0-indexing
         insert!(state.sorted_callstacks, i, (callstack, p))
-        insert!(state.sorted_var_labels, i, Int(label))
+        insert!(state.sorted_var_labels, i, label)
     end
     state.var_of_callstack[(callstack, p)] = addr
     # state.stacktrace_of_callstack[(callstack, p)] = copy(state.stacktrace)
