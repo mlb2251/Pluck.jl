@@ -105,7 +105,12 @@ end
 function varset_empty_intersection(a, b)
     isempty(a) && return true
     isempty(b) && return true
-    return isempty(intersect(a, b))
+    for x in a
+        if x in b
+            return false
+        end
+    end
+    return true
 end
 
 function varset_of_bdd(bdd::InnerBDD)
