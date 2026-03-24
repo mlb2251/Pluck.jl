@@ -1,4 +1,4 @@
-
+export var_bdd, true_bdd, false_bdd
 const DEBUG_CHECKS = false
 
 mutable struct BDD
@@ -72,6 +72,21 @@ function embed_bdd(bdd::InnerBDD)::BDD
     return BDD(node, false)
 end
 
+function var_bdd(bdd::InnerBDD, label::Label)::BDD
+    node = DeferredNode(:var, varset_of_label(label), false, false, nothing, nothing, bdd)
+    return BDD(node, false)
+end
+
+function true_bdd(bdd::InnerBDD)::BDD
+    node = DeferredNode(:T, empty_varset(), true, false, nothing, nothing, bdd)
+    return BDD(node, false)
+end
+
+function false_bdd(bdd::InnerBDD)::BDD
+    node = DeferredNode(:F, empty_varset(), false, true, nothing, nothing, bdd)
+    return BDD(node, false)
+end
+
 
 function bdd_and(a::BDD, b::BDD)
     a_node = a.node :: DeferredNode
@@ -117,4 +132,11 @@ function varset_of_bdd(bdd::InnerBDD)
     return bdd_get_vars(bdd)
 end
 
+function varset_of_label(label::Label)
+    return Set{Label}([label])
+end
+
+function empty_varset()
+    return Set{Label}()
+end
 
