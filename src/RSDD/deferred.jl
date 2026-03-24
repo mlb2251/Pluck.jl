@@ -93,11 +93,17 @@ bdd_topvar(a::BDD) = bdd_topvar(force(a))
 bdd_size(a::BDD) = bdd_size(force(a))
 bdd_wmc(a::BDD) = bdd_wmc(force(a))
 
+
+
 function varset_union(a, b)
+    isempty(a) && return b
+    isempty(b) && return a
     return union(a, b)
 end
 
 function varset_empty_intersection(a, b)
+    isempty(a) && return true
+    isempty(b) && return true
     return isempty(intersect(a, b))
 end
 
