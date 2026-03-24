@@ -11,7 +11,6 @@ node(bdd::BDD) :: DeferredNode = bdd.node
 mutable struct DeferredNode
     op::Symbol
     possible_vars::Set{Label}
-    possible_overlap::Set{Label}
     maybe_const_true::Bool
     maybe_const_false::Bool
     left::Union{BDD, Nothing}
@@ -69,7 +68,7 @@ function set_strict(node::DeferredNode, bdd::InnerBDD)
 end
 
 function embed_bdd(bdd::InnerBDD)::BDD
-    node = DeferredNode(:embedded, bdd_get_vars(bdd), Set{Label}(),bdd_is_true(bdd), bdd_is_false(bdd), nothing, nothing, bdd)
+    node = DeferredNode(:embedded, varset_of_bdd(bdd), bdd_is_true(bdd), bdd_is_false(bdd), nothing, nothing, bdd)
     return BDD(node, false)
 end
 
@@ -77,11 +76,10 @@ end
 function bdd_and(a::BDD, b::BDD)
     a_node = a.node :: DeferredNode
     b_node = b.node :: DeferredNode
-    possible_vars = a_node.possible_vars ∪ b_node.possible_vars
-    possible_overlap = a_node.possible_vars ∩ b_node.possible_vars
+    possible_vars = varset_union(a_node.possible_vars, b_node.possible_vars)
     maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b)
-    maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || !isempty(possible_overlap)
-    node = DeferredNode(:and, possible_vars, possible_overlap, maybe_const_true_val, maybe_const_false_val, a, b, nothing)
+    maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || !varset_empty_intersection(a_node.possible_vars, b_node.possible_vars)
+    node = DeferredNode(:and, possible_vars, maybe_const_true_val, maybe_const_false_val, a, b, nothing)
     return BDD(node, false)
 end
 
@@ -94,3 +92,17 @@ Base.:|(a::BDD, b::BDD) = bdd_or(a, b)
 bdd_topvar(a::BDD) = bdd_topvar(force(a))
 bdd_size(a::BDD) = bdd_size(force(a))
 bdd_wmc(a::BDD) = bdd_wmc(force(a))
+
+function varset_union(a, b)
+    return union(a, b)
+end
+
+function varset_empty_intersection(a, b)
+    return isempty(intersect(a, b))
+end
+
+function varset_of_bdd(bdd::InnerBDD)
+    return bdd_get_vars(bdd)
+end
+
+
