@@ -1,17 +1,8 @@
 
-
-abstract type DeferredHead end
-
-struct DeferredAnd <: DeferredHead end
-struct DeferredOr <: DeferredHead end
-struct DeferredNot <: DeferredHead end
-struct Forced <: DeferredHead
-    bdd::InnerBDD
-end
+const DEBUG_CHECKS = false
 
 mutable struct BDD
-    head::DeferredHead
-    # op::Symbol
+    op::Symbol
     possible_vars::Set{Label}
     possible_overlap::Set{Label}
     maybe_const_true::Bool
@@ -105,10 +96,10 @@ function bdd_is_true(a::BDD)
 end
 
 function force(dbdd::BDD)::InnerBDD
-    # if dbdd.strict_bdd !== nothing
-    #     return dbdd.strict_bdd
-    # end
-    if dbdd.head isa DeferredAnd
+    if dbdd.strict_bdd !== nothing
+        return dbdd.strict_bdd
+    end
+    if dbdd.op === :and
         a = force(dbdd.args[1])
         if bdd_is_false(a) # perhaps unnecessary optimization but yeah
             set_forced(dbdd, a)
@@ -116,24 +107,15 @@ function force(dbdd::BDD)::InnerBDD
             b = force(dbdd.args[2])
             set_forced(dbdd, a & b)
         end
-    elseif dbdd.head isa DeferredOr
-        a = force(dbdd.args[1])
-        if bdd_is_true(a)
-            set_forced(dbdd, a)
-        else
-            b = force(dbdd.args[2])
-            set_forced(dbdd, a | b)
-        end
-    elseif dbdd.head isa DeferredNot
+    elseif dbdd.op === :not
         a = force(dbdd.args[1])
         set_forced(dbdd, !a)
     end
-    @assert dbdd.head isa Forced
-    dbdd.head.bdd
+    return dbdd.strict_bdd
 end
 
 function set_forced(dbdd::BDD, bdd::InnerBDD)
-    dbdd.head = Forced(bdd)
+    dbdd.strict_bdd = bdd
     dbdd.possible_vars = bdd_get_vars(bdd)
     dbdd.maybe_const_true = bdd_is_true(bdd)
     dbdd.maybe_const_false = bdd_is_false(bdd)
@@ -141,7 +123,7 @@ function set_forced(dbdd::BDD, bdd::InnerBDD)
 end
 
 function embed_bdd(bdd::InnerBDD)::BDD
-    return BDD(Forced(bdd), bdd_get_vars(bdd), Set{Label}(),bdd_is_true(bdd), bdd_is_false(bdd), BDD[], nothing)
+    return BDD(:embedded, bdd_get_vars(bdd), Set{Label}(),bdd_is_true(bdd), bdd_is_false(bdd), BDD[], bdd)
 end
 
 
@@ -151,7 +133,7 @@ function bdd_and(a::BDD, b::BDD)
     maybe_const_true = a.maybe_const_true && b.maybe_const_true
     maybe_const_false = a.maybe_const_false || b.maybe_const_false || !isempty(possible_overlap)
     # strict_bdd = bdd_and(a.strict_bdd, b.strict_bdd)
-    return BDD(DeferredAnd(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], nothing)
+    return BDD(:and, possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], nothing)
 end
 
 function bdd_or(a::BDD, b::BDD)
@@ -171,7 +153,7 @@ end
 function bdd_negate(a::BDD)
     # strict_bdd = bdd_negate(a.strict_bdd)
     # maybe true and maybe false swap
-    return BDD(DeferredNot(), a.possible_vars, Set{Label}(), a.maybe_const_false, a.maybe_const_true, [a], nothing)
+    return BDD(:not, a.possible_vars, Set{Label}(), a.maybe_const_false, a.maybe_const_true, [a], nothing)
 end
 
 bdd_implies(a::BDD, b::BDD) = b | !a
