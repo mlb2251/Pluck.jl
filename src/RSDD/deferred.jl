@@ -93,3 +93,6 @@ bdd_implies(a::BDD, b::BDD) = b | !a
 Base.:!(a::BDD) = bdd_negate(a)
 Base.:&(a::BDD, b::BDD) = bdd_and(a, b)
 Base.:|(a::BDD, b::BDD) = bdd_or(a, b)
+bdd_topvar(a::BDD) = bdd_topvar(force(a))
+bdd_size(a::BDD) = bdd_size(force(a))
+bdd_wmc(a::BDD) = bdd_wmc(force(a))
