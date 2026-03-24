@@ -6,6 +6,8 @@ mutable struct BDD
     negated::Bool
 end
 
+node(bdd::BDD) :: DeferredNode = bdd.node
+
 mutable struct DeferredNode
     op::Symbol
     possible_vars::Set{Label}
@@ -29,39 +31,19 @@ function maybe_const_false(bdd::BDD)
 end
 
 function bdd_is_false(a::BDD)
-    # strict_false = bdd_is_false(a.strict_bdd)
-    # if !isnothing(a.strict_bdd)
-    #     return bdd_is_false(a.strict_bdd)
-    # end
-
     if DEBUG_CHECKS
         if bdd_is_false(force(a))
             @assert maybe_const_false(a)
         end
     end
-
-
     if !maybe_const_false(a)
         return false
     end
-    # is_false = bdd_is_false(a.strict_bdd)
-
-    # is_false = bdd_is_false(force(a))
-    # is_false = bdd_is_false(a.strict_bdd)
-    # if is_false
-    #     @assert a.maybe_const_false
-    # end
-
-    # return bdd_is_false(a.strict_bdd)
     return bdd_is_false(force(a))
 end
 
 
 function bdd_is_true(a::BDD)
-    # if !isnothing(a.strict_bdd)
-    #     return bdd_is_true(a.strict_bdd)
-    # end
-
     if DEBUG_CHECKS
         if bdd_is_true(force(a))
             @assert maybe_const_true(a)
@@ -71,14 +53,6 @@ function bdd_is_true(a::BDD)
     if !maybe_const_true(a)
         return false
     end
-    # bdd_is_true(force(a))
-    # return bdd_is_true(a.strict_bdd)
-
-    # is_true = bdd_is_true(force(a))
-    # is_true = bdd_is_true(a.strict_bdd)
-    # if is_true
-    #     @assert a.maybe_const_true
-    # end
 
     return bdd_is_true(force(a))
 end
