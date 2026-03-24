@@ -112,6 +112,7 @@ macro rsdd_time(expr)
     end
 end
 
+
 macro rsdd_timed(expr)
     quote
         tstart = time()
