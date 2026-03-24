@@ -33,6 +33,14 @@ function bdd_is_false(a::BDD)
     # if !isnothing(a.strict_bdd)
     #     return bdd_is_false(a.strict_bdd)
     # end
+
+    if DEBUG_CHECKS
+        if bdd_is_false(force(a))
+            @assert maybe_const_false(a)
+        end
+    end
+
+
     if !maybe_const_false(a)
         return false
     end
@@ -53,6 +61,13 @@ function bdd_is_true(a::BDD)
     # if !isnothing(a.strict_bdd)
     #     return bdd_is_true(a.strict_bdd)
     # end
+
+    if DEBUG_CHECKS
+        if bdd_is_true(force(a))
+            @assert maybe_const_true(a)
+        end
+    end
+
     if !maybe_const_true(a)
         return false
     end
