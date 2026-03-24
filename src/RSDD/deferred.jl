@@ -7,7 +7,8 @@ mutable struct BDD
     possible_overlap::Set{Label}
     maybe_const_true::Bool
     maybe_const_false::Bool
-    args::Vector{BDD}
+    left::Union{BDD, Nothing}
+    right::Union{BDD, Nothing}
     strict_bdd::Union{InnerBDD, Nothing}
 end
 
@@ -100,15 +101,15 @@ function force(dbdd::BDD)::InnerBDD
         return dbdd.strict_bdd
     end
     if dbdd.op === :and
-        a = force(dbdd.args[1])
+        a = force(dbdd.left)
         if bdd_is_false(a) # perhaps unnecessary optimization but yeah
             set_forced(dbdd, a)
         else
-            b = force(dbdd.args[2])
+            b = force(dbdd.right)
             set_forced(dbdd, a & b)
         end
     elseif dbdd.op === :not
-        a = force(dbdd.args[1])
+        a = force(dbdd.left)
         set_forced(dbdd, !a)
     end
     return dbdd.strict_bdd
@@ -119,11 +120,12 @@ function set_forced(dbdd::BDD, bdd::InnerBDD)
     dbdd.possible_vars = bdd_get_vars(bdd)
     dbdd.maybe_const_true = bdd_is_true(bdd)
     dbdd.maybe_const_false = bdd_is_false(bdd)
-    empty!(dbdd.args)
+    dbdd.left = nothing
+    dbdd.right = nothing
 end
 
 function embed_bdd(bdd::InnerBDD)::BDD
-    return BDD(:embedded, bdd_get_vars(bdd), Set{Label}(),bdd_is_true(bdd), bdd_is_false(bdd), BDD[], bdd)
+    return BDD(:embedded, bdd_get_vars(bdd), Set{Label}(),bdd_is_true(bdd), bdd_is_false(bdd), nothing, nothing, bdd)
 end
 
 
@@ -133,27 +135,17 @@ function bdd_and(a::BDD, b::BDD)
     maybe_const_true = a.maybe_const_true && b.maybe_const_true
     maybe_const_false = a.maybe_const_false || b.maybe_const_false || !isempty(possible_overlap)
     # strict_bdd = bdd_and(a.strict_bdd, b.strict_bdd)
-    return BDD(:and, possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], nothing)
+    return BDD(:and, possible_vars, possible_overlap, maybe_const_true, maybe_const_false, a, b, nothing)
 end
 
 function bdd_or(a::BDD, b::BDD)
     return !(!a & !b)
 end
-# note you could also write Or just as !(!a & !b) which if you had complement pointers wouldnt be bad
-# but none of this matters for proof of concept
-# function bdd_or(a::BDD, b::BDD)
-#     possible_vars = a.possible_vars ∪ b.possible_vars
-#     possible_overlap = a.possible_overlap ∩ b.possible_overlap
-#     maybe_const_true = a.maybe_const_true || b.maybe_const_true || !isempty(possible_overlap)
-#     maybe_const_false = a.maybe_const_false && b.maybe_const_false
-#     strict_bdd = bdd_or(a.strict_bdd, b.strict_bdd)
-#     return BDD(DeferredOr(), possible_vars, possible_overlap, maybe_const_true, maybe_const_false, [a, b], strict_bdd)
-# end
 
 function bdd_negate(a::BDD)
     # strict_bdd = bdd_negate(a.strict_bdd)
     # maybe true and maybe false swap
-    return BDD(:not, a.possible_vars, Set{Label}(), a.maybe_const_false, a.maybe_const_true, [a], nothing)
+    return BDD(:not, a.possible_vars, Set{Label}(), a.maybe_const_false, a.maybe_const_true, a, nothing, nothing)
 end
 
 bdd_implies(a::BDD, b::BDD) = b | !a
