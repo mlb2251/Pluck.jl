@@ -9,7 +9,7 @@ function run_examples()
     end
 end
 
-function run_check(files=nothing; baseline=nothing)
+function run_check(files=nothing; baseline=nothing, outfile=nothing)
     fail_count = Ref(0)
     check_results = CheckResult[]
     if files === nothing
@@ -24,7 +24,7 @@ function run_check(files=nothing; baseline=nothing)
     # Save results and show diff against baseline
     if !isempty(check_results)
         println()
-        save_check_results(check_results)
+        save_check_results(check_results; outfile)
         if baseline !== nothing
             diff_check_results(baseline)
         else

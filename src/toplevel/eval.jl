@@ -87,6 +87,11 @@ function save_check_results(results::Vector{CheckResult})
         "results" => [check_result_to_dict(r) for r in results],
     ), 2)
 
+    # move latest.json to prev.json
+    if isfile(joinpath(base, "latest.json"))
+        mv(joinpath(base, "latest.json"), joinpath(base, "prev.json"), force=true)
+    end
+
     # Save as latest
     write(joinpath(base, "latest.json"), data)
 
@@ -94,7 +99,13 @@ function save_check_results(results::Vector{CheckResult})
     ts_dir = relpath(timestamp_dir(; base=joinpath(base, "timestamped")))
     write(joinpath(ts_dir, "results.json"), data)
 
-    printstyled("Saved to check-results/latest.json and $(ts_dir)/results.json\n"; color=:light_black)
+    if !isnothing(outfile)
+        write(outfile, data)
+    end
+
+    str = "Saved to check-results/latest.json and $(ts_dir)/results.json" * (isnothing(outfile) ? "" : " and $outfile") * "\n"
+
+    printstyled(str; color=:light_black)
 end
 
 function load_check_results(path::String)
