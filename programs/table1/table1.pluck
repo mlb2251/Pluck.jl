@@ -12,6 +12,6 @@
 (include "2-network-reachability/2-ladder.pluck")
 
 (include "3-sequence-models/1-hmm.pluck")
-;; (include "3-sequence-models/2-pcfg.pluck")
+(include "3-sequence-models/2-pcfg.pluck")
 (include "3-sequence-models/3-string_editing.pluck")
 (include "3-sequence-models/4-sorted_list.pluck")
