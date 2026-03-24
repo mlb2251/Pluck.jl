@@ -42,19 +42,8 @@ function bdd_is_false(a::BDD)
     return bdd_is_false(force(a))
 end
 
-
 function bdd_is_true(a::BDD)
-    if DEBUG_CHECKS
-        if bdd_is_true(force(a))
-            @assert maybe_const_true(a)
-        end
-    end
-
-    if !maybe_const_true(a)
-        return false
-    end
-
-    return bdd_is_true(force(a))
+    return bdd_is_false(!a)
 end
 
 function force(bdd::BDD)::InnerBDD
@@ -98,31 +87,9 @@ function bdd_and(a::BDD, b::BDD)
     return BDD(node, false)
 end
 
-function bdd_or(a::BDD, b::BDD)
-    return !(!a & !b)
-end
-
-function bdd_negate(a::BDD)
-    # strict_bdd = bdd_negate(a.strict_bdd)
-    # maybe true and maybe false swap
-    return BDD(a.node, !a.negated)
-end
-
+bdd_or(a::BDD, b::BDD) = !(!a & !b)
+bdd_negate(a::BDD) = BDD(a.node, !a.negated)
 bdd_implies(a::BDD, b::BDD) = b | !a
-
 Base.:!(a::BDD) = bdd_negate(a)
 Base.:&(a::BDD, b::BDD) = bdd_and(a, b)
 Base.:|(a::BDD, b::BDD) = bdd_or(a, b)
-
-function bdd_wmc(bdd::BDD)
-    return bdd_wmc(force(bdd))
-end
-
-function bdd_topvar(bdd::BDD)
-    return bdd_topvar(force(bdd))
-end
-
-function bdd_size(bdd::BDD)
-    return bdd_size(force(bdd))
-end
-
