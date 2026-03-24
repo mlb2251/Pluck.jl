@@ -102,9 +102,9 @@ function bdd_and(a::BDD, b::BDD)
     b_node = b.node :: DeferredNode
     possible_vars = a_node.possible_vars ∪ b_node.possible_vars
     possible_overlap = a_node.possible_vars ∩ b_node.possible_vars
-    maybe_const_true = maybe_const_true(a) && maybe_const_true(b)
-    maybe_const_false = maybe_const_false(a) || maybe_const_false(b) || !isempty(possible_overlap)
-    node = DeferredNode(:and, possible_vars, possible_overlap, maybe_const_true, maybe_const_false, a, b, nothing)
+    maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b)
+    maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || !isempty(possible_overlap)
+    node = DeferredNode(:and, possible_vars, possible_overlap, maybe_const_true_val, maybe_const_false_val, a, b, nothing)
     return BDD(node, false)
 end
 
