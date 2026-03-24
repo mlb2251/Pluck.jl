@@ -24,6 +24,7 @@ function bdd_forward_with_suspension(expr; kwargs...)
     state = LazyKCState(; kwargs...)
 
     ret = toplevel_compile(expr; state)
+    @assert ret.worlds !== nothing
 
     true_probability = 0.0
     false_probability = 0.0
@@ -48,6 +49,7 @@ function bdd_forward_with_suspension(expr; kwargs...)
                 path_condition = path_condition & posterior_sample
                 multiplier *= (1 / posterior_probability) # (total_guard / bdd_wmc(path_condition))
                 ret = toplevel_evaluate(thunk, state; path_condition)
+                @assert ret.worlds !== nothing
             else
                 error("Expected a suspended boolean, got $(sb).")
             end
@@ -67,6 +69,7 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
     state = LazyKCState(; kwargs...)
 
     ret = toplevel_compile(expr; state)
+    @assert ret.worlds !== nothing
 
     true_probability = 0.0
     false_probability = 0.0
@@ -94,6 +97,7 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                 if RSDD.bdd_is_false(posterior_guard)
                     # The top K paths contained all the available information. We can just recurse.
                     ret = toplevel_evaluate(thunk, state; path_condition)
+                    @assert ret.worlds !== nothing
                     continue
                 end
 
@@ -124,6 +128,7 @@ function bdd_forward_with_suspension_top_k(expr::String, k::Integer; kwargs...)
                 RSDD.set_weight(state.manager, RSDD.bdd_topvar(new_variable), new_variable_weight, 1.0 - new_variable_weight)
                 path_condition = path_condition & new_bdd
                 ret = toplevel_evaluate(thunk, state; path_condition)
+                @assert ret.worlds !== nothing
             else
                 error("Expected a suspended boolean, got $(sb).")
             end
@@ -201,6 +206,7 @@ function subproblem_monte_carlo(ret::LazyKCResult, k::Integer)
             if RSDD.bdd_is_false(posterior_guard)
                 # The top K paths contained all the available information. We can just recurse.
                 ret = toplevel_evaluate(suspend_value, state; path_condition)
+                @assert ret.worlds !== nothing
                 continue
             end
 
@@ -228,6 +234,7 @@ function subproblem_monte_carlo(ret::LazyKCResult, k::Integer)
             path_condition = path_condition & new_bdd
             
             ret = toplevel_evaluate(suspend_value, state; path_condition)
+            @assert ret.worlds !== nothing
         end
 
         if !saw_suspend

@@ -205,6 +205,7 @@ function toplevel_evaluate(thunk, state::LazyKCState; path_condition=state.manag
     end
 
     if state.stats.hit_limit
+        println("Hit limit during execution of $(thunk), returning nothing")
         worlds = nothing
         used_information = state.manager.BDD_TRUE
     end
@@ -242,7 +243,7 @@ function is_deterministic(weight::Float64)
 end
 
 function normalize(weighted_worlds)
-    isempty(weighted_worlds) && return weighted_worlds
+    (isnothing(weighted_worlds) || isempty(weighted_worlds)) && return weighted_worlds
     weights = [weight for (_, weight) in weighted_worlds]
     total = sum(weights)
     return [(world, weight / total) for (world, weight) in weighted_worlds]
@@ -259,7 +260,9 @@ function normalize_dual(results)
     return [(world, (primal / total_primal, (total_primal*deriv - primal*total_deriv)/(total_primal^2))) for (world, (primal, deriv)) in results]
 end
 
-
+function wmc(_::Nothing)
+    nothing
+end
 
 function wmc(ret::LazyKCResult)
     return wmc(ret.worlds)

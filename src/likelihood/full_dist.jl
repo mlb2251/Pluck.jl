@@ -1,3 +1,5 @@
+force_thunks(_::Nothing) = nothing
+force_thunks(_::Nothing, _) = nothing
 force_thunks(res::LazyKCResult) = force_thunks(res.worlds, res.state)
 
 """
@@ -28,6 +30,10 @@ function force_thunks(worlds, state)
             
             # Evaluate the thunk
             sub_results = toplevel_evaluate(thunk, state; path_condition)
+            if isnothing(sub_results.worlds)
+                # A limit was hit during evaluation, treat this path as infeasible
+                continue
+            end
             
             # For each possible result of the thunk evaluation
             for (sub_val, sub_bdd) in sub_results.worlds

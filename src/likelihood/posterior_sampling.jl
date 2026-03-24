@@ -8,6 +8,7 @@ function posterior_sample(val, state::LazyKCState)
 
     # First evaluate the evidence thunk to get true/false BDDs
     evidence_results = toplevel_evaluate(evidence_thunk, state)
+    @assert evidence_results.worlds !== nothing
     evidence_bdd = true_bdd(evidence_results)
 
     if bdd_is_false(evidence_bdd)

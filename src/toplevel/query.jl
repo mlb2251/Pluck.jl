@@ -14,6 +14,7 @@ function eval_query(val, state::LazyKCState)
         k, = from_value(force_thunks(toplevel_evaluate(val.args[1], state)))
         mode = SMCInference(k)
         val = deterministic_world(toplevel_evaluate(val.args[2], state))
+        @assert val !== nothing
     end
 
     if val.constructor == :Marginal
@@ -40,6 +41,7 @@ end
 function thunk_marginal(thunk, state, mode::SMCInference)
     # (Marginal e) in subproblem mode => force the thunk `e`, call subproblem_monte_carlo on result, then force and enumerate the result of that
     ret = toplevel_evaluate(thunk, state)
+    @assert ret.worlds !== nothing
     ret_thunk_union = subproblem_monte_carlo(ret, mode.k)
     ret = toplevel_evaluate(ret_thunk_union, state)
     return wmc(force_thunks(ret.worlds, state))
@@ -54,6 +56,7 @@ end
 function thunk_posterior(query_thunk, evidence_thunk, state, mode::SMCInference)
     e, env = posterior_expr(query_thunk, evidence_thunk, "given-suspend")
     ret = toplevel_compile(e; state, env)
+    @assert ret.worlds !== nothing
     ret_thunk_union = subproblem_monte_carlo(ret, mode.k)
     ret = toplevel_evaluate(ret_thunk_union, state)
     return normalize(wmc(force_thunks(ret.worlds, state)))
