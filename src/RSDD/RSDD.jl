@@ -263,7 +263,7 @@ Returns: InnerBDD
 """
 function bdd_true(manager::Manager)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_true(manager.ptr::ManagerPtr)::Csize_t
-    embed_bdd(InnerBDD(manager, ptr))
+    true_bdd(InnerBDD(manager, ptr))
 end
 
 """
@@ -272,7 +272,7 @@ Returns: InnerBDD
 """
 function bdd_false(manager::Manager)
     ptr = @rsdd_timed @ccall librsdd_path.bdd_false(manager.ptr::ManagerPtr)::Csize_t
-    embed_bdd(InnerBDD(manager, ptr))
+    false_bdd(InnerBDD(manager, ptr))
 end
 
 """
