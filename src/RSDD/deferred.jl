@@ -77,8 +77,9 @@ function bdd_and(a::BDD, b::BDD)
     a_node = a.node :: DeferredNode
     b_node = b.node :: DeferredNode
     possible_vars = varset_union(a_node.possible_vars, b_node.possible_vars)
-    maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b)
-    maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || !varset_empty_intersection(a_node.possible_vars, b_node.possible_vars)
+    empty_intersect = varset_empty_intersection(a_node.possible_vars, b_node.possible_vars)
+    maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b) || !empty_intersect
+    maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || !empty_intersect
     node = DeferredNode(:and, possible_vars, maybe_const_true_val, maybe_const_false_val, a, b, nothing)
     return BDD(node, false)
 end
