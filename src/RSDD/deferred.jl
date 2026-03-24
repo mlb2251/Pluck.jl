@@ -10,7 +10,6 @@ node(bdd::BDD) :: DeferredNode = bdd.node
 
 mutable struct DeferredNode
     op::Symbol
-    possible_vars::Vector{Int}
     min_var::Int
     max_var::Int
     maybe_const_true::Bool
@@ -62,7 +61,8 @@ end
 
 function set_strict(node::DeferredNode, bdd::InnerBDD)
     node.strict_bdd = bdd
-    # node.possible_vars = bdd_get_vars(bdd)
+    node.min_var = bdd_topvar(bdd)
+    # leave max var as-is
     node.maybe_const_true = bdd_is_true(bdd)
     node.maybe_const_false = bdd_is_false(bdd)
     node.left = nothing
@@ -75,17 +75,17 @@ end
 # end
 
 function var_bdd(bdd::InnerBDD, label::Int)::BDD
-    node = DeferredNode(:var, varset_of_label(label), label, label, false, false, nothing, nothing, bdd)
+    node = DeferredNode(:var, label, label, false, false, nothing, nothing, bdd)
     return BDD(node, false)
 end
 
 function true_bdd(bdd::InnerBDD)::BDD
-    node = DeferredNode(:T, empty_varset(), -1, -1, true, false, nothing, nothing, bdd)
+    node = DeferredNode(:T, typemax(Int), typemin(Int), true, false, nothing, nothing, bdd)
     return BDD(node, false)
 end
 
 function false_bdd(bdd::InnerBDD)::BDD
-    node = DeferredNode(:F, empty_varset(), -1, -1, false, true, nothing, nothing, bdd)
+    node = DeferredNode(:F, typemax(Int), typemin(Int), false, true, nothing, nothing, bdd)
     return BDD(node, false)
 end
 
@@ -93,13 +93,13 @@ end
 function bdd_and(a::BDD, b::BDD)
     a_node = a.node :: DeferredNode
     b_node = b.node :: DeferredNode
+    interval_overlap = a_node.min_var != typemax(Int) && b_node.min_var != typemax(Int) && (a_node.min_var <= b_node.max_var && b_node.min_var <= a_node.max_var)
+
     min_var = min(a_node.min_var, b_node.min_var)
     max_var = max(a_node.max_var, b_node.max_var)
-    possible_vars = varset_union(a_node.possible_vars, b_node.possible_vars)
-    empty_intersect = varset_empty_intersection(a_node.possible_vars, b_node.possible_vars)
-    maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b) || !empty_intersect
-    maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || !empty_intersect
-    node = DeferredNode(:and, possible_vars, min_var, max_var, maybe_const_true_val, maybe_const_false_val, a, b, nothing)
+    maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b) || interval_overlap
+    maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || interval_overlap
+    node = DeferredNode(:and, min_var, max_var, maybe_const_true_val, maybe_const_false_val, a, b, nothing)
     return BDD(node, false)
 end
 
@@ -114,75 +114,77 @@ bdd_size(a::BDD) = bdd_size(force(a))
 bdd_wmc(a::BDD) = bdd_wmc(force(a))
 
 
-
-function varset_union(a, b)
-    isempty(a) && return b
-    isempty(b) && return a
-
-    c = empty!(Vector{Int}(undef, length(a) + length(b)))
+# VECTOR VERSION
 
 
-    ai = 1
-    bi = 1
-    while true
-        if a[ai] < b[bi]
-            push!(c, a[ai])
-            ai += 1
-        elseif a[ai] > b[bi]
-            push!(c, b[bi])
-            bi += 1
-        else
-            # both must be equal in this case
-            push!(c, a[ai])
-            ai += 1
-            bi += 1
-        end
-        if ai > length(a) || bi > length(b)
-            break
-        end
-    end
+# function varset_union(a, b)
+#     isempty(a) && return b
+#     isempty(b) && return a
 
-    while ai <= length(a)
-        push!(c, a[ai])
-        ai += 1
-    end
-    while bi <= length(b)
-        push!(c, b[bi])
-        bi += 1
-    end
+#     c = empty!(Vector{Int}(undef, length(a) + length(b)))
 
-    return c
-end
 
-function varset_empty_intersection(a, b)
-    isempty(a) && return true
-    isempty(b) && return true
+#     ai = 1
+#     bi = 1
+#     while true
+#         if a[ai] < b[bi]
+#             push!(c, a[ai])
+#             ai += 1
+#         elseif a[ai] > b[bi]
+#             push!(c, b[bi])
+#             bi += 1
+#         else
+#             # both must be equal in this case
+#             push!(c, a[ai])
+#             ai += 1
+#             bi += 1
+#         end
+#         if ai > length(a) || bi > length(b)
+#             break
+#         end
+#     end
 
-    ai = 1
-    bi = 1
-    while true
-        if a[ai] < b[bi]
-            ai += 1
-        elseif a[ai] > b[bi]
-            bi += 1
-        else
-            return false
-        end
-        if ai > length(a) || bi > length(b)
-            break
-        end
-    end
+#     while ai <= length(a)
+#         push!(c, a[ai])
+#         ai += 1
+#     end
+#     while bi <= length(b)
+#         push!(c, b[bi])
+#         bi += 1
+#     end
 
-    return true
-end
+#     return c
+# end
 
-function varset_of_label(label::Int)
-    return Int[label]
-end
+# function varset_empty_intersection(a, b)
+#     isempty(a) && return true
+#     isempty(b) && return true
 
-function empty_varset()
-    return Int[]
-end
+#     ai = 1
+#     bi = 1
+#     while true
+#         if a[ai] < b[bi]
+#             ai += 1
+#         elseif a[ai] > b[bi]
+#             bi += 1
+#         else
+#             return false
+#         end
+#         if ai > length(a) || bi > length(b)
+#             break
+#         end
+#     end
+
+#     return true
+# end
+
+# function varset_of_label(label::Int)
+#     return Int[label]
+# end
+
+# function empty_varset()
+#     return Int[]
+# end
 
 # SET VERSION
 
