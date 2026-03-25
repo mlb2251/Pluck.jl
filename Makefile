@@ -7,7 +7,7 @@ test:
 FILE=programs/all.pluck
 ALLOW=
 ONCE=
-BEFORE=check-results/camera-ready.json
+BEFORE=check-results/prev.json
 check: generate-bayes-nets
 	julia --project -e 'using Pluck; Pluck.run_check(ARGS; baseline="$(BEFORE)", allow="$(ALLOW)", once=("$(ONCE)"=="true"))' -- $(FILE)
 check-table1:
