@@ -9,7 +9,7 @@ function run_examples()
     end
 end
 
-function run_check(files=nothing; baseline=nothing, outfile=nothing, allow="", once=false)
+function run_check(files=nothing; baseline=nothing, outfile=nothing, allow="", once=false, warmstart=true)
     fail_count = Ref(0)
     check_results = CheckResult[]
     if files === nothing
@@ -19,10 +19,10 @@ function run_check(files=nothing; baseline=nothing, outfile=nothing, allow="", o
     end
     allow_filter = isempty(allow) ? nothing : allow
     for file in files
-        load_pluck_file(file; check=true, fail_count, check_results, allow=allow_filter, once)
+        load_pluck_file(file; check=true, fail_count, check_results, allow=allow_filter, once, warmstart)
     end
 
-    # Save results and show diff against baseline
+    # Save results and diff against baseline
     if !isempty(check_results)
         println()
         save_check_results(check_results; outfile)

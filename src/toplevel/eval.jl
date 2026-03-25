@@ -28,6 +28,7 @@ mutable struct ToplevelEvalState
     check_results::Vector{CheckResult}
     allow::Union{Nothing, String}
     once::Bool
+    warmstart::Bool
 end
 
 # Load and process definitions from a file
@@ -146,14 +147,13 @@ end
 
 
 function diff_check_results()
-    base = joinpath(@__DIR__, "..", "..", "check-results")
-    diff_check_results(joinpath(base, "camera-ready.json"), joinpath(base, "latest.json"))
+    diff_check_results("camera-ready.json", "latest.json")
 end
 
-function diff_check_results(baseline_path::String, latest_path::String="check-results/latest.json")
+function diff_check_results(baseline_path::String, latest_path::String="latest.json")
     base = joinpath(@__DIR__, "..", "..", "check-results")
-    baseline_path = isfile(baseline_path) ? baseline_path : joinpath(base, baseline_path)
-    latest_path = isfile(latest_path) ? latest_path : joinpath(base, latest_path)
+    baseline_path = joinpath(base, baseline_path)
+    latest_path = joinpath(base, latest_path)
 
     if !isfile(baseline_path)
         printstyled("Baseline not found: $baseline_path\n"; color=:red)
@@ -295,10 +295,10 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
     end
 end
 
-function run_toplevel(s::String; filename="<unknown>", defs=DEFINITIONS, silent=false, check=false, fail_count=Ref(0), check_results=CheckResult[], allow=nothing, once=false)
+function run_toplevel(s::String; filename="<unknown>", defs=DEFINITIONS, silent=false, check=false, fail_count=Ref(0), check_results=CheckResult[], allow=nothing, once=false, warmstart=true)
     tokens = tokenize(s)
     parser = ParseState(defs, [], dirname(abspath(filename)), s, filename)
-    toplevel_state = ToplevelEvalState(defs, parser, silent, check, fail_count, relpath(abspath(filename)), check_results, allow, once)
+    toplevel_state = ToplevelEvalState(defs, parser, silent, check, fail_count, relpath(abspath(filename)), check_results, allow, once, warmstart)
 
     while !isempty(tokens)
         expr, tokens = parse_toplevel(tokens, parser)
@@ -315,7 +315,7 @@ function eval_toplevel(expr::PExpr{ToplevelPassOp}, toplevel_state)
 end
 
 function eval_toplevel(expr::PExpr{IncludeOp}, toplevel_state)
-    load_pluck_file(expr.head.path; defs=toplevel_state.defs, silent=toplevel_state.silent, check=toplevel_state.check, fail_count=toplevel_state.fail_count, check_results=toplevel_state.check_results, allow=toplevel_state.allow, once=toplevel_state.once)
+    load_pluck_file(expr.head.path; defs=toplevel_state.defs, silent=toplevel_state.silent, check=toplevel_state.check, fail_count=toplevel_state.fail_count, check_results=toplevel_state.check_results, allow=toplevel_state.allow, once=toplevel_state.once, warmstart=toplevel_state.warmstart)
 end
 
 
@@ -353,7 +353,7 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
     body = deterministic_world(toplevel_compile(expr.head.query; state))
 
     # Warmup run (silent) to avoid measuring JIT compilation
-    if toplevel_state.check
+    if toplevel_state.check && toplevel_state.warmstart
         print("$(expr.head.name)... ")
         clear_bdd_stats!()
         eval_query(body, state)
