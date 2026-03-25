@@ -19,6 +19,16 @@ mutable struct DeferredNode
     strict_bdd::Union{InnerBDD, Nothing}
 end
 
+function is_const_true(bdd::BDD)
+    node = bdd.node :: DeferredNode
+    return bdd.negated ? node.op === :F : node.op === :T
+end
+
+function is_const_false(bdd::BDD)
+    node = bdd.node :: DeferredNode
+    return bdd.negated ? node.op === :T : node.op === :F
+end
+
 
 function maybe_const_true(bdd::BDD)
     node = bdd.node :: DeferredNode
@@ -35,6 +45,9 @@ function bdd_is_false(a::BDD)
         if bdd_is_false(force(a))
             @assert maybe_const_false(a)
         end
+    end
+    if is_const_false(a)
+        return true
     end
     if !maybe_const_false(a)
         return false
@@ -65,6 +78,7 @@ function set_strict(node::DeferredNode, bdd::InnerBDD)
     node.strict_bdd = bdd
     is_true = bdd_is_true(bdd)
     is_false = bdd_is_false(bdd)
+    node.op = is_true ? :T : is_false ? :F : node.op
     node.min_var = is_true || is_false ? typemax(Int) : bdd_topvar(bdd)
     node.max_var = is_true || is_false ? typemin(Int) : node.max_var # we dont know the max var
     node.maybe_const_true = is_true
@@ -95,6 +109,11 @@ end
 
 
 function bdd_and(a::BDD, b::BDD)
+    is_const_true(a) && return b
+    is_const_true(b) && return a
+    is_const_false(a) && return a
+    is_const_false(b) && return b
+
     a_node = a.node :: DeferredNode
     b_node = b.node :: DeferredNode
     interval_overlap = a_node.min_var != typemax(Int) && b_node.min_var != typemax(Int) && (a_node.min_var <= b_node.max_var && b_node.min_var <= a_node.max_var)
