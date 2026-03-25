@@ -52,6 +52,8 @@ function force(bdd::BDD)::InnerBDD
     a = force(node.left)
     if bdd_is_false(a) # perhaps unnecessary optimization but yeah
         set_strict(node, a) # F & _ = F
+    elseif bdd_is_true(a)
+        set_strict(node, force(node.right))
     else
         b = force(node.right)
         set_strict(node, a & b)
@@ -61,10 +63,12 @@ end
 
 function set_strict(node::DeferredNode, bdd::InnerBDD)
     node.strict_bdd = bdd
-    node.min_var = bdd_topvar(bdd)
-    # leave max var as-is
-    node.maybe_const_true = bdd_is_true(bdd)
-    node.maybe_const_false = bdd_is_false(bdd)
+    is_true = bdd_is_true(bdd)
+    is_false = bdd_is_false(bdd)
+    node.min_var = is_true || is_false ? typemax(Int) : bdd_topvar(bdd)
+    node.max_var = is_true || is_false ? typemin(Int) : node.max_var # we dont know the max var
+    node.maybe_const_true = is_true
+    node.maybe_const_false = is_false
     node.left = nothing
     node.right = nothing
 end
@@ -97,7 +101,7 @@ function bdd_and(a::BDD, b::BDD)
 
     min_var = min(a_node.min_var, b_node.min_var)
     max_var = max(a_node.max_var, b_node.max_var)
-    maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b) || interval_overlap
+    maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b)
     maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || interval_overlap
     node = DeferredNode(:and, min_var, max_var, maybe_const_true_val, maybe_const_false_val, a, b, nothing)
     return BDD(node, false)
