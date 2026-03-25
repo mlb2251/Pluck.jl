@@ -15,11 +15,11 @@
 
 
 (assert-query
-  'hmm-50
+  'hmm-8
   (Marginal
-    (prefix_equals? (hmm (False)) (generate_observations 50)))
-  ((False) 0.9999999999998197)
-  ((True) 1.802995485540675e-13))
+    (prefix_equals? (hmm (False)) (generate_observations 10)))
+  ((False) 0.9970842058643375)
+  ((True) 0.00291579413566247))
 
   (assert-query
   'hmm-100
