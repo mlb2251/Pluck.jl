@@ -9,7 +9,7 @@ function run_examples()
     end
 end
 
-function run_check(files=nothing; baseline=nothing, outfile=nothing)
+function run_check(files=nothing; baseline=nothing, outfile=nothing, allow="", once=false)
     fail_count = Ref(0)
     check_results = CheckResult[]
     if files === nothing
@@ -17,8 +17,9 @@ function run_check(files=nothing; baseline=nothing, outfile=nothing)
     else
         files = [abspath(f) for f in files]
     end
+    allow_filter = isempty(allow) ? nothing : allow
     for file in files
-        load_pluck_file(file; check=true, fail_count, check_results)
+        load_pluck_file(file; check=true, fail_count, check_results, allow=allow_filter, once)
     end
 
     # Save results and show diff against baseline

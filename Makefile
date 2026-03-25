@@ -5,9 +5,11 @@ julia-instantiate:
 test:
 	julia --project -e 'using Pluck; Pluck.run_examples()'
 FILE=programs/all.pluck
+ALLOW=
+ONCE=
 BEFORE=check-results/camera-ready.json
 check: generate-bayes-nets
-	julia --project -e 'using Pluck; Pluck.run_check(ARGS; baseline="$(BEFORE)")' -- $(FILE)
+	julia --project -e 'using Pluck; Pluck.run_check(ARGS; baseline="$(BEFORE)", allow="$(ALLOW)", once=("$(ONCE)"=="true"))' -- $(FILE)
 check-table1:
 	$(MAKE) check FILE=programs/table1/table1.pluck
 

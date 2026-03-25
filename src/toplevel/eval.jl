@@ -26,6 +26,8 @@ mutable struct ToplevelEvalState
     fail_count::Ref{Int}
     current_file::String
     check_results::Vector{CheckResult}
+    allow::Union{Nothing, String}
+    once::Bool
 end
 
 # Load and process definitions from a file
@@ -293,10 +295,10 @@ function diff_check_results(baseline_path::String, latest_path::String="check-re
     end
 end
 
-function run_toplevel(s::String; filename="<unknown>", defs=DEFINITIONS, silent=false, check=false, fail_count=Ref(0), check_results=CheckResult[])
+function run_toplevel(s::String; filename="<unknown>", defs=DEFINITIONS, silent=false, check=false, fail_count=Ref(0), check_results=CheckResult[], allow=nothing, once=false)
     tokens = tokenize(s)
     parser = ParseState(defs, [], dirname(abspath(filename)), s, filename)
-    toplevel_state = ToplevelEvalState(defs, parser, silent, check, fail_count, relpath(abspath(filename)), check_results)
+    toplevel_state = ToplevelEvalState(defs, parser, silent, check, fail_count, relpath(abspath(filename)), check_results, allow, once)
 
     while !isempty(tokens)
         expr, tokens = parse_toplevel(tokens, parser)
@@ -313,7 +315,7 @@ function eval_toplevel(expr::PExpr{ToplevelPassOp}, toplevel_state)
 end
 
 function eval_toplevel(expr::PExpr{IncludeOp}, toplevel_state)
-    load_pluck_file(expr.head.path; defs=toplevel_state.defs, silent=toplevel_state.silent, check=toplevel_state.check, fail_count=toplevel_state.fail_count, check_results=toplevel_state.check_results)
+    load_pluck_file(expr.head.path; defs=toplevel_state.defs, silent=toplevel_state.silent, check=toplevel_state.check, fail_count=toplevel_state.fail_count, check_results=toplevel_state.check_results, allow=toplevel_state.allow, once=toplevel_state.once)
 end
 
 
@@ -326,6 +328,9 @@ end
 function eval_toplevel(expr::PExpr{QueryOp}, toplevel_state)
     # In check mode, skip non-assert queries (e.g. sampling examples)
     if toplevel_state.check
+        return nothing
+    end
+    if toplevel_state.allow !== nothing && !occursin(toplevel_state.allow, expr.head.name)
         return nothing
     end
     state = LazyKCState()
@@ -341,6 +346,9 @@ function eval_toplevel(expr::PExpr{QueryOp}, toplevel_state)
 end
 
 function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
+    if toplevel_state.allow !== nothing && !occursin(toplevel_state.allow, expr.head.name)
+        return nothing
+    end
     state = LazyKCState()
     body = deterministic_world(toplevel_compile(expr.head.query; state))
 
@@ -385,7 +393,7 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
         time_ms = elapsed_ms
         push!(trials, CheckTrial(time_ms, stats.num_recursive_calls, stats.num_forward_calls, rsdd_ms, total_bdd_size, gc_time_ms, alloc_bytes, num_allocs))
 
-        if !toplevel_state.check || (time() - wall_start) >= 1.0
+        if !toplevel_state.check || toplevel_state.once || (time() - wall_start) >= 1.0
             break
         end
     end
