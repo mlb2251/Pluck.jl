@@ -87,11 +87,6 @@ function set_strict(node::DeferredNode, bdd::InnerBDD)
     node.right = nothing
 end
 
-# function embed_bdd(bdd::InnerBDD)::BDD
-#     node = DeferredNode(:embedded, varset_of_bdd(bdd), bdd_is_true(bdd), bdd_is_false(bdd), nothing, nothing, bdd)
-#     return BDD(node, false)
-# end
-
 function var_bdd(bdd::InnerBDD, label::Int)::BDD
     node = DeferredNode(:var, label, label, false, false, nothing, nothing, bdd)
     return BDD(node, false)
@@ -135,6 +130,13 @@ Base.:|(a::BDD, b::BDD) = bdd_or(a, b)
 bdd_topvar(a::BDD) = bdd_topvar(force(a))
 bdd_size(a::BDD) = bdd_size(force(a))
 bdd_wmc(a::BDD) = bdd_wmc(force(a))
+
+
+
+# function embed_bdd(bdd::InnerBDD)::BDD
+#     node = DeferredNode(:embedded, varset_of_bdd(bdd), bdd_is_true(bdd), bdd_is_false(bdd), nothing, nothing, bdd)
+#     return BDD(node, false)
+# end
 
 
 # VECTOR VERSION
