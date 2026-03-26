@@ -20,10 +20,16 @@ function bdd_is_false(a::BDD)
     if a.solver !== nothing
         return false  # solver exists → known SAT
     end
-    if DEBUG_CHECKS
-        @assert bdd_is_false(force(a.bdd)) == (sat_check(a.sat_expr) === :unsat)
+    result = cdcl_solver_from(a.sat_expr)
+    is_unsat = result === :unsat
+    if result isa CDCLSolver
+        a.solver = result  # cache for future incremental checks
+        is_unsat = false
     end
-    return sat_check(a.sat_expr) === :unsat
+    if DEBUG_CHECKS
+        @assert bdd_is_false(force(a.bdd)) == is_unsat "SAT/BDD disagreement: CDCL says $(is_unsat ? :unsat : :sat) but BDD says $(bdd_is_false(force(a.bdd)) ? :unsat : :sat)"
+    end
+    return is_unsat
 end
 
 function bdd_is_true(a::BDD)

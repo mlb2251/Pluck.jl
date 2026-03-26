@@ -1,17 +1,11 @@
 """
-Lightweight Boolean formula DAG with SAT checking via DPLL + unit propagation.
+Lightweight Boolean formula DAG with SAT checking via CDCL.
 Arena-based: all nodes live in a flat Vector, referenced by UInt32 index.
 No heap allocation per node, no GC pressure.
-
-Usage:
-    x, y, z = sat_var(1), sat_var(2), sat_var(3)
-    f = sat_or(sat_and(x, y), sat_not(z))
-    sat_check(f)          # :sat or :unsat
-    sat_assignment(f)     # Dict(3 => false) or nothing
 """
 module SAT
 
-export SATExpr, sat_var, SAT_TRUE, SAT_FALSE, sat_check, sat_assignment, sat_vars, clear_sat!, sat_not, sat_and, sat_or,
+export SATExpr, sat_var, SAT_TRUE, SAT_FALSE, clear_sat!, sat_not, sat_and, sat_or,
        CDCLSolver, cdcl_solver_from, cdcl_check_assuming!, cdcl_fork
 
 # ── SATExpr is just an index into the arena ──────────────────────────
@@ -47,7 +41,6 @@ _init_arena!()
 const SAT_TRUE  = UInt32(1)
 const SAT_FALSE = UInt32(2)
 
-@inline _node(e::SATExpr) = @inbounds _ARENA[e]
 @inline _head(e::SATExpr) = @inbounds _ARENA[e].head
 @inline _id(e::SATExpr)   = @inbounds _ARENA[e].id
 @inline _a(e::SATExpr)    = @inbounds _ARENA[e].a
@@ -148,141 +141,405 @@ function sat_or(a::SATExpr, b::SATExpr)
     _make_or(a, b)
 end
 
-# ── Variable collection ──────────────────────────────────────────────
+# ── CDCL incremental solver ─────────────────────────────────────────
 
-function sat_vars(e::SATExpr)
-    s = Set{Int}()
-    _vars!(s, e)
+# Literal encoding: variable v (1-indexed) → positive literal = 2v, negative = 2v+1
+
+@inline mklit(v::Int, pos::Bool)::Int32 = Int32(pos ? 2v : 2v + 1)
+@inline litvar(l::Int32)::Int = Int(l >> 1)
+@inline litpos(l::Int32)::Bool = (l & 1) == 0
+@inline litneg(l::Int32)::Int32 = xor(l, Int32(1))
+
+@inline function litval(assigns::Vector{Int8}, l::Int32)::Int8
+    @inbounds v = assigns[litvar(l)]
+    v == Int8(0) && return Int8(0)
+    litpos(l) ? v : -v
+end
+
+const CDCL_LIT_TRUE  = mklit(1, true)   # var 1 is constant true
+const CDCL_LIT_FALSE = mklit(1, false)
+
+mutable struct CDCLSolver
+    n_vars::Int
+    clauses::Vector{Vector{Int32}}
+    watches::Vector{Vector{Int32}}   # watches[lit - 1]
+    assigns::Vector{Int8}            # per variable: 0=undef, 1=true, -1=false
+    trail::Vector{Int32}
+    trail_lim::Vector{Int}           # trail length at start of each decision level
+    reason::Vector{Int32}            # clause index that propagated, 0 = decision
+    level::Vector{Int32}             # decision level of assignment
+    qhead::Int
+    seen::BitVector
+    expr_to_lit::Dict{UInt32, Int32} # SATExpr → literal (Tseitin cache)
+end
+
+@inline _dlevel(s::CDCLSolver) = length(s.trail_lim)
+
+function CDCLSolver()
+    s = CDCLSolver(
+        0, Vector{Int32}[], Vector{Int32}[], Int8[], Int32[], Int[], Int32[], Int32[],
+        1, BitVector(), Dict{UInt32, Int32}()
+    )
+    # Var 1 = constant TRUE
+    _cdcl_new_var!(s)
+    s.assigns[1] = Int8(1)
+    s.level[1] = Int32(0)
+    push!(s.trail, CDCL_LIT_TRUE)
     return s
 end
 
-function _vars!(s, e::SATExpr)
-    h = _head(e)
-    h == _HEAD_T   && return nothing
-    h == _HEAD_F   && return nothing
-    h == _HEAD_VAR && (push!(s, Int(_id(e))); return nothing)
-    h == _HEAD_NOT && (_vars!(s, _a(e)); return nothing)
-    _vars!(s, _a(e))
-    _vars!(s, _b(e))
-    return nothing
+function _cdcl_new_var!(s::CDCLSolver)::Int
+    s.n_vars += 1
+    push!(s.assigns, Int8(0))
+    push!(s.reason, Int32(0))
+    push!(s.level, Int32(-1))
+    push!(s.watches, Int32[])  # positive literal watch list
+    push!(s.watches, Int32[])  # negative literal watch list
+    return s.n_vars
 end
 
-# ── Substitute + simplify under partial assignment ───────────────────
-
-function subst(e::SATExpr, env::Dict{Int,Bool})
-    _subst(e, env, Dict{UInt32,SATExpr}())
-end
-
-function _subst(e::SATExpr, env::Dict{Int,Bool}, cache::Dict{UInt32,SATExpr})
-    h = _head(e)
-    h == _HEAD_T && return SAT_TRUE
-    h == _HEAD_F && return SAT_FALSE
-    if h == _HEAD_VAR
-        id = Int(_id(e))
-        return haskey(env, id) ? (env[id] ? SAT_TRUE : SAT_FALSE) : e
+function _cdcl_add_clause!(s::CDCLSolver, lits::Vector{Int32})::Int32
+    push!(s.clauses, lits)
+    ci = Int32(length(s.clauses))
+    if length(lits) >= 2
+        push!(s.watches[Int(lits[1]) - 1], ci)
+        push!(s.watches[Int(lits[2]) - 1], ci)
     end
-    haskey(cache, e) && return cache[e]
-    r = if h == _HEAD_NOT
-        sat_not(_subst(_a(e), env, cache))
-    elseif h == _HEAD_AND
-        sat_and(_subst(_a(e), env, cache), _subst(_b(e), env, cache))
-    else # _HEAD_OR
-        sat_or(_subst(_a(e), env, cache), _subst(_b(e), env, cache))
-    end
-    cache[e] = r
+    return ci
 end
 
-# ── Unit propagation ─────────────────────────────────────────────────
-
-function _extract_units!(units::Dict{Int,Bool}, e::SATExpr)
-    h = _head(e)
-    if h == _HEAD_AND
-        _extract_units!(units, _a(e))
-        _extract_units!(units, _b(e))
-    elseif h == _HEAD_VAR
-        id = Int(_id(e))
-        units[id] = get(units, id, true)
-    elseif h == _HEAD_NOT && _head(_a(e)) == _HEAD_VAR
-        id = Int(_id(_a(e)))
-        units[id] = get(units, id, false)
-    end
-    nothing
+function _cdcl_enqueue!(s::CDCLSolver, lit::Int32, reason::Int32 = Int32(0))::Bool
+    v = litvar(lit)
+    val = litpos(lit) ? Int8(1) : Int8(-1)
+    @inbounds cur = s.assigns[v]
+    cur != Int8(0) && return cur == val
+    @inbounds s.assigns[v] = val
+    @inbounds s.level[v] = Int32(_dlevel(s))
+    @inbounds s.reason[v] = reason
+    push!(s.trail, lit)
+    return true
 end
 
-function _propagate(e::SATExpr, env::Dict{Int,Bool})
+function _cdcl_backtrack!(s::CDCLSolver, target_level::Int)
+    while _dlevel(s) > target_level
+        prev_len = s.trail_lim[end]
+        for i in length(s.trail):-1:(prev_len + 1)
+            @inbounds s.assigns[litvar(s.trail[i])] = Int8(0)
+        end
+        resize!(s.trail, prev_len)
+        pop!(s.trail_lim)
+    end
+    s.qhead = min(s.qhead, length(s.trail) + 1)
+end
+
+# ── BCP with watched literals ────────────────────────────────────────
+
+function _cdcl_propagate!(s::CDCLSolver)::Int32
+    while s.qhead <= length(s.trail)
+        @inbounds p = s.trail[s.qhead]
+        s.qhead += 1
+
+        falsified = litneg(p)
+        wl = s.watches[Int(falsified) - 1]
+        j = 0; i = 1
+
+        while i <= length(wl)
+            @inbounds ci = wl[i]
+            @inbounds clause = s.clauses[ci]
+
+            # Ensure falsified literal is at position 2
+            if clause[1] == falsified
+                clause[1], clause[2] = clause[2], clause[1]
+            end
+
+            @inbounds other = clause[1]
+            if litval(s.assigns, other) == Int8(1)
+                j += 1; @inbounds wl[j] = ci; i += 1; continue
+            end
+
+            # Find replacement watched literal
+            found = false
+            for k in 3:length(clause)
+                @inbounds lk = clause[k]
+                if litval(s.assigns, lk) != Int8(-1)
+                    clause[2], clause[k] = clause[k], clause[2]
+                    push!(s.watches[Int(clause[2]) - 1], ci)
+                    found = true; break
+                end
+            end
+            if found; i += 1; continue; end
+
+            # No replacement — clause is unit or conflicting
+            j += 1; @inbounds wl[j] = ci
+
+            if litval(s.assigns, other) == Int8(-1)
+                # Conflict — copy remaining watches, return
+                for ii in (i+1):length(wl)
+                    j += 1; @inbounds wl[j] = wl[ii]
+                end
+                resize!(wl, j)
+                return ci
+            end
+
+            # Unit propagation
+            _cdcl_enqueue!(s, other, ci)
+            i += 1
+        end
+        resize!(wl, j)
+    end
+    return Int32(0)
+end
+
+# ── Conflict analysis (1UIP) ─────────────────────────────────────────
+
+function _cdcl_analyze!(s::CDCLSolver, conflict::Int32)::Tuple{Vector{Int32}, Int}
+    if length(s.seen) < s.n_vars
+        resize!(s.seen, s.n_vars)
+    end
+    fill!(s.seen, false)
+
+    counter = 0; btlevel = 0
+    learned = Int32[]
+    p = Int32(0)
+    clause_idx = conflict
+    idx = length(s.trail)
+
     while true
-        cache = Dict{UInt32,SATExpr}()
-        s = _subst(e, env, cache)
-        h = _head(s)
-        (h == _HEAD_T || h == _HEAD_F) && return s
+        @inbounds for l in s.clauses[clause_idx]
+            l == p && continue
+            v = litvar(l)
+            @inbounds s.seen[v] && continue
+            @inbounds s.seen[v] = true
+            @inbounds lv = s.level[v]
+            if lv == _dlevel(s)
+                counter += 1
+            elseif lv > 0
+                push!(learned, l)
+                btlevel = max(btlevel, Int(lv))
+            end
+            # level 0 literals are always assigned — omit from learned clause
+        end
 
-        units = Dict{Int,Bool}()
-        _extract_units!(units, s)
+        counter -= 1
+        while true
+            @inbounds p = s.trail[idx]
+            idx -= 1
+            @inbounds s.seen[litvar(p)] && break
+        end
+        @inbounds s.seen[litvar(p)] = false
+        counter == 0 && break
+        @inbounds clause_idx = s.reason[litvar(p)]
+    end
 
-        new_units = Dict(k => v for (k, v) in units if !haskey(env, k))
-        isempty(new_units) && return s
+    pushfirst!(learned, litneg(p))
+    return learned, btlevel
+end
 
-        merge!(env, new_units)
-        e = s
+# ── Variable selection ────────────────────────────────────────────────
+
+function _cdcl_pick_var(s::CDCLSolver)::Int
+    for v in 2:s.n_vars  # skip var 1 (constant true)
+        @inbounds s.assigns[v] == Int8(0) && return v
+    end
+    return 0
+end
+
+# ── Tseitin encoding ─────────────────────────────────────────────────
+
+function _tseitin!(s::CDCLSolver, e::SATExpr)::Int32
+    haskey(s.expr_to_lit, e) && return s.expr_to_lit[e]
+
+    h = _head(e)
+
+    lit = if h == _HEAD_T
+        CDCL_LIT_TRUE
+    elseif h == _HEAD_F
+        CDCL_LIT_FALSE
+    elseif h == _HEAD_VAR
+        mklit(_cdcl_new_var!(s), true)
+    elseif h == _HEAD_NOT
+        litneg(_tseitin!(s, _a(e)))
+    elseif h == _HEAD_AND
+        al = _tseitin!(s, _a(e)); bl = _tseitin!(s, _b(e))
+        if al == CDCL_LIT_TRUE;     bl
+        elseif bl == CDCL_LIT_TRUE; al
+        elseif al == CDCL_LIT_FALSE || bl == CDCL_LIT_FALSE; CDCL_LIT_FALSE
+        elseif al == bl;            al
+        elseif al == litneg(bl);    CDCL_LIT_FALSE
+        else
+            g = _cdcl_new_var!(s); gl = mklit(g, true)
+            _cdcl_add_clause!(s, Int32[litneg(gl), al])
+            _cdcl_add_clause!(s, Int32[litneg(gl), bl])
+            _cdcl_add_clause!(s, Int32[gl, litneg(al), litneg(bl)])
+            gl
+        end
+    elseif h == _HEAD_OR
+        al = _tseitin!(s, _a(e)); bl = _tseitin!(s, _b(e))
+        if al == CDCL_LIT_TRUE || bl == CDCL_LIT_TRUE; CDCL_LIT_TRUE
+        elseif al == CDCL_LIT_FALSE; bl
+        elseif bl == CDCL_LIT_FALSE; al
+        elseif al == bl;             al
+        elseif al == litneg(bl);     CDCL_LIT_TRUE
+        else
+            g = _cdcl_new_var!(s); gl = mklit(g, true)
+            _cdcl_add_clause!(s, Int32[litneg(gl), al, bl])
+            _cdcl_add_clause!(s, Int32[gl, litneg(al)])
+            _cdcl_add_clause!(s, Int32[gl, litneg(bl)])
+            gl
+        end
+    else
+        error("_tseitin!: unknown head $h")
+    end
+
+    s.expr_to_lit[e] = lit
+    return lit
+end
+
+# ── High-level interface ──────────────────────────────────────────────
+
+"""
+    cdcl_solver_from(base::SATExpr) → CDCLSolver or :sat or :unsat
+
+Build a CDCL solver with `base` as permanent clauses. Returns the solver
+for use with `cdcl_check_assuming!`, or a symbol if the base is trivially
+sat/unsat.
+"""
+function cdcl_solver_from(base::SATExpr)::Union{CDCLSolver, Symbol}
+    _head(base) == _HEAD_T && return :sat
+    _head(base) == _HEAD_F && return :unsat
+    k = _known_sat(base)
+    k === false && return :unsat
+
+    s = CDCLSolver()
+    root = _tseitin!(s, base)
+
+    root == CDCL_LIT_TRUE  && return :sat
+    root == CDCL_LIT_FALSE && (_set_sat!(base, false); return :unsat)
+
+    # Assert root and propagate (qhead=1 ensures var 1 + root are processed)
+    _cdcl_add_clause!(s, Int32[root])
+    _cdcl_enqueue!(s, root)
+
+    if _cdcl_propagate!(s) != Int32(0)
+        _set_sat!(base, false)
+        return :unsat
+    end
+
+    return s
+end
+
+"""
+    cdcl_check_assuming!(s::CDCLSolver, additional::SATExpr) → :sat or :unsat
+
+Check satisfiability of `base ∧ additional`. Learned clauses from this
+call persist in the solver and benefit future calls.
+"""
+function cdcl_check_assuming!(s::CDCLSolver, additional::SATExpr)::Symbol
+    _head(additional) == _HEAD_F && return :unsat
+    _head(additional) == _HEAD_T && return :sat
+    k = _known_sat(additional)
+    k === false && return :unsat
+
+    @assert _dlevel(s) == 0
+
+    add_lit = _tseitin!(s, additional)
+    add_lit == CDCL_LIT_FALSE && return :unsat
+    add_lit == CDCL_LIT_TRUE  && return :sat
+
+    # Reprocess level-0 trail so BCP picks up newly added Tseitin clauses
+    s.qhead = 1
+    if _cdcl_propagate!(s) != Int32(0)
+        return :unsat
+    end
+
+    # Assumption variable may already be forced at level 0
+    v = litvar(add_lit)
+    if s.assigns[v] != Int8(0)
+        return litval(s.assigns, add_lit) == Int8(1) ? :sat : :unsat
+    end
+
+    # Assert assumption at level 1
+    push!(s.trail_lim, length(s.trail))
+    _cdcl_enqueue!(s, add_lit)
+
+    result = _cdcl_solve_with_assumption!(s, add_lit)
+    _cdcl_backtrack!(s, 0)
+    return result
+end
+
+"""
+    cdcl_fork(parent::CDCLSolver, additional::SATExpr) → CDCLSolver
+
+Create a child solver that inherits all of `parent`'s clauses and learned
+clauses, with `additional` permanently asserted at level 0.
+Call only after `cdcl_check_assuming!` confirmed the combination is SAT.
+"""
+function cdcl_fork(parent::CDCLSolver, additional::SATExpr)::CDCLSolver
+    child = CDCLSolver(
+        parent.n_vars,
+        [copy(c) for c in parent.clauses],
+        [copy(w) for w in parent.watches],
+        copy(parent.assigns),
+        copy(parent.trail),
+        copy(parent.trail_lim),
+        copy(parent.reason),
+        copy(parent.level),
+        parent.qhead,
+        copy(parent.seen),
+        copy(parent.expr_to_lit),
+    )
+
+    add_lit = _tseitin!(child, additional)
+    (add_lit == CDCL_LIT_TRUE || add_lit == CDCL_LIT_FALSE) && return child
+
+    v = litvar(add_lit)
+    child.assigns[v] != Int8(0) && return child  # already forced at level 0
+
+    child.qhead = 1  # reprocess trail to pick up any new Tseitin clauses
+    _cdcl_enqueue!(child, add_lit)
+    _cdcl_propagate!(child)
+    return child
+end
+
+function _cdcl_solve_with_assumption!(s::CDCLSolver, assumption::Int32)::Symbol
+    while true
+        conflict = _cdcl_propagate!(s)
+
+        if conflict != Int32(0)
+            if _dlevel(s) == 0
+                return :unsat
+            end
+
+            learned, btlevel = _cdcl_analyze!(s, conflict)
+            _cdcl_backtrack!(s, btlevel)
+
+            ci = _cdcl_add_clause!(s, learned)
+            if length(learned) == 1
+                _cdcl_enqueue!(s, learned[1])
+            else
+                _cdcl_enqueue!(s, learned[1], ci)
+            end
+
+            # If backjumped to level 0, propagate new facts, then re-assert assumption
+            if _dlevel(s) == 0
+                if _cdcl_propagate!(s) != Int32(0)
+                    return :unsat
+                end
+                v = litvar(assumption)
+                if s.assigns[v] != Int8(0)
+                    return litval(s.assigns, assumption) == Int8(1) ? :sat : :unsat
+                end
+                push!(s.trail_lim, length(s.trail))
+                _cdcl_enqueue!(s, assumption)
+            end
+        else
+            v = _cdcl_pick_var(s)
+            v == 0 && return :sat
+            push!(s.trail_lim, length(s.trail))
+            _cdcl_enqueue!(s, mklit(v, true))
+        end
     end
 end
-
-# ── DPLL ─────────────────────────────────────────────────────────────
-
-"""
-    sat_check(e::SATExpr) → :sat or :unsat
-"""
-function sat_check(e::SATExpr)
-    k = _known_sat(e)
-    k !== nothing && return k ? :sat : :unsat
-    result = _dpll(e, Dict{Int,Bool}())
-    _set_sat!(e, result)
-    result ? :sat : :unsat
-end
-
-"""
-    sat_assignment(e::SATExpr) → Dict{Int,Bool} or nothing
-
-Returns a satisfying assignment, or nothing if unsat.
-Unassigned variables are don't-cares.
-"""
-function sat_assignment(e::SATExpr)
-    env = Dict{Int,Bool}()
-    result = _dpll(e, env)
-    _set_sat!(e, result)
-    result ? env : nothing
-end
-
-function _dpll(e::SATExpr, env::Dict{Int,Bool})
-    s = _propagate(e, env)
-    _head(s) == _HEAD_T && return true
-    _head(s) == _HEAD_F && return false
-
-    v = _pick_var(s)
-    saved = copy(env)
-
-    env[v] = true
-    _dpll(s, env) && return true
-
-    empty!(env); merge!(env, saved)
-    env[v] = false
-    _dpll(s, env) && return true
-
-    empty!(env); merge!(env, saved)
-    return false
-end
-
-function _pick_var(e::SATExpr)
-    h = _head(e)
-    h == _HEAD_VAR && return Int(_id(e))
-    h == _HEAD_NOT && return _pick_var(_a(e))
-    (h == _HEAD_AND || h == _HEAD_OR) && return _pick_var(_a(e))
-    error("_pick_var: no variables in expression")
-end
-
-# ── CDCL incremental solver ───────────────────────────────────────────
-
-include("cdcl.jl")
 
 # ── Clear ────────────────────────────────────────────────────────────
 
