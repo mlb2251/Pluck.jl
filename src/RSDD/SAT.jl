@@ -1,36 +1,105 @@
 """
 Lightweight Boolean formula DAG with SAT checking via DPLL + unit propagation.
+Hash-consed nodes ensure structural sharing; memoized substitution avoids
+re-traversing shared subDAGs.
 
 Usage:
     x, y, z = SATVar(1), SATVar(2), SATVar(3)
     f = (x & y) | ~z
     sat_check(f)          # :sat or :unsat
-    sat_assignment(f)     # Dict(:z => false) or nothing
+    sat_assignment(f)     # Dict(3 => false) or nothing
 """
 module SAT
 
-export SATExpr, SATVar, SAT_TRUE, SAT_FALSE, sat_check, sat_assignment, sat_vars
+export SATExpr, SATVar, SAT_TRUE, SAT_FALSE, sat_check, sat_assignment, sat_vars, clear_sat!
 
-# ── Types ──────────────────────────────────────────────────────────────
+# ── Types (hash-consed) ──────────────────────────────────────────────
 
 abstract type SATExpr end
 
 struct LitTrue  <: SATExpr end
 struct LitFalse <: SATExpr end
-struct SATVar      <: SATExpr; id::Int end
-struct Not      <: SATExpr; x::SATExpr end
-struct And      <: SATExpr; a::SATExpr; b::SATExpr end
-struct Or       <: SATExpr; a::SATExpr; b::SATExpr end
+
+struct SATVar <: SATExpr
+    id::Int
+    function SATVar(id::Int)
+        e = new(id)
+        get!(_INTERN, e, e)
+    end
+end
+
+struct Not <: SATExpr
+    x::SATExpr
+    function Not(x::SATExpr)
+        e = new(x)
+        get!(_INTERN, e, e)
+    end
+end
+
+struct And <: SATExpr
+    a::SATExpr
+    b::SATExpr
+    function And(a::SATExpr, b::SATExpr)
+        e = new(a, b)
+        get!(_INTERN, e, e)
+    end
+end
+
+struct Or <: SATExpr
+    a::SATExpr
+    b::SATExpr
+    function Or(a::SATExpr, b::SATExpr)
+        e = new(a, b)
+        get!(_INTERN, e, e)
+    end
+end
 
 const SAT_TRUE  = LitTrue()
 const SAT_FALSE = LitFalse()
+
+# ── Equality, hashing & intern table ────────────────────────────────
+
+Base.:(==)(::LitTrue, ::LitTrue)   = true
+Base.:(==)(::LitFalse, ::LitFalse) = true
+Base.:(==)(a::SATVar, b::SATVar)   = a.id == b.id
+Base.:(==)(a::Not, b::Not)         = a.x === b.x
+Base.:(==)(a::And, b::And)         = a.a === b.a && a.b === b.b
+Base.:(==)(a::Or, b::Or)           = a.a === b.a && a.b === b.b
+
+Base.hash(::LitTrue, h::UInt)    = hash(:LitTrue, h)
+Base.hash(::LitFalse, h::UInt)   = hash(:LitFalse, h)
+Base.hash(e::SATVar, h::UInt)    = hash(e.id, hash(:SATVar, h))
+Base.hash(e::Not, h::UInt)       = hash(e.x, hash(:Not, h))
+Base.hash(e::And, h::UInt)       = hash(e.b, hash(e.a, hash(:And, h)))
+Base.hash(e::Or, h::UInt)        = hash(e.b, hash(e.a, hash(:Or, h)))
+
+const _INTERN = Dict{SATExpr, SATExpr}()
+
+# Per-node SAT result cache. Keyed on objectid (safe because hash-consed).
+# true = satisfiable, false = unsatisfiable.
+const _SAT_RESULT = Dict{UInt, Bool}()
+
+# Query cached results (returns nothing if unknown)
+_known_sat(e::LitTrue)  = true
+_known_sat(e::LitFalse) = false
+_known_sat(e::SATExpr)  = get(_SAT_RESULT, objectid(e), nothing)
+
+function clear_sat!()
+    empty!(_INTERN)
+    empty!(_SAT_RESULT)
+end
 
 # ── Smart constructors (simplify on build) ─────────────────────────────
 
 not(::LitTrue)  = SAT_FALSE
 not(::LitFalse) = SAT_TRUE
 not(x::Not)     = x.x
-not(x::SATExpr) = Not(x)
+function not(x::SATExpr)
+    k = _known_sat(x)
+    # UNSAT → negation is tautology; tautology check: ¬x unsat means x is tautology
+    k === false && return SAT_TRUE
+    Not(x)
+end
 
 and(::LitFalse, ::SATExpr) = SAT_FALSE
 and(::SATExpr, ::LitFalse) = SAT_FALSE
@@ -40,7 +109,12 @@ and(::LitTrue,  ::LitFalse) = SAT_FALSE
 and(::LitFalse, ::LitTrue)  = SAT_FALSE
 and(::LitTrue,  ::LitTrue)  = SAT_TRUE
 and(::LitFalse, ::LitFalse) = SAT_FALSE
-and(a::SATExpr, b::SATExpr) = And(a, b)
+function and(a::SATExpr, b::SATExpr)
+    # If either operand is known UNSAT, conjunction is UNSAT
+    _known_sat(a) === false && return SAT_FALSE
+    _known_sat(b) === false && return SAT_FALSE
+    And(a, b)
+end
 
 or(::LitTrue,  ::SATExpr) = SAT_TRUE
 or(::SATExpr, ::LitTrue)  = SAT_TRUE
@@ -50,7 +124,13 @@ or(::LitTrue,  ::LitFalse) = SAT_TRUE
 or(::LitFalse, ::LitTrue)  = SAT_TRUE
 or(::LitTrue,  ::LitTrue)  = SAT_TRUE
 or(::LitFalse, ::LitFalse) = SAT_FALSE
-or(a::SATExpr, b::SATExpr) = Or(a, b)
+function or(a::SATExpr, b::SATExpr)
+    # If either operand is a known tautology (¬x is known UNSAT), disjunction is tautology
+    # We check: if not(a) was previously found UNSAT, then a is a tautology
+    _known_sat(a) === false && return b   # a is UNSAT, so a|b = b
+    _known_sat(b) === false && return a   # b is UNSAT, so a|b = a
+    Or(a, b)
+end
 
 # ── Operators ──────────────────────────────────────────────────────────
 
@@ -73,14 +153,37 @@ _vars!(s, e::Not) = _vars!(s, e.x)
 _vars!(s, e::And) = (_vars!(s, e.a); _vars!(s, e.b))
 _vars!(s, e::Or)  = (_vars!(s, e.a); _vars!(s, e.b))
 
-# ── Substitute + simplify under partial assignment ────────────────────
+# ── Substitute + simplify under partial assignment (memoized) ────────
+# The cache is keyed on objectid, which is safe because nodes are hash-consed
+# (structurally equal ⟹ identical object).
 
-subst(::LitTrue, _)  = SAT_TRUE
-subst(::LitFalse, _) = SAT_FALSE
-subst(e::SATVar, env) = haskey(env, e.id) ? (env[e.id] ? SAT_TRUE : SAT_FALSE) : e
-subst(e::Not, env) = not(subst(e.x, env))
-subst(e::And, env) = and(subst(e.a, env), subst(e.b, env))
-subst(e::Or,  env) = or(subst(e.a, env), subst(e.b, env))
+function subst(e::SATExpr, env::Dict{Int,Bool})
+    _subst(e, env, Dict{UInt,SATExpr}())
+end
+
+_subst(e::LitTrue, _, _)  = SAT_TRUE
+_subst(e::LitFalse, _, _) = SAT_FALSE
+function _subst(e::SATVar, env, _)
+    haskey(env, e.id) ? (env[e.id] ? SAT_TRUE : SAT_FALSE) : e
+end
+function _subst(e::Not, env, cache)
+    oid = objectid(e)
+    haskey(cache, oid) && return cache[oid]
+    r = not(_subst(e.x, env, cache))
+    cache[oid] = r
+end
+function _subst(e::And, env, cache)
+    oid = objectid(e)
+    haskey(cache, oid) && return cache[oid]
+    r = and(_subst(e.a, env, cache), _subst(e.b, env, cache))
+    cache[oid] = r
+end
+function _subst(e::Or, env, cache)
+    oid = objectid(e)
+    haskey(cache, oid) && return cache[oid]
+    r = or(_subst(e.a, env, cache), _subst(e.b, env, cache))
+    cache[oid] = r
+end
 
 # ── Unit propagation ──────────────────────────────────────────────────
 # Extract forced literals from the top-level conjunction spine.
@@ -101,8 +204,10 @@ end
 _extract_units!(_, ::SATExpr) = nothing
 
 function _propagate(e::SATExpr, env::Dict{Int,Bool})
+    cache = Dict{UInt,SATExpr}()
     while true
-        s = subst(e, env)
+        empty!(cache)  # env changed, invalidate
+        s = _subst(e, env, cache)
         (s isa LitTrue || s isa LitFalse) && return s
 
         units = Dict{Int,Bool}()
@@ -123,18 +228,24 @@ end
     sat_check(e::SATExpr) → :sat or :unsat
 """
 function sat_check(e::SATExpr)
-    _dpll(e, Dict{Int,Bool}()) ? :sat : :unsat
+    oid = objectid(e)
+    haskey(_SAT_RESULT, oid) && return _SAT_RESULT[oid] ? :sat : :unsat
+    result = _dpll(e, Dict{Int,Bool}())
+    _SAT_RESULT[oid] = result
+    result ? :sat : :unsat
 end
 
 """
     sat_assignment(e::SATExpr) → Dict{Int,Bool} or nothing
 
-Returns a sat_assignment assignment, or nothing if unsat.
+Returns a satisfying assignment, or nothing if unsat.
 Unassigned variables are don't-cares.
 """
 function sat_assignment(e::SATExpr)
     env = Dict{Int,Bool}()
-    _dpll(e, env) ? env : nothing
+    result = _dpll(e, env)
+    _SAT_RESULT[objectid(e)] = result
+    result ? env : nothing
 end
 
 function _dpll(e::SATExpr, env::Dict{Int,Bool})
@@ -204,6 +315,12 @@ function test()
 
     x, y, z = SATVar(1), SATVar(2), SATVar(3)
 
+    # Hash-consing
+    t("SATVar hash-cons", SATVar(1) === SATVar(1))
+    t("And hash-cons", And(x, y) === And(x, y))
+    t("Or hash-cons", Or(x, y) === Or(x, y))
+    t("Not hash-cons", Not(x) === Not(x))
+
     # Smart constructors
     t("and(SAT_FALSE, x) == SAT_FALSE", and(SAT_FALSE, x) === SAT_FALSE)
     t("and(x, SAT_FALSE) == SAT_FALSE", and(x, SAT_FALSE) === SAT_FALSE)
@@ -267,6 +384,13 @@ function test()
 
     # sat_assignment returns nothing for unsat
     t("sat_assignment unsat -> nothing", sat_assignment(x & ~x) === nothing)
+
+    # SAT result propagation into constructors
+    unsat_expr = (x & ~x)  # known unsat after check above
+    t("and(unsat, y) == SAT_FALSE", and(unsat_expr, y) === SAT_FALSE)
+    t("and(y, unsat) == SAT_FALSE", and(y, unsat_expr) === SAT_FALSE)
+    t("or(unsat, y) == y",  or(unsat_expr, y) === y)
+    t("not(unsat) == SAT_TRUE", not(unsat_expr) === SAT_TRUE)
 
     # Display
     t("show SATVar",  sprint(show, x) == "1")

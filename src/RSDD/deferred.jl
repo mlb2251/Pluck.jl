@@ -53,6 +53,11 @@ function bdd_is_false(a::BDD)
     if !maybe_const_false(a)
         return false
     end
+
+    if sat_check(get_sat_expr(a)) === :sat
+        return false
+    end
+
     return bdd_is_false(force(a))
 end
 
