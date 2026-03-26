@@ -15,13 +15,10 @@ end
 
 
 function bdd_is_false(a::BDD)
+    # return bdd_is_false(force(a.bdd))
     if DEBUG_CHECKS
-        if bdd_is_false(force(a.bdd))
-            # @assert maybe_const_false(a)
-        end
+        @assert bdd_is_false(force(a.bdd)) == (sat_check(a.sat_expr) === :unsat)
     end
-    a.sat_expr.head === :F && return true
-    (a.sat_expr.head === :T || a.sat_expr.head === :var) && return false
     return sat_check(a.sat_expr) === :unsat
 end
 
@@ -55,7 +52,7 @@ function force(deferred::DeferredBDD)::InnerBDD
             deferred.strict_bdd = bdd_or(a, b)
         end
     elseif deferred.op === :not
-        deferred.strict_bdd = bdd_negate(force(deferred.left))
+        deferred.strict_bdd = bdd_negate(a)
     end
     return deferred.strict_bdd
 end
