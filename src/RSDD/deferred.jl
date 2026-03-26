@@ -94,7 +94,7 @@ function set_strict(node::DeferredNode, bdd::InnerBDD)
 end
 
 function var_bdd(bdd::InnerBDD, label::Int)::BDD
-    node = DeferredNode(:var, label, label, false, false, nothing, nothing, bdd, SATVar(label))
+    node = DeferredNode(:var, label, label, false, false, nothing, nothing, bdd, sat_var(label))
     return BDD(node, false)
 end
 
