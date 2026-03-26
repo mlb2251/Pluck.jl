@@ -685,7 +685,10 @@ end
 include("SAT.jl")
 using .SAT
 
-include("deferred.jl")
+
+include("satbased.jl")
+
+# include("deferred.jl")
 
 # Add these to the exports at the end of the file
 export free_bdd, 
