@@ -55,6 +55,7 @@ or(a::SATExpr, b::SATExpr) = Or(a, b)
 # ── Operators ──────────────────────────────────────────────────────────
 
 Base.:~(x::SATExpr) = not(x)
+Base.:!(x::SATExpr) = not(x)
 Base.:&(a::SATExpr, b::SATExpr) = and(a, b)
 Base.:|(a::SATExpr, b::SATExpr) = or(a, b)
 
