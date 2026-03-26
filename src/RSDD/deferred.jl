@@ -17,6 +17,7 @@ mutable struct DeferredNode
     left::Union{BDD, Nothing}
     right::Union{BDD, Nothing}
     strict_bdd::Union{InnerBDD, Nothing}
+    sat_expr::SATExpr
 end
 
 function is_const_true(bdd::BDD)
@@ -88,20 +89,24 @@ function set_strict(node::DeferredNode, bdd::InnerBDD)
 end
 
 function var_bdd(bdd::InnerBDD, label::Int)::BDD
-    node = DeferredNode(:var, label, label, false, false, nothing, nothing, bdd)
+    node = DeferredNode(:var, label, label, false, false, nothing, nothing, bdd, SATVar(label))
     return BDD(node, false)
 end
 
 function true_bdd(bdd::InnerBDD)::BDD
-    node = DeferredNode(:T, typemax(Int), typemin(Int), true, false, nothing, nothing, bdd)
+    node = DeferredNode(:T, typemax(Int), typemin(Int), true, false, nothing, nothing, bdd, SAT_TRUE)
     return BDD(node, false)
 end
 
 function false_bdd(bdd::InnerBDD)::BDD
-    node = DeferredNode(:F, typemax(Int), typemin(Int), false, true, nothing, nothing, bdd)
+    node = DeferredNode(:F, typemax(Int), typemin(Int), false, true, nothing, nothing, bdd, SAT_FALSE)
     return BDD(node, false)
 end
 
+function get_sat_expr(a::BDD)::SATExpr
+    node = a.node :: DeferredNode
+    return a.negated ? !(node.sat_expr) : node.sat_expr
+end
 
 function bdd_and(a::BDD, b::BDD)
     is_const_true(a) && return b
@@ -117,7 +122,9 @@ function bdd_and(a::BDD, b::BDD)
     max_var = max(a_node.max_var, b_node.max_var)
     maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b)
     maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || interval_overlap
-    node = DeferredNode(:and, min_var, max_var, maybe_const_true_val, maybe_const_false_val, a, b, nothing)
+
+    sat_expr = get_sat_expr(a) & get_sat_expr(b)
+    node = DeferredNode(:and, min_var, max_var, maybe_const_true_val, maybe_const_false_val, a, b, nothing, sat_expr)
     return BDD(node, false)
 end
 

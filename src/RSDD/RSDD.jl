@@ -682,6 +682,9 @@ function bdd_get_vars(bdd::InnerBDD)::Set{Label}
     return vars
 end
 
+include("SAT.jl")
+using .SAT
+
 include("deferred.jl")
 
 # Add these to the exports at the end of the file
