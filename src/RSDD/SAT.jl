@@ -1,7 +1,8 @@
 """
 Lightweight Boolean formula DAG with SAT checking via DPLL + unit propagation.
-Hash-consed nodes ensure structural sharing; memoized substitution avoids
-re-traversing shared subDAGs.
+Properly hash-consed nodes: each unique node gets a unique `uid`, equality and
+hashing are O(1) via uid comparison. Per-type intern tables use structural keys
+(child uids) to guarantee sharing.
 
 Usage:
     x, y, z = SATVar(1), SATVar(2), SATVar(3)
@@ -13,7 +14,12 @@ module SAT
 
 export SATExpr, SATVar, SAT_TRUE, SAT_FALSE, sat_check, sat_assignment, sat_vars, clear_sat!
 
-# ── Types (hash-consed) ──────────────────────────────────────────────
+# ── UID generation ────────────────────────────────────────────────────
+
+const _NEXT_UID = Ref{UInt64}(2)  # 0 and 1 reserved for LitTrue/LitFalse
+_next_uid!() = (_NEXT_UID[] += 1; _NEXT_UID[])
+
+# ── Types ─────────────────────────────────────────────────────────────
 
 abstract type SATExpr end
 
@@ -22,71 +28,104 @@ struct LitFalse <: SATExpr end
 
 struct SATVar <: SATExpr
     id::Int
-    function SATVar(id::Int)
-        e = new(id)
-        get!(_INTERN, e, e)
-    end
+    uid::UInt64
 end
 
 struct Not <: SATExpr
     x::SATExpr
-    function Not(x::SATExpr)
-        e = new(x)
-        get!(_INTERN, e, e)
-    end
+    uid::UInt64
 end
 
 struct And <: SATExpr
     a::SATExpr
     b::SATExpr
-    function And(a::SATExpr, b::SATExpr)
-        e = new(a, b)
-        get!(_INTERN, e, e)
-    end
+    uid::UInt64
 end
 
 struct Or <: SATExpr
     a::SATExpr
     b::SATExpr
-    function Or(a::SATExpr, b::SATExpr)
-        e = new(a, b)
-        get!(_INTERN, e, e)
-    end
+    uid::UInt64
 end
 
 const SAT_TRUE  = LitTrue()
 const SAT_FALSE = LitFalse()
 
-# ── Equality, hashing & intern table ────────────────────────────────
+# ── uid accessor ──────────────────────────────────────────────────────
+
+_uid(::LitTrue)  = UInt64(0)   # reserved
+_uid(::LitFalse) = UInt64(1)   # reserved
+_uid(e::SATVar)  = e.uid
+_uid(e::Not)     = e.uid
+_uid(e::And)     = e.uid
+_uid(e::Or)      = e.uid
+
+# ── Per-type intern tables (structural keys → canonical node) ────────
+
+const _VAR_INTERN = Dict{Int, SATVar}()
+const _NOT_INTERN = Dict{UInt64, Not}()
+const _AND_INTERN = Dict{Tuple{UInt64,UInt64}, And}()
+const _OR_INTERN  = Dict{Tuple{UInt64,UInt64}, Or}()
+
+# ── Interning constructors ───────────────────────────────────────────
+
+function SATVar(id::Int)
+    get!(_VAR_INTERN, id) do
+        SATVar(id, _next_uid!())
+    end
+end
+
+function Not(x::SATExpr)
+    get!(_NOT_INTERN, _uid(x)) do
+        Not(x, _next_uid!())
+    end
+end
+
+function And(a::SATExpr, b::SATExpr)
+    key = (_uid(a), _uid(b))
+    get!(_AND_INTERN, key) do
+        And(a, b, _next_uid!())
+    end
+end
+
+function Or(a::SATExpr, b::SATExpr)
+    key = (_uid(a), _uid(b))
+    get!(_OR_INTERN, key) do
+        Or(a, b, _next_uid!())
+    end
+end
+
+# ── Equality & hashing (O(1) via uid) ────────────────────────────────
 
 Base.:(==)(::LitTrue, ::LitTrue)   = true
 Base.:(==)(::LitFalse, ::LitFalse) = true
-Base.:(==)(a::SATVar, b::SATVar)   = a.id == b.id
-Base.:(==)(a::Not, b::Not)         = a.x === b.x
-Base.:(==)(a::And, b::And)         = a.a === b.a && a.b === b.b
-Base.:(==)(a::Or, b::Or)           = a.a === b.a && a.b === b.b
+Base.:(==)(a::SATVar, b::SATVar)   = a.uid == b.uid
+Base.:(==)(a::Not, b::Not)         = a.uid == b.uid
+Base.:(==)(a::And, b::And)         = a.uid == b.uid
+Base.:(==)(a::Or, b::Or)           = a.uid == b.uid
 
-Base.hash(::LitTrue, h::UInt)    = hash(:LitTrue, h)
-Base.hash(::LitFalse, h::UInt)   = hash(:LitFalse, h)
-Base.hash(e::SATVar, h::UInt)    = hash(e.id, hash(:SATVar, h))
-Base.hash(e::Not, h::UInt)       = hash(e.x, hash(:Not, h))
-Base.hash(e::And, h::UInt)       = hash(e.b, hash(e.a, hash(:And, h)))
-Base.hash(e::Or, h::UInt)        = hash(e.b, hash(e.a, hash(:Or, h)))
+Base.hash(::LitTrue, h::UInt)  = hash(UInt64(0), h)
+Base.hash(::LitFalse, h::UInt) = hash(UInt64(1), h)
+Base.hash(e::SATVar, h::UInt)  = hash(e.uid, h)
+Base.hash(e::Not, h::UInt)     = hash(e.uid, h)
+Base.hash(e::And, h::UInt)     = hash(e.uid, h)
+Base.hash(e::Or, h::UInt)      = hash(e.uid, h)
 
-const _INTERN = Dict{SATExpr, SATExpr}()
+# ── SAT result cache (keyed on uid) ──────────────────────────────────
 
-# Per-node SAT result cache. Keyed on objectid (safe because hash-consed).
-# true = satisfiable, false = unsatisfiable.
-const _SAT_RESULT = Dict{UInt, Bool}()
+const _SAT_RESULT = Dict{UInt64, Bool}()
 
-# Query cached results (returns nothing if unknown)
-_known_sat(e::LitTrue)  = true
-_known_sat(e::LitFalse) = false
-_known_sat(e::SATExpr)  = get(_SAT_RESULT, objectid(e), nothing)
+_known_sat(::LitTrue)  = true
+_known_sat(::LitFalse) = false
+_known_sat(e::SATExpr) = get(_SAT_RESULT, _uid(e), nothing)
 
 function clear_sat!()
-    empty!(_INTERN)
+    empty!(_VAR_INTERN)
+    empty!(_NOT_INTERN)
+    empty!(_AND_INTERN)
+    empty!(_OR_INTERN)
     empty!(_SAT_RESULT)
+    _NEXT_UID[] = 0
 end
 
 # ── Smart constructors (simplify on build) ─────────────────────────────
@@ -154,11 +193,11 @@ _vars!(s, e::And) = (_vars!(s, e.a); _vars!(s, e.b))
 _vars!(s, e::Or)  = (_vars!(s, e.a); _vars!(s, e.b))
 
 # ── Substitute + simplify under partial assignment (memoized) ────────
-# The cache is keyed on objectid, which is safe because nodes are hash-consed
-# (structurally equal ⟹ identical object).
+# Cache keyed on uid (safe because nodes are hash-consed:
+# structurally equal ⟹ same uid ⟹ same canonical object).
 
 function subst(e::SATExpr, env::Dict{Int,Bool})
-    _subst(e, env, Dict{UInt,SATExpr}())
+    _subst(e, env, Dict{UInt64,SATExpr}())
 end
 
 _subst(e::LitTrue, _, _)  = SAT_TRUE
@@ -167,22 +206,22 @@ function _subst(e::SATVar, env, _)
     haskey(env, e.id) ? (env[e.id] ? SAT_TRUE : SAT_FALSE) : e
 end
 function _subst(e::Not, env, cache)
-    oid = objectid(e)
-    haskey(cache, oid) && return cache[oid]
+    uid = _uid(e)
+    haskey(cache, uid) && return cache[uid]
     r = not(_subst(e.x, env, cache))
-    cache[oid] = r
+    cache[uid] = r
 end
 function _subst(e::And, env, cache)
-    oid = objectid(e)
-    haskey(cache, oid) && return cache[oid]
+    uid = _uid(e)
+    haskey(cache, uid) && return cache[uid]
     r = and(_subst(e.a, env, cache), _subst(e.b, env, cache))
-    cache[oid] = r
+    cache[uid] = r
 end
 function _subst(e::Or, env, cache)
-    oid = objectid(e)
-    haskey(cache, oid) && return cache[oid]
+    uid = _uid(e)
+    haskey(cache, uid) && return cache[uid]
     r = or(_subst(e.a, env, cache), _subst(e.b, env, cache))
-    cache[oid] = r
+    cache[uid] = r
 end
 
 # ── Unit propagation ──────────────────────────────────────────────────
@@ -204,7 +243,7 @@ end
 _extract_units!(_, ::SATExpr) = nothing
 
 function _propagate(e::SATExpr, env::Dict{Int,Bool})
-    cache = Dict{UInt,SATExpr}()
+    cache = Dict{UInt64,SATExpr}()
     while true
         empty!(cache)  # env changed, invalidate
         s = _subst(e, env, cache)
@@ -228,10 +267,10 @@ end
     sat_check(e::SATExpr) → :sat or :unsat
 """
 function sat_check(e::SATExpr)
-    oid = objectid(e)
-    haskey(_SAT_RESULT, oid) && return _SAT_RESULT[oid] ? :sat : :unsat
+    uid = _uid(e)
+    haskey(_SAT_RESULT, uid) && return _SAT_RESULT[uid] ? :sat : :unsat
     result = _dpll(e, Dict{Int,Bool}())
-    _SAT_RESULT[oid] = result
+    _SAT_RESULT[uid] = result
     result ? :sat : :unsat
 end
 
@@ -244,7 +283,7 @@ Unassigned variables are don't-cares.
 function sat_assignment(e::SATExpr)
     env = Dict{Int,Bool}()
     result = _dpll(e, env)
-    _SAT_RESULT[objectid(e)] = result
+    _SAT_RESULT[_uid(e)] = result
     result ? env : nothing
 end
 
