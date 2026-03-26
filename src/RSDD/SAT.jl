@@ -12,7 +12,7 @@ Usage:
 module SAT
 
 export SATExpr, sat_var, SAT_TRUE, SAT_FALSE, sat_check, sat_assignment, sat_vars, clear_sat!, sat_not, sat_and, sat_or,
-       CDCLSolver, cdcl_solver_from, cdcl_check_assuming!
+       CDCLSolver, cdcl_solver_from, cdcl_check_assuming!, cdcl_fork
 
 # ── SATExpr is just an index into the arena ──────────────────────────
 

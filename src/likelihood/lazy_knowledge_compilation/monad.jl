@@ -61,32 +61,33 @@ join :: M (M a) -> M a
 function bind_monad(cont::F, pre_worlds, path_condition, state::LazyKCState; cont_state=false) where F <: Function
     pre_worlds, pre_used_info = pre_worlds
 
-    # Build CDCL solver from path_condition once; reuse across all pre_guard checks
-    pc_solver = if !state.cfg.disable_path_conditions && !state.cfg.disable_used_information
-        bdd_cdcl_solver(path_condition)
-    else
-        nothing
-    end
+    # Get or create CDCL solver from path_condition (shared across all pre_guard checks for cross-query learning)
+    solver = ensure_cdcl_solver!(path_condition)
 
     nested_worlds = Vector{Tuple{GuardedWorlds, BDD}}()
     for (pre_val, pre_guard) in pre_worlds
         state.stats.hit_limit && return inference_error_worlds(state)
 
-        inner_path_condition = state.cfg.disable_path_conditions ? state.manager.BDD_TRUE : path_condition & pre_guard
-        if !state.cfg.disable_used_information
-            is_unsat = if pc_solver isa CDCLSolver
-                bdd_is_false_assuming(pc_solver, pre_guard)
-            elseif pc_solver === :unsat
-                true
-            else
-                # :sat, nothing, or path conditions disabled — fall back to full check
-                bdd_is_false(inner_path_condition)
-            end
-            if is_unsat
-                # you can reuse this part of the result if you can prove false with your path condition + pre_guard
-                push!(nested_worlds, (false_path_condition_worlds(state), pre_guard))
-                continue
-            end
+        inner_path_condition = path_condition & pre_guard
+
+        # Check satisfiability with cross-query learning
+        is_unsat = if solver isa CDCLSolver
+            cdcl_check_assuming!(solver, pre_guard.sat_expr) === :unsat
+        elseif solver === :unsat
+            true
+        else
+            # :sat (trivial path condition like TRUE) — fall back
+            bdd_is_false(inner_path_condition)
+        end
+
+        if is_unsat
+            push!(nested_worlds, (false_path_condition_worlds(state), pre_guard))
+            continue
+        end
+
+        # Fork solver for child — inherits all learned clauses
+        if solver isa CDCLSolver
+            inner_path_condition.solver = cdcl_fork(solver, pre_guard.sat_expr)
         end
 
         if cont_state

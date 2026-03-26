@@ -325,6 +325,40 @@ function cdcl_check_assuming!(s::CDCLSolver, additional::SATExpr)::Symbol
     return result
 end
 
+"""
+    cdcl_fork(parent::CDCLSolver, additional::SATExpr) → CDCLSolver
+
+Create a child solver that inherits all of `parent`'s clauses and learned
+clauses, with `additional` permanently asserted at level 0.
+Call only after `cdcl_check_assuming!` confirmed the combination is SAT.
+"""
+function cdcl_fork(parent::CDCLSolver, additional::SATExpr)::CDCLSolver
+    child = CDCLSolver(
+        parent.n_vars,
+        [copy(c) for c in parent.clauses],
+        [copy(w) for w in parent.watches],
+        copy(parent.assigns),
+        copy(parent.trail),
+        copy(parent.trail_lim),
+        copy(parent.reason),
+        copy(parent.level),
+        parent.qhead,
+        copy(parent.seen),
+        copy(parent.expr_to_lit),
+    )
+
+    add_lit = _tseitin!(child, additional)
+    (add_lit == CDCL_LIT_TRUE || add_lit == CDCL_LIT_FALSE) && return child
+
+    v = litvar(add_lit)
+    child.assigns[v] != Int8(0) && return child  # already forced at level 0
+
+    child.qhead = 1  # reprocess trail to pick up any new Tseitin clauses
+    _cdcl_enqueue!(child, add_lit)
+    _cdcl_propagate!(child)
+    return child
+end
+
 function _cdcl_solve_with_assumption!(s::CDCLSolver, assumption::Int32)::Symbol
     while true
         conflict = _cdcl_propagate!(s)

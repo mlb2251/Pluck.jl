@@ -11,11 +11,15 @@ end
 mutable struct BDD
     bdd::DeferredBDD
     sat_expr::SATExpr
+    solver::Union{CDCLSolver, Nothing}
 end
 
 
 function bdd_is_false(a::BDD)
-    # return bdd_is_false(force(a.bdd))
+    # Fast path: solver already determined satisfiability
+    if a.solver !== nothing
+        return false  # solver exists → known SAT
+    end
     if DEBUG_CHECKS
         @assert bdd_is_false(force(a.bdd)) == (sat_check(a.sat_expr) === :unsat)
     end
@@ -59,40 +63,44 @@ end
 
 function var_bdd(bdd::InnerBDD, label::Int)::BDD
     deferred = DeferredBDD(:var, nothing, nothing, bdd)
-    return BDD(deferred, sat_var(label))
+    return BDD(deferred, sat_var(label), nothing)
 end
 
 function true_bdd(bdd::InnerBDD)::BDD
     deferred = DeferredBDD(:T, nothing, nothing, bdd)
-    return BDD(deferred, SAT_TRUE)
+    return BDD(deferred, SAT_TRUE, nothing)
 end
 
 function false_bdd(bdd::InnerBDD)::BDD
     deferred = DeferredBDD(:F, nothing, nothing, bdd)
-    return BDD(deferred, SAT_FALSE)
+    return BDD(deferred, SAT_FALSE, nothing)
 end
 
 function bdd_and(a::BDD, b::BDD)
     deferred = DeferredBDD(:and, a.bdd, b.bdd, nothing)
-    return BDD(deferred, sat_and(a.sat_expr, b.sat_expr))
+    return BDD(deferred, sat_and(a.sat_expr, b.sat_expr), nothing)
 end
 
 function bdd_or(a::BDD, b::BDD)
     deferred = DeferredBDD(:or, a.bdd, b.bdd, nothing)
-    return BDD(deferred, sat_or(a.sat_expr, b.sat_expr))
+    return BDD(deferred, sat_or(a.sat_expr, b.sat_expr), nothing)
 end
 
 function bdd_negate(a::BDD)
     deferred = DeferredBDD(:not, a.bdd, nothing, nothing)
-    return BDD(deferred, sat_not(a.sat_expr))
+    return BDD(deferred, sat_not(a.sat_expr), nothing)
 end
 
-function bdd_cdcl_solver(a::BDD)
-    cdcl_solver_from(a.sat_expr)
-end
-
-function bdd_is_false_assuming(solver::CDCLSolver, a::BDD)
-    cdcl_check_assuming!(solver, a.sat_expr) === :unsat
+"""
+Get or create a CDCL solver for this BDD. Returns CDCLSolver, :sat, or :unsat.
+"""
+function ensure_cdcl_solver!(bdd::BDD)::Union{CDCLSolver, Symbol}
+    bdd.solver !== nothing && return bdd.solver
+    result = cdcl_solver_from(bdd.sat_expr)
+    if result isa CDCLSolver
+        bdd.solver = result
+    end
+    return result
 end
 
 bdd_implies(a::BDD, b::BDD) = b | !a
@@ -102,5 +110,3 @@ Base.:|(a::BDD, b::BDD) = bdd_or(a, b)
 bdd_topvar(a::BDD) = bdd_topvar(force(a.bdd))
 bdd_size(a::BDD) = bdd_size(force(a.bdd))
 bdd_wmc(a::BDD) = bdd_wmc(force(a.bdd))
-
-
