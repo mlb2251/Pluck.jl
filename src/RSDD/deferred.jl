@@ -110,7 +110,7 @@ end
 
 function get_sat_expr(a::BDD)::SATExpr
     node = a.node :: DeferredNode
-    return a.negated ? !(node.sat_expr) : node.sat_expr
+    return a.negated ? sat_not(node.sat_expr) : node.sat_expr
 end
 
 function bdd_and(a::BDD, b::BDD)
@@ -128,7 +128,7 @@ function bdd_and(a::BDD, b::BDD)
     maybe_const_true_val = maybe_const_true(a) && maybe_const_true(b)
     maybe_const_false_val = maybe_const_false(a) || maybe_const_false(b) || interval_overlap
 
-    sat_expr = get_sat_expr(a) & get_sat_expr(b)
+    sat_expr = sat_and(get_sat_expr(a), get_sat_expr(b))
     node = DeferredNode(:and, min_var, max_var, maybe_const_true_val, maybe_const_false_val, a, b, nothing, sat_expr)
     return BDD(node, false)
 end
