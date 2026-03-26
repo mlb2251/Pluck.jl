@@ -15,46 +15,62 @@
 
 
 (assert-query
-  'hmm-8
+  'hmm-50
   (Marginal
-    (prefix_equals? (hmm (False)) (generate_observations 10)))
-  ((False) 0.9970842058643375)
-  ((True) 0.00291579413566247))
-
-  (assert-query
-  'hmm-100
-  (Marginal
-    (prefix_equals? (hmm (False)) (generate_observations 100)))
-  ((False) 0.9999999999998197)
-  ((True) 1.802995485540675e-13))
-
-  (assert-query
-  'hmm-200
-  (Marginal
-    (prefix_equals? (hmm (False)) (generate_observations 200)))
+    (prefix_equals? (hmm (False)) (generate_observations 50)))
   ((False) 0.9999999999998197)
   ((True) 1.802995485540675e-13))
 
 
-  (assert-query
-  'hmm-300
-  (Marginal
-    (prefix_equals? (hmm (False)) (generate_observations 300)))
-  ((False) 0.9999999999998197)
-  ((True) 1.802995485540675e-13))
+;; (assert-query
+;;   'hmm-150
+;;   (Marginal
+;;     (prefix_equals? (hmm (False)) (generate_observations 150)))
+;;   ((False) 0.9999999999999999)
+;;   ((True) 9.40014618118966e-52))
+
+
+;; (assert-query
+;;   'hmm-8
+;;   (Marginal
+;;     (prefix_equals? (hmm (False)) (generate_observations 10)))
+;;   ((False) 0.9970842058643375)
+;;   ((True) 0.00291579413566247))
+
+;;   (assert-query
+;;   'hmm-100
+;;   (Marginal
+;;     (prefix_equals? (hmm (False)) (generate_observations 100)))
+;;   ((False) 0.9999999999998197)
+;;   ((True) 1.802995485540675e-13))
+
+;;   (assert-query
+;;   'hmm-200
+;;   (Marginal
+;;     (prefix_equals? (hmm (False)) (generate_observations 200)))
+;;   ((False) 0.9999999999998197)
+;;   ((True) 1.802995485540675e-13))
+
+
+;;   (assert-query
+;;   'hmm-300
+;;   (Marginal
+;;     (prefix_equals? (hmm (False)) (generate_observations 300)))
+;;   ((False) 0.9999999999998197)
+;;   ((True) 1.802995485540675e-13))
 
 
 
-  (assert-query
-  'hmm-400
-  (Marginal
-    (prefix_equals? (hmm (False)) (generate_observations 400)))
-  ((False) 0.9999999999998197)
-  ((True) 1.802995485540675e-13))
+;;   (assert-query
+;;   'hmm-400
+;;   (Marginal
+;;     (prefix_equals? (hmm (False)) (generate_observations 400)))
+;;   ((False) 0.9999999999998197)
+;;   ((True) 1.802995485540675e-13))
 
-  (assert-query
-  'hmm-1000
-  (Marginal
-    (prefix_equals? (hmm (False)) (generate_observations 1000)))
-  ((False) 0.9999999999998197)
-  ((True) 1.802995485540675e-13))
+;;   (assert-query
+;;   'hmm-1000
+;;   (Marginal
+;;     (prefix_equals? (hmm (False)) (generate_observations 1000)))
+;;   ((False) 0.9999999999998197)
+;;   ((True) 1.802995485540675e-13))

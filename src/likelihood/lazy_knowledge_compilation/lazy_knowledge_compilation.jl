@@ -58,6 +58,8 @@ mutable struct LazyKCState
     var2metaparam::Dict{Int, Int}
     timer::Ttimer
     stacktrace::Vector{PExpr}
+    cdcl_solver::Union{CDCLSolver, Nothing}
+    assumption_stack::Vector{Int32}
 end
 
 get_timer(state::LazyKCState) = state.timer
@@ -82,7 +84,9 @@ function LazyKCState(cfg::LazyKCConfig)
         cfg,
         Dict{Int, Int}(),
         Ttimer(),
-        PExpr[]
+        PExpr[],
+        nothing,
+        Int32[]
     )
 
     if cfg.log

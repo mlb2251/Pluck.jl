@@ -11,21 +11,16 @@ end
 mutable struct BDD
     bdd::DeferredBDD
     sat_expr::SATExpr
-    solver::Union{CDCLSolver, Nothing}
+    sat_known::Int8  # 0 = unknown, 1 = sat, -1 = unsat
 end
 
 
 function bdd_is_false(a::BDD)
-    # Fast path: solver already determined satisfiability
-    if a.solver !== nothing
-        return false  # solver exists → known SAT
-    end
+    a.sat_known == Int8(1) && return false
+    a.sat_known == Int8(-1) && return true
     result = cdcl_solver_from(a.sat_expr)
     is_unsat = result === :unsat
-    if result isa CDCLSolver
-        a.solver = result  # cache for future incremental checks
-        is_unsat = false
-    end
+    a.sat_known = is_unsat ? Int8(-1) : Int8(1)
     if DEBUG_CHECKS
         @assert bdd_is_false(force(a.bdd)) == is_unsat "SAT/BDD disagreement: CDCL says $(is_unsat ? :unsat : :sat) but BDD says $(bdd_is_false(force(a.bdd)) ? :unsat : :sat)"
     end
@@ -69,44 +64,36 @@ end
 
 function var_bdd(bdd::InnerBDD, label::Int)::BDD
     deferred = DeferredBDD(:var, nothing, nothing, bdd)
-    return BDD(deferred, sat_var(label), nothing)
+    return BDD(deferred, sat_var(label), Int8(0))
 end
 
 function true_bdd(bdd::InnerBDD)::BDD
     deferred = DeferredBDD(:T, nothing, nothing, bdd)
-    return BDD(deferred, SAT_TRUE, nothing)
+    return BDD(deferred, SAT_TRUE, Int8(1))
 end
 
 function false_bdd(bdd::InnerBDD)::BDD
     deferred = DeferredBDD(:F, nothing, nothing, bdd)
-    return BDD(deferred, SAT_FALSE, nothing)
+    return BDD(deferred, SAT_FALSE, Int8(-1))
 end
 
 function bdd_and(a::BDD, b::BDD)
     deferred = DeferredBDD(:and, a.bdd, b.bdd, nothing)
-    return BDD(deferred, sat_and(a.sat_expr, b.sat_expr), nothing)
+    sat = sat_and(a.sat_expr, b.sat_expr)
+    known = (a.sat_known == Int8(-1) || b.sat_known == Int8(-1)) ? Int8(-1) : Int8(0)
+    return BDD(deferred, sat, known)
 end
 
 function bdd_or(a::BDD, b::BDD)
     deferred = DeferredBDD(:or, a.bdd, b.bdd, nothing)
-    return BDD(deferred, sat_or(a.sat_expr, b.sat_expr), nothing)
+    sat = sat_or(a.sat_expr, b.sat_expr)
+    known = (a.sat_known == Int8(1) || b.sat_known == Int8(1)) ? Int8(1) : Int8(0)
+    return BDD(deferred, sat, known)
 end
 
 function bdd_negate(a::BDD)
     deferred = DeferredBDD(:not, a.bdd, nothing, nothing)
-    return BDD(deferred, sat_not(a.sat_expr), nothing)
-end
-
-"""
-Get or create a CDCL solver for this BDD. Returns CDCLSolver, :sat, or :unsat.
-"""
-function ensure_cdcl_solver!(bdd::BDD)::Union{CDCLSolver, Symbol}
-    bdd.solver !== nothing && return bdd.solver
-    result = cdcl_solver_from(bdd.sat_expr)
-    if result isa CDCLSolver
-        bdd.solver = result
-    end
-    return result
+    return BDD(deferred, sat_not(a.sat_expr), -a.sat_known)
 end
 
 bdd_implies(a::BDD, b::BDD) = b | !a

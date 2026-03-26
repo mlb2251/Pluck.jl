@@ -61,8 +61,8 @@ join :: M (M a) -> M a
 function bind_monad(cont::F, pre_worlds, path_condition, state::LazyKCState; cont_state=false) where F <: Function
     pre_worlds, pre_used_info = pre_worlds
 
-    # Get or create CDCL solver from path_condition (shared across all pre_guard checks for cross-query learning)
-    solver = ensure_cdcl_solver!(path_condition)
+    # Get or lazily create the shared CDCL solver
+    solver = _get_shared_solver!(state)
 
     nested_worlds = Vector{Tuple{GuardedWorlds, BDD}}()
     for (pre_val, pre_guard) in pre_worlds
@@ -70,35 +70,60 @@ function bind_monad(cont::F, pre_worlds, path_condition, state::LazyKCState; con
 
         inner_path_condition = path_condition & pre_guard
 
-        # Check satisfiability with cross-query learning
+        # Check satisfiability using shared solver + assumption stack + new guard
+        # cdcl_new_selector! returns: >0 = selector literal, 0 = trivially true, -1 = trivially false
+        sel_lit = Int32(0)
+        pushed = false
         is_unsat = if solver isa CDCLSolver
-            cdcl_check_assuming!(solver, pre_guard.sat_expr) === :unsat
-        elseif solver === :unsat
-            true
+            sel_lit = cdcl_new_selector!(solver, pre_guard.sat_expr)
+            if sel_lit == Int32(-1)
+                true  # guard is trivially false
+            else
+                # Push selector onto stack before check (avoids vcat allocation)
+                if sel_lit > Int32(0)
+                    push!(state.assumption_stack, sel_lit)
+                    pushed = true
+                end
+                cdcl_check_assuming!(solver, state.assumption_stack) === :unsat
+            end
         else
-            # :sat (trivial path condition like TRUE) — fall back
             bdd_is_false(inner_path_condition)
         end
 
+        # Cache the shared solver's result on the BDD so bdd_is_false() hits the cache
+        inner_path_condition.sat_known = is_unsat ? Int8(-1) : Int8(1)
+
         if is_unsat
+            if pushed; pop!(state.assumption_stack); end
             push!(nested_worlds, (false_path_condition_worlds(state), pre_guard))
             continue
         end
 
-        # Fork solver for child — inherits all learned clauses
-        if solver isa CDCLSolver
-            inner_path_condition.solver = cdcl_fork(solver, pre_guard.sat_expr)
-        end
-
+        # assumption already on the stack from above; recurse
         if cont_state
             post_worlds, post_used_info = cont(pre_val, inner_path_condition, state)
         else
             post_worlds, post_used_info = cont(pre_val, inner_path_condition)
         end
+
+        if pushed
+            pop!(state.assumption_stack)
+        end
+
         push!(nested_worlds, ((post_worlds, post_used_info), pre_guard))
     end
     nested_worlds = (nested_worlds, pre_used_info)
     return join_monad(nested_worlds, state)
+end
+
+"""
+Get or lazily create the shared CDCL solver on LazyKCState.
+"""
+function _get_shared_solver!(state::LazyKCState)::Union{CDCLSolver, Symbol}
+    state.cdcl_solver !== nothing && return state.cdcl_solver
+    solver = CDCLSolver()
+    state.cdcl_solver = solver
+    return solver
 end
 
 struct JoinResults

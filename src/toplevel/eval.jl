@@ -346,9 +346,13 @@ function eval_toplevel(expr::PExpr{QueryOp}, toplevel_state)
 end
 
 using Profile, PProf
-function benchmark_fn(f)
+function benchmark_fn(f, n::Int=1)
     Profile.clear()
-    @profile f()
+    @profile begin 
+        for i in 1:n
+            f()
+        end
+    end
     pprof(; webport=8086)
     # wait for user input
     foo = readline()
@@ -367,12 +371,10 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
         t = time()
         clear_bdd_stats!()
 
-        # benchmark_fn() do 
-            eval_query(body, state)
-            free_state(state)
-            state = LazyKCState()
-            body = deterministic_world(toplevel_compile(expr.head.query; state))
-        # end
+        eval_query(body, state)
+        free_state(state)
+        state = LazyKCState()
+        body = deterministic_world(toplevel_compile(expr.head.query; state))
         
         
         elapsed_ms = round((time() - t) * 1000; digits=0)
@@ -385,39 +387,44 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
     stats = nothing
     wall_start = time()
     while true
-        # Re-compile for each trial after the first (fresh state)
-        if !isempty(trials)
-            free_state(state)
-            state = LazyKCState()
-            body = deterministic_world(toplevel_compile(expr.head.query; state))
-        end
-        RSDD.clear_sat!()
+        # benchmark_fn(5) do
 
-        clear_bdd_stats!()
-        Base.GC.gc(true)
-        gc_before = Base.gc_num()
-        t = time()
+            # Re-compile for each trial after the first (fresh state)
+            if !isempty(trials)
+                free_state(state)
+                state = LazyKCState()
+                body = deterministic_world(toplevel_compile(expr.head.query; state))
+            end
+            RSDD.clear_sat!()
 
-        # benchmark_fn() do 
+            clear_bdd_stats!()
+            clear_cdcl_stats!()
+            Base.GC.gc(true)
+            gc_before = Base.gc_num()
+            t = time()
+
             results = eval_query(body, state)
-        # end
         
-        elapsed_ms = round((time() - t) * 1000; digits=2)
-        gc_after = Base.gc_num()
-        bdd_stats = get_bdd_stats()
-        rsdd_ms = round(bdd_stats.rsdd_time * 1000; digits=2)
-        total_bdd_size = bdd_stats.total_bdd_size
-        gc_time_ms = round((gc_after.total_time - gc_before.total_time) / 1e6; digits=2)
-        alloc_bytes = Int64(gc_after.allocd - gc_before.allocd)
-        num_allocs = Int64((gc_after.malloc + gc_after.realloc + gc_after.poolalloc + gc_after.bigalloc) -
-                           (gc_before.malloc + gc_before.realloc + gc_before.poolalloc + gc_before.bigalloc))
-        stats = state.stats
-        time_ms = elapsed_ms
-        push!(trials, CheckTrial(time_ms, stats.num_recursive_calls, stats.num_forward_calls, rsdd_ms, total_bdd_size, gc_time_ms, alloc_bytes, num_allocs))
+            elapsed_ms = round((time() - t) * 1000; digits=2)
+            gc_after = Base.gc_num()
+            bdd_stats = get_bdd_stats()
+            rsdd_ms = round(bdd_stats.rsdd_time * 1000; digits=2)
+            total_bdd_size = bdd_stats.total_bdd_size
+            gc_time_ms = round((gc_after.total_time - gc_before.total_time) / 1e6; digits=2)
+            alloc_bytes = Int64(gc_after.allocd - gc_before.allocd)
+            num_allocs = Int64((gc_after.malloc + gc_after.realloc + gc_after.poolalloc + gc_after.bigalloc) -
+                            (gc_before.malloc + gc_before.realloc + gc_before.poolalloc + gc_before.bigalloc))
+            stats = state.stats
+            time_ms = elapsed_ms
+            show_cdcl_stats()
+
+            push!(trials, CheckTrial(time_ms, stats.num_recursive_calls, stats.num_forward_calls, rsdd_ms, total_bdd_size, gc_time_ms, alloc_bytes, num_allocs))
+        # end
 
         if !toplevel_state.check || toplevel_state.once || (time() - wall_start) >= 1.0
             break
         end
+
     end
     elapsed_ms = round(mean_trial(trials).time_ms; digits=2)
     print("[avg=$(elapsed_ms)ms] ")

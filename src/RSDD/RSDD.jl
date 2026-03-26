@@ -50,10 +50,14 @@ export InnerBDD,
     bdd_has_variable,
     bdd_implies,
     bdd_json,
-    ensure_cdcl_solver!,
     CDCLSolver,
+    cdcl_solver_from,
     cdcl_check_assuming!,
-    cdcl_fork
+    cdcl_new_selector!,
+    CDCLStats,
+    get_cdcl_stats,
+    clear_cdcl_stats!,
+    show_cdcl_stats
 
 
 # Declare global variables
