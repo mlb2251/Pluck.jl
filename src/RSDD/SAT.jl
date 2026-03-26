@@ -277,6 +277,9 @@ mutable struct CDCLSolver
     var_inc::Float64                 # current activity bump amount
     # Phase saving
     phase::Vector{Int8}              # last polarity: 1=true, -1=false (default true)
+    # Fast linear scan for conflict-free SAT proving
+    use_linear_scan::Bool            # true = use linear scan, false = use VSIDS
+    scan_start::Int                  # next variable to check in linear scan
 end
 
 const VSIDS_DECAY = 0.95
@@ -288,7 +291,8 @@ function CDCLSolver()
         0, Vector{Int32}[], Vector{Int32}[], Int8[], Int32[], Int[], Int32[], Int32[],
         1, 1, BitVector(), Dict{UInt32, Int32}(), Int32[],
         Float64[], Int[], Int[], 1.0,
-        Int8[]
+        Int8[],
+        true, 1
     )
     # Var 1 = constant TRUE
     _cdcl_new_var!(s)
@@ -401,6 +405,93 @@ function _cdcl_add_clause!(s::CDCLSolver, lits::Vector{Int32})::Int32
         push!(s.watches[Int(lits[2]) - 1], ci)
     end
     return ci
+end
+
+"""
+Add a clause while at level 0 and immediately detect if it's unit or satisfied
+under current level-0 assignments. This avoids needing to re-propagate the
+entire level-0 trail to pick up implications from newly added clauses.
+Returns the clause index, or 0 if the clause was satisfied (no clause added).
+Sets `needs_propagate` on the solver if a unit literal was enqueued.
+"""
+function _cdcl_add_clause_level0!(s::CDCLSolver, lits::Vector{Int32})::Int32
+    n = length(lits)
+
+    if n == 0
+        return Int32(0)
+    end
+
+    if n == 1
+        # Unit clause — enqueue directly
+        _cdcl_enqueue!(s, lits[1])
+        # Still add as clause for conflict analysis
+        push!(s.clauses, lits)
+        return Int32(length(s.clauses))
+    end
+
+    # For clauses with 2+ literals, arrange watches on non-false literals.
+    # Move any true literal to position 1 (clause satisfied, watches are fine).
+    # Otherwise move non-false literals to positions 1 and 2.
+    # If only one non-false literal exists, clause is unit.
+
+    # First pass: find up to 2 non-false literals, prefer true ones
+    best1 = 0  # index of best literal for watch position 1
+    best2 = 0  # index of best literal for watch position 2
+    for i in 1:n
+        @inbounds v = litval(s.assigns, lits[i])
+        if v == Int8(1)
+            # True literal — clause is satisfied, just put it at position 1
+            if i != 1
+                lits[1], lits[i] = lits[i], lits[1]
+            end
+            # Put any other non-false literal at position 2
+            if best1 != 0 && best1 != 1
+                if 2 != best1
+                    lits[2], lits[best1] = lits[best1], lits[2]
+                end
+            elseif best2 != 0 && best2 != 1
+                if 2 != best2
+                    lits[2], lits[best2] = lits[best2], lits[2]
+                end
+            end
+            # watches on lits[1] (true) and lits[2] — clause won't trigger BCP
+            return _cdcl_add_clause!(s, lits)
+        elseif v == Int8(0)  # unassigned
+            if best1 == 0
+                best1 = i
+            elseif best2 == 0
+                best2 = i
+            end
+        end
+    end
+
+    if best1 == 0
+        # All literals are false — conflict at level 0
+        # Add the clause; propagation will detect the conflict
+        return _cdcl_add_clause!(s, lits)
+    end
+
+    # Move best non-false literals to watch positions
+    if best1 != 1
+        lits[1], lits[best1] = lits[best1], lits[1]
+        # Update best2 if it was swapped
+        if best2 == 1; best2 = best1; end
+    end
+
+    if best2 == 0
+        # Only one non-false literal — clause is unit, enqueue it
+        # Put any other literal at position 2 (it's false, but watches need 2 lits)
+        ci = _cdcl_add_clause!(s, lits)
+        _cdcl_enqueue!(s, lits[1], ci)
+        return ci
+    end
+
+    if best2 != 2
+        lits[2], lits[best2] = lits[best2], lits[2]
+    end
+
+    # Two non-false watched literals — no immediate propagation needed
+    return _cdcl_add_clause!(s, lits)
 end
 
 function _cdcl_enqueue!(s::CDCLSolver, lit::Int32, reason::Int32 = Int32(0))::Bool
@@ -542,6 +633,19 @@ end
 
 @inline _cdcl_pick_var(s::CDCLSolver)::Int = _vsids_pop!(s)
 
+"""
+Fast linear scan for next unassigned variable. O(1) amortized since scan_start
+advances monotonically. Falls back to 0 when all variables are assigned.
+"""
+@inline function _linear_pick_var(s::CDCLSolver)::Int
+    @inbounds while s.scan_start <= s.n_vars
+        v = s.scan_start
+        s.scan_start += 1
+        s.assigns[v] == Int8(0) && return v
+    end
+    return 0
+end
+
 # ── Tseitin encoding ─────────────────────────────────────────────────
 
 function _tseitin!(s::CDCLSolver, e::SATExpr)::Int32
@@ -566,9 +670,9 @@ function _tseitin!(s::CDCLSolver, e::SATExpr)::Int32
         elseif al == litneg(bl);    CDCL_LIT_FALSE
         else
             g = _cdcl_new_var!(s); gl = mklit(g, true)
-            _cdcl_add_clause!(s, Int32[litneg(gl), al])
-            _cdcl_add_clause!(s, Int32[litneg(gl), bl])
-            _cdcl_add_clause!(s, Int32[gl, litneg(al), litneg(bl)])
+            _cdcl_add_clause_level0!(s, Int32[litneg(gl), al])
+            _cdcl_add_clause_level0!(s, Int32[litneg(gl), bl])
+            _cdcl_add_clause_level0!(s, Int32[gl, litneg(al), litneg(bl)])
             gl
         end
     elseif h == _HEAD_OR
@@ -580,9 +684,9 @@ function _tseitin!(s::CDCLSolver, e::SATExpr)::Int32
         elseif al == litneg(bl);     CDCL_LIT_TRUE
         else
             g = _cdcl_new_var!(s); gl = mklit(g, true)
-            _cdcl_add_clause!(s, Int32[litneg(gl), al, bl])
-            _cdcl_add_clause!(s, Int32[gl, litneg(al)])
-            _cdcl_add_clause!(s, Int32[gl, litneg(bl)])
+            _cdcl_add_clause_level0!(s, Int32[litneg(gl), al, bl])
+            _cdcl_add_clause_level0!(s, Int32[gl, litneg(al)])
+            _cdcl_add_clause_level0!(s, Int32[gl, litneg(bl)])
             gl
         end
     else
@@ -642,48 +746,74 @@ is trivially true (no assumption needed), or -1 if trivially false.
 function cdcl_new_selector!(s::CDCLSolver, guard_expr::SATExpr)::Int32
     t_start = time_ns()
     _cdcl_stats.selector_calls += 1
-    n_clauses_before = length(s.clauses)
     guard_lit = _tseitin!(s, guard_expr)
     guard_lit == CDCL_LIT_TRUE  && (_cdcl_stats.selector_time += (time_ns() - t_start) / 1e9; return Int32(0))   # trivially true
     guard_lit == CDCL_LIT_FALSE && (_cdcl_stats.selector_time += (time_ns() - t_start) / 1e9; return Int32(-1))   # trivially false
     sel_var = _cdcl_new_var!(s)
     sel_lit = mklit(sel_var, true)
-    _cdcl_add_clause!(s, Int32[litneg(sel_lit), guard_lit])  # sel => guard
-    # If new clauses were added, invalidate level-0 BCP watermark
-    # so cdcl_check_assuming! re-propagates to pick up new implications
-    if length(s.clauses) > n_clauses_before
-        s.qhead_level0 = 1
-    end
+    _cdcl_add_clause_level0!(s, Int32[litneg(sel_lit), guard_lit])  # sel => guard
+    # No watermark reset needed: _cdcl_add_clause_level0! and _tseitin! handle
+    # unit detection inline, so any new implications are already enqueued.
     _cdcl_stats.selector_time += (time_ns() - t_start) / 1e9
     return sel_lit
 end
 
 """
-    _verify_phase_model(s::CDCLSolver) → Bool
+    _verify_and_repair_phase_model!(s::CDCLSolver) → Bool
 
 Check if the saved phase assignment (combined with current assigns from BCP)
 satisfies all clauses. For unassigned variables, uses phase[v] as the tentative
-value. Returns true if all clauses are satisfied, false otherwise.
-This is O(total literals across all clauses) — much cheaper than full CDCL search.
+value. When a violated clause is found, flips an unassigned variable's phase to
+satisfy it, then restarts the scan (the flip might have broken earlier clauses).
+Returns true if all clauses are satisfied (possibly after repairs), false if
+a clause is violated and has no unassigned literal to flip, or if repairs don't
+converge within a bounded number of passes.
 """
-function _verify_phase_model(s::CDCLSolver)::Bool
-    @inbounds for clause in s.clauses
-        satisfied = false
-        for lit in clause
-            v = litvar(lit)
-            val = s.assigns[v]
-            if val == Int8(0)
-                val = s.phase[v]
-                val == Int8(0) && return false  # uninitialized variable, can't verify
+function _verify_and_repair_phase_model!(s::CDCLSolver)::Bool
+    max_passes = 3  # bound repair iterations to avoid pathological cases
+    for _pass in 1:max_passes
+        repaired = false
+        all_satisfied = true
+        @inbounds for clause in s.clauses
+            satisfied = false
+            flip_candidate = Int32(0)  # first unassigned literal we could flip
+            for lit in clause
+                v = litvar(lit)
+                val = s.assigns[v]
+                if val == Int8(0)
+                    pval = s.phase[v]
+                    pval == Int8(0) && return false  # uninitialized variable
+                    if litpos(lit) ? pval == Int8(1) : pval == Int8(-1)
+                        satisfied = true
+                        break
+                    end
+                    # This literal is false under phase — candidate for flipping
+                    flip_candidate == Int32(0) && (flip_candidate = lit)
+                else
+                    if litpos(lit) ? val == Int8(1) : val == Int8(-1)
+                        satisfied = true
+                        break
+                    end
+                end
             end
-            if litpos(lit) ? val == Int8(1) : val == Int8(-1)
-                satisfied = true
-                break
+            if !satisfied
+                if flip_candidate == Int32(0)
+                    return false  # all literals are assigned (by BCP) and false — truly UNSAT
+                end
+                # Flip the phase of this variable to satisfy the clause
+                v = litvar(flip_candidate)
+                s.phase[v] = -s.phase[v]
+                repaired = true
+                all_satisfied = false
+                # Don't break — keep scanning to flip more, then re-verify
             end
         end
-        !satisfied && return false
+        # If no repairs were needed, model is valid
+        all_satisfied && return true
+        # If we repaired but need to re-verify (flips might have broken other clauses)
+        !repaired && return true  # no flips in this pass but some clause failed? shouldn't happen
     end
-    return true
+    return false  # didn't converge within max_passes
 end
 
 """
@@ -753,7 +883,7 @@ function cdcl_check_assuming!(s::CDCLSolver, assumptions::Vector{Int32})::Symbol
     # assignment (saved in phase[]) still works. This is O(total literals in clauses)
     # vs O(n_vars * log(n_vars)) for full CDCL search with VSIDS heap.
     conflict = _cdcl_propagate!(s)
-    if conflict == Int32(0) && _verify_phase_model(s)
+    if conflict == Int32(0) && _verify_and_repair_phase_model!(s)
         _cdcl_backtrack!(s, 0)
         _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
         _cdcl_stats.result_sat += 1; _cdcl_stats.early_sat += 1
@@ -803,6 +933,8 @@ function cdcl_check_assuming!(s::CDCLSolver, assumptions::Vector{Int32})::Symbol
         end
     end
 
+    s.use_linear_scan = true
+    s.scan_start = 1
     result = _cdcl_solve_with_assumptions!(s, s.active_buf)
     _cdcl_backtrack!(s, 0)
     _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
@@ -816,6 +948,7 @@ function _cdcl_solve_with_assumptions!(s::CDCLSolver, assumptions::Vector{Int32}
 
         if conflict != Int32(0)
             _cdcl_stats.conflicts += 1
+            s.use_linear_scan = false  # switch to VSIDS after conflict
             if _dlevel(s) == 0
                 return :unsat
             end
@@ -852,7 +985,7 @@ function _cdcl_solve_with_assumptions!(s::CDCLSolver, assumptions::Vector{Int32}
             end
         else
             _cdcl_stats.decisions += 1
-            v = _cdcl_pick_var(s)
+            v = s.use_linear_scan ? _linear_pick_var(s) : _cdcl_pick_var(s)
             v == 0 && return :sat
             push!(s.trail_lim, length(s.trail))
             @inbounds _cdcl_enqueue!(s, mklit(v, s.phase[v] > 0))
