@@ -11,7 +11,8 @@ Usage:
 """
 module SAT
 
-export SATExpr, sat_var, SAT_TRUE, SAT_FALSE, sat_check, sat_assignment, sat_vars, clear_sat!, sat_not, sat_and, sat_or
+export SATExpr, sat_var, SAT_TRUE, SAT_FALSE, sat_check, sat_assignment, sat_vars, clear_sat!, sat_not, sat_and, sat_or,
+       CDCLSolver, cdcl_solver_from, cdcl_check_assuming!
 
 # ── SATExpr is just an index into the arena ──────────────────────────
 
@@ -278,6 +279,10 @@ function _pick_var(e::SATExpr)
     (h == _HEAD_AND || h == _HEAD_OR) && return _pick_var(_a(e))
     error("_pick_var: no variables in expression")
 end
+
+# ── CDCL incremental solver ───────────────────────────────────────────
+
+include("cdcl.jl")
 
 # ── Clear ────────────────────────────────────────────────────────────
 

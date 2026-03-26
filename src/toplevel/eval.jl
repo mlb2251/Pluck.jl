@@ -345,6 +345,15 @@ function eval_toplevel(expr::PExpr{QueryOp}, toplevel_state)
     return results
 end
 
+using Profile, PProf
+function benchmark_fn(f)
+    Profile.clear()
+    @profile f()
+    pprof(; webport=8086)
+    # wait for user input
+    foo = readline()
+end
+
 function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
     if toplevel_state.allow !== nothing && !occursin(toplevel_state.allow, expr.head.name)
         return nothing
@@ -354,12 +363,20 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
 
     # Warmup run (silent) to avoid measuring JIT compilation
     if toplevel_state.check && toplevel_state.warmstart
-        print("$(expr.head.name)... ")
+        print("$(expr.head.name) ")
+        t = time()
         clear_bdd_stats!()
-        eval_query(body, state)
-        free_state(state)
-        state = LazyKCState()
-        body = deterministic_world(toplevel_compile(expr.head.query; state))
+
+        # benchmark_fn() do 
+            eval_query(body, state)
+            free_state(state)
+            state = LazyKCState()
+            body = deterministic_world(toplevel_compile(expr.head.query; state))
+        # end
+        
+        
+        elapsed_ms = round((time() - t) * 1000; digits=0)
+        printstyled("[warmstart=$(elapsed_ms)ms] "; color=:light_black)
     end
 
     # Run trials until we've spent ~1s of wall time (always at least once)
@@ -374,12 +391,17 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
             state = LazyKCState()
             body = deterministic_world(toplevel_compile(expr.head.query; state))
         end
+        RSDD.clear_sat!()
 
         clear_bdd_stats!()
         Base.GC.gc(true)
         gc_before = Base.gc_num()
         t = time()
-        results = eval_query(body, state)
+
+        # benchmark_fn() do 
+            results = eval_query(body, state)
+        # end
+        
         elapsed_ms = round((time() - t) * 1000; digits=2)
         gc_after = Base.gc_num()
         bdd_stats = get_bdd_stats()
@@ -398,6 +420,7 @@ function eval_toplevel(expr::PExpr{AssertQueryOp}, toplevel_state)
         end
     end
     elapsed_ms = round(mean_trial(trials).time_ms; digits=2)
+    print("[avg=$(elapsed_ms)ms] ")
     if !toplevel_state.silent && !toplevel_state.check
         print_query_results_by_type(body, results, expr.head.name; elapsed_ms)
     end

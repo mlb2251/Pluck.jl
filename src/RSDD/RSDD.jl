@@ -49,7 +49,10 @@ export InnerBDD,
     mk_bdd_manager_default_order,
     bdd_has_variable,
     bdd_implies,
-    bdd_json
+    bdd_json,
+    bdd_cdcl_solver,
+    bdd_is_false_assuming,
+    CDCLSolver
 
 
 # Declare global variables

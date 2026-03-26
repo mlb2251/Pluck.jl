@@ -87,6 +87,14 @@ function bdd_negate(a::BDD)
     return BDD(deferred, sat_not(a.sat_expr))
 end
 
+function bdd_cdcl_solver(a::BDD)
+    cdcl_solver_from(a.sat_expr)
+end
+
+function bdd_is_false_assuming(solver::CDCLSolver, a::BDD)
+    cdcl_check_assuming!(solver, a.sat_expr) === :unsat
+end
+
 bdd_implies(a::BDD, b::BDD) = b | !a
 Base.:!(a::BDD) = bdd_negate(a)
 Base.:&(a::BDD, b::BDD) = bdd_and(a, b)
