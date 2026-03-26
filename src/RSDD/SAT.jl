@@ -24,13 +24,17 @@ mutable struct CDCLStats
     selector_time::Float64  # total time in cdcl_new_selector!
     solver_from_calls::Int  # cdcl_solver_from calls
     solver_from_time::Float64 # total time in cdcl_solver_from
-    reprocess_time::Float64 # time in qhead=1 level-0 reprocessing
     n_vars_at_check::Int    # sum of n_vars at each check (for avg)
     n_clauses_at_check::Int # sum of n_clauses at each check (for avg)
     assumption_depth::Int   # sum of assumption stack length at each check (for avg)
+    # Result breakdown
+    result_sat::Int         # checks that returned :sat
+    result_unsat::Int       # checks that returned :unsat
+    early_sat::Int          # :sat resolved before full search (empty assumptions etc)
+    early_unsat::Int        # :unsat resolved before full search (level-0 conflict, assumption conflict, etc)
 end
 
-const _cdcl_stats = CDCLStats(0, 0.0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0.0, 0, 0, 0)
+const _cdcl_stats = CDCLStats(0, 0.0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0, 0, 0)
 
 function get_cdcl_stats()
     return _cdcl_stats
@@ -47,10 +51,13 @@ function clear_cdcl_stats!()
     _cdcl_stats.selector_time = 0.0
     _cdcl_stats.solver_from_calls = 0
     _cdcl_stats.solver_from_time = 0.0
-    _cdcl_stats.reprocess_time = 0.0
     _cdcl_stats.n_vars_at_check = 0
     _cdcl_stats.n_clauses_at_check = 0
     _cdcl_stats.assumption_depth = 0
+    _cdcl_stats.result_sat = 0
+    _cdcl_stats.result_unsat = 0
+    _cdcl_stats.early_sat = 0
+    _cdcl_stats.early_unsat = 0
 end
 
 function Base.show(io::IO, s::CDCLStats)
@@ -62,7 +69,7 @@ function show_cdcl_stats(io::IO=stdout, s::CDCLStats=_cdcl_stats)
     avg_vars = n > 0 ? s.n_vars_at_check / n : 0.0
     avg_clauses = n > 0 ? s.n_clauses_at_check / n : 0.0
     avg_depth = n > 0 ? s.assumption_depth / n : 0.0
-    other_time = s.check_time - s.propagate_time - s.reprocess_time
+    other_time = s.check_time - s.propagate_time
     props_per_check = n > 0 ? s.propagate_calls / n : 0.0
 
     _fmt(t) = @sprintf("%.3fs", t)
@@ -84,10 +91,14 @@ function show_cdcl_stats(io::IO=stdout, s::CDCLStats=_cdcl_stats)
     println(io, "  Time breakdown (total $(_fmt(total_time)))")
     println(io, "    check_assuming!     $(_fmt(s.check_time))  $(_pct_total(s.check_time))")
     println(io, "      propagation       $(_fmt(s.propagate_time))")
-    println(io, "      L0 reprocessing   $(_fmt(s.reprocess_time))")
     println(io, "      other (decide+bt) $(_fmt(other_time))")
     println(io, "    new_selector!       $(_fmt(s.selector_time))  $(_pct_total(s.selector_time))")
     println(io, "    solver_from         $(_fmt(s.solver_from_time))  $(_pct_total(s.solver_from_time))")
+    println(io, "  Results")
+    println(io, "    SAT                 $(s.result_sat)  (early: $(s.early_sat))")
+    println(io, "    UNSAT               $(s.result_unsat)  (early: $(s.early_unsat))")
+    full_search = n - s.early_sat - s.early_unsat
+    println(io, "    full search         $(full_search)")
     println(io, "  Solver size (avg per check)")
     println(io, "    variables           $(@sprintf("%.1f", avg_vars))")
     println(io, "    clauses             $(@sprintf("%.1f", avg_clauses))")
@@ -255,6 +266,7 @@ mutable struct CDCLSolver
     reason::Vector{Int32}            # clause index that propagated, 0 = decision
     level::Vector{Int32}             # decision level of assignment
     qhead::Int
+    qhead_level0::Int              # stable qhead after last level-0 BCP (watermark)
     seen::BitVector
     expr_to_lit::Dict{UInt32, Int32} # SATExpr → literal (Tseitin cache)
     active_buf::Vector{Int32}        # reusable buffer for filtering assumptions
@@ -263,6 +275,8 @@ mutable struct CDCLSolver
     var_heap::Vector{Int}            # binary max-heap of variable indices
     heap_pos::Vector{Int}            # position of each variable in heap (0 = not in heap)
     var_inc::Float64                 # current activity bump amount
+    # Phase saving
+    phase::Vector{Int8}              # last polarity: 1=true, -1=false (default true)
 end
 
 const VSIDS_DECAY = 0.95
@@ -272,8 +286,9 @@ const VSIDS_DECAY = 0.95
 function CDCLSolver()
     s = CDCLSolver(
         0, Vector{Int32}[], Vector{Int32}[], Int8[], Int32[], Int[], Int32[], Int32[],
-        1, BitVector(), Dict{UInt32, Int32}(), Int32[],
-        Float64[], Int[], Int[], 1.0
+        1, 1, BitVector(), Dict{UInt32, Int32}(), Int32[],
+        Float64[], Int[], Int[], 1.0,
+        Int8[]
     )
     # Var 1 = constant TRUE
     _cdcl_new_var!(s)
@@ -292,6 +307,7 @@ function _cdcl_new_var!(s::CDCLSolver)::Int
     push!(s.watches, Int32[])  # negative literal watch list
     push!(s.activity, 0.0)
     push!(s.heap_pos, 0)
+    push!(s.phase, Int8(1))  # default phase: true
     _vsids_insert!(s, s.n_vars)
     return s.n_vars
 end
@@ -404,6 +420,7 @@ function _cdcl_backtrack!(s::CDCLSolver, target_level::Int)
         prev_len = s.trail_lim[end]
         for i in length(s.trail):-1:(prev_len + 1)
             @inbounds v = litvar(s.trail[i])
+            @inbounds s.phase[v] = s.assigns[v]  # save phase before clearing
             @inbounds s.assigns[v] = Int8(0)
             _vsids_insert!(s, v)
         end
@@ -608,6 +625,7 @@ function cdcl_solver_from(base::SATExpr)::Union{CDCLSolver, Symbol}
         _cdcl_stats.solver_from_time += (time_ns() - t_start) / 1e9
         return :unsat
     end
+    s.qhead_level0 = s.qhead  # save stable watermark after initial propagation
 
     _cdcl_stats.solver_from_time += (time_ns() - t_start) / 1e9
     return s
@@ -624,14 +642,48 @@ is trivially true (no assumption needed), or -1 if trivially false.
 function cdcl_new_selector!(s::CDCLSolver, guard_expr::SATExpr)::Int32
     t_start = time_ns()
     _cdcl_stats.selector_calls += 1
+    n_clauses_before = length(s.clauses)
     guard_lit = _tseitin!(s, guard_expr)
     guard_lit == CDCL_LIT_TRUE  && (_cdcl_stats.selector_time += (time_ns() - t_start) / 1e9; return Int32(0))   # trivially true
     guard_lit == CDCL_LIT_FALSE && (_cdcl_stats.selector_time += (time_ns() - t_start) / 1e9; return Int32(-1))   # trivially false
     sel_var = _cdcl_new_var!(s)
     sel_lit = mklit(sel_var, true)
     _cdcl_add_clause!(s, Int32[litneg(sel_lit), guard_lit])  # sel => guard
+    # If new clauses were added, invalidate level-0 BCP watermark
+    # so cdcl_check_assuming! re-propagates to pick up new implications
+    if length(s.clauses) > n_clauses_before
+        s.qhead_level0 = 1
+    end
     _cdcl_stats.selector_time += (time_ns() - t_start) / 1e9
     return sel_lit
+end
+
+"""
+    _verify_phase_model(s::CDCLSolver) → Bool
+
+Check if the saved phase assignment (combined with current assigns from BCP)
+satisfies all clauses. For unassigned variables, uses phase[v] as the tentative
+value. Returns true if all clauses are satisfied, false otherwise.
+This is O(total literals across all clauses) — much cheaper than full CDCL search.
+"""
+function _verify_phase_model(s::CDCLSolver)::Bool
+    @inbounds for clause in s.clauses
+        satisfied = false
+        for lit in clause
+            v = litvar(lit)
+            val = s.assigns[v]
+            if val == Int8(0)
+                val = s.phase[v]
+                val == Int8(0) && return false  # uninitialized variable, can't verify
+            end
+            if litpos(lit) ? val == Int8(1) : val == Int8(-1)
+                satisfied = true
+                break
+            end
+        end
+        !satisfied && return false
+    end
+    return true
 end
 
 """
@@ -649,14 +701,14 @@ function cdcl_check_assuming!(s::CDCLSolver, assumptions::Vector{Int32})::Symbol
     _cdcl_stats.n_clauses_at_check += length(s.clauses)
     _cdcl_stats.assumption_depth += length(assumptions)
 
-    # Reprocess level-0 trail so BCP picks up any newly added Tseitin clauses
-    t_repro = time_ns()
-    s.qhead = 1
+    # Repropagate level-0 trail only from watermark (avoids full replay when no new clauses)
+    s.qhead = s.qhead_level0
     if _cdcl_propagate!(s) != Int32(0)
         _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+        _cdcl_stats.result_unsat += 1; _cdcl_stats.early_unsat += 1
         return :unsat
     end
-    _cdcl_stats.reprocess_time += (time_ns() - t_repro) / 1e9
+    s.qhead_level0 = s.qhead  # save stable watermark
 
     # Filter assumptions into reusable buffer (no allocation)
     empty!(s.active_buf)
@@ -664,12 +716,14 @@ function cdcl_check_assuming!(s::CDCLSolver, assumptions::Vector{Int32})::Symbol
         lit == CDCL_LIT_TRUE && continue
         if lit == CDCL_LIT_FALSE
             _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+            _cdcl_stats.result_unsat += 1; _cdcl_stats.early_unsat += 1
             return :unsat
         end
         v = litvar(lit)
         if s.assigns[v] != Int8(0)
             if litval(s.assigns, lit) == Int8(-1)
                 _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+                _cdcl_stats.result_unsat += 1; _cdcl_stats.early_unsat += 1
                 return :unsat
             end
             continue  # already true at level 0
@@ -679,6 +733,7 @@ function cdcl_check_assuming!(s::CDCLSolver, assumptions::Vector{Int32})::Symbol
 
     if isempty(s.active_buf)
         _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+        _cdcl_stats.result_sat += 1; _cdcl_stats.early_sat += 1
         return :sat
     end
 
@@ -689,49 +744,70 @@ function cdcl_check_assuming!(s::CDCLSolver, assumptions::Vector{Int32})::Symbol
             # Conflict between assumptions
             _cdcl_backtrack!(s, 0)
             _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+            _cdcl_stats.result_unsat += 1; _cdcl_stats.early_unsat += 1
             return :unsat
         end
     end
 
-    # Initial propagation after asserting assumptions
-    if _cdcl_propagate!(s) != Int32(0)
-        # Conflict — need full solve loop for analysis
-        _cdcl_backtrack!(s, 0)
-
-        # Re-assert assumptions for the solve loop
-        push!(s.trail_lim, length(s.trail))
-        for lit in s.active_buf
-            if !_cdcl_enqueue!(s, lit)
-                _cdcl_backtrack!(s, 0)
-                _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
-                return :unsat
-            end
-        end
-    elseif _all_clauses_satisfied(s)
-        # All clauses satisfied after BCP — no decisions needed
+    # Fast path: after BCP on assumptions, verify if the previous satisfying
+    # assignment (saved in phase[]) still works. This is O(total literals in clauses)
+    # vs O(n_vars * log(n_vars)) for full CDCL search with VSIDS heap.
+    conflict = _cdcl_propagate!(s)
+    if conflict == Int32(0) && _verify_phase_model(s)
         _cdcl_backtrack!(s, 0)
         _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+        _cdcl_stats.result_sat += 1; _cdcl_stats.early_sat += 1
         return :sat
+    end
+
+    # Phase model didn't verify (or BCP found a conflict that needs analysis).
+    # Fall back to full CDCL search.
+    if conflict != Int32(0)
+        # BCP already found a conflict at assumption level — need to handle it
+        _cdcl_stats.conflicts += 1
+        if _dlevel(s) == 0
+            _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+            _cdcl_stats.result_unsat += 1
+            return :unsat
+        end
+        learned, btlevel = _cdcl_analyze!(s, conflict)
+        _vsids_decay!(s)
+        _cdcl_backtrack!(s, btlevel)
+        ci = _cdcl_add_clause!(s, learned)
+        if length(learned) == 1
+            _cdcl_enqueue!(s, learned[1])
+        else
+            _cdcl_enqueue!(s, learned[1], ci)
+        end
+        if _dlevel(s) == 0
+            if _cdcl_propagate!(s) != Int32(0)
+                _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+                _cdcl_stats.result_unsat += 1
+                return :unsat
+            end
+            s.qhead_level0 = s.qhead
+            push!(s.trail_lim, length(s.trail))
+            for lit in s.active_buf
+                v = litvar(lit)
+                if s.assigns[v] != Int8(0)
+                    if litval(s.assigns, lit) == Int8(-1)
+                        _cdcl_backtrack!(s, 0)
+                        _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+                        _cdcl_stats.result_unsat += 1
+                        return :unsat
+                    end
+                    continue
+                end
+                _cdcl_enqueue!(s, lit)
+            end
+        end
     end
 
     result = _cdcl_solve_with_assumptions!(s, s.active_buf)
     _cdcl_backtrack!(s, 0)
     _cdcl_stats.check_time += (time_ns() - t_start) / 1e9
+    if result === :sat; _cdcl_stats.result_sat += 1; else; _cdcl_stats.result_unsat += 1; end
     return result
-end
-
-function _all_clauses_satisfied(s::CDCLSolver)::Bool
-    @inbounds for clause in s.clauses
-        satisfied = false
-        for lit in clause
-            if litval(s.assigns, lit) == Int8(1)
-                satisfied = true
-                break
-            end
-        end
-        satisfied || return false
-    end
-    return true
 end
 
 function _cdcl_solve_with_assumptions!(s::CDCLSolver, assumptions::Vector{Int32})::Symbol
@@ -760,6 +836,7 @@ function _cdcl_solve_with_assumptions!(s::CDCLSolver, assumptions::Vector{Int32}
                 if _cdcl_propagate!(s) != Int32(0)
                     return :unsat
                 end
+                s.qhead_level0 = s.qhead  # update watermark with new level-0 facts
                 push!(s.trail_lim, length(s.trail))
                 for lit in assumptions
                     v = litvar(lit)
@@ -775,15 +852,10 @@ function _cdcl_solve_with_assumptions!(s::CDCLSolver, assumptions::Vector{Int32}
             end
         else
             _cdcl_stats.decisions += 1
-            # Periodically check if all clauses are already satisfied.
-            # This catches don't-care variables without scanning clauses every iteration.
-            if _cdcl_stats.decisions & Int(63) == 0 && _all_clauses_satisfied(s)
-                return :sat
-            end
             v = _cdcl_pick_var(s)
             v == 0 && return :sat
             push!(s.trail_lim, length(s.trail))
-            _cdcl_enqueue!(s, mklit(v, true))
+            @inbounds _cdcl_enqueue!(s, mklit(v, s.phase[v] > 0))
         end
     end
 end
