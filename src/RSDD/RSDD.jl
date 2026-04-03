@@ -127,6 +127,12 @@ mutable struct WmcParams
     freed::Bool
     vector_size::UInt
     dual::Bool
+
+    function WmcParams(ptr, vector_size, dual)
+        wmc_params = new(ptr, false, vector_size, dual)
+        finalizer(free_wmc_params, wmc_params)
+        return wmc_params
+    end
 end
 
 # Updated to include size field
@@ -160,6 +166,7 @@ function Manager(; num_vars::Int=0, vector_size::Int=0, dual::Bool=false)
     manager = Manager(manager_ptr, [], false, nothing, nothing, weights, vector_size, nothing, nothing, false, false)
     manager.BDD_TRUE = bdd_true(manager)
     manager.BDD_FALSE = bdd_false(manager)
+    finalizer(free_bdd_manager, manager)
     return manager
 end
 
@@ -438,7 +445,7 @@ Returns: WmcParams
 """
 function new_weights()
     ptr = @rsdd_timed @ccall librsdd_path.new_wmc_params_f64()::Ptr{Cvoid}
-    WmcParams(ptr, false, 0, false)
+    WmcParams(ptr, 0, false)
 end
 
 """
@@ -447,7 +454,7 @@ Returns: WmcParams
 """
 function new_weights_dual(vector_size::Integer)
     ptr = @rsdd_timed @ccall librsdd_path.new_wmc_params_f64_dual()::Ptr{Cvoid}
-    WmcParams(ptr, false, vector_size, true)
+    WmcParams(ptr, vector_size, true)
 end
 
 """
