@@ -1,7 +1,7 @@
 name = "Pluck"
 uuid = "86be7f31-a170-45b4-80a2-1900336dac47"
-authors = ["Alex Lew <alexlew@mit.edu>", "Maddy Bowers <mlbowers@mit.edu>"]
 version = "0.1.0"
+authors = ["Alex Lew <alexlew@mit.edu>", "Maddy Bowers <mlbowers@mit.edu>"]
 
 [deps]
 AutoHashEquals = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
@@ -10,11 +10,15 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 FunctionalCollections = "de31a74c-ac4f-5751-b3fd-e18cd04993ca"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+PProf = "e4faabce-9ead-11e9-39d9-4379958e3056"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Profile = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 
 [compat]
 AutoHashEquals = "2.2.0"
 DataStructures = "0.18.22"
+PProf = "3.2.0"
 Printf = "1.11.0"
+Profile = "1.11.0"
 Revise = "3.7.2"

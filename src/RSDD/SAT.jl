@@ -9,6 +9,7 @@ using Printf
 
 export SATExpr, sat_var, SAT_TRUE, SAT_FALSE, clear_sat!, sat_not, sat_and, sat_or,
        CDCLSolver, cdcl_solver_from, cdcl_check_assuming!, cdcl_new_selector!,
+       cdcl_push_assumption!, cdcl_pop_assumption!,
        CDCLStats, get_cdcl_stats, clear_cdcl_stats!, show_cdcl_stats
 
 # ── Stats ────────────────────────────────────────────────────────────
@@ -756,6 +757,45 @@ function cdcl_new_selector!(s::CDCLSolver, guard_expr::SATExpr)::Int32
     # unit detection inline, so any new implications are already enqueued.
     _cdcl_stats.selector_time += (time_ns() - t_start) / 1e9
     return sel_lit
+end
+
+"""
+    cdcl_push_assumption!(s::CDCLSolver, lit::Int32) → :sat or :unsat
+
+Incrementally push one assumption literal onto the solver's trail at a new
+decision level. If BCP finds no conflict, returns :sat and *leaves the
+assumption on the trail* — child calls can push above this level. If BCP
+finds a conflict, backtracks this level and returns :unsat.
+
+Use `cdcl_pop_assumption!` to undo the push after recursion.
+"""
+function cdcl_push_assumption!(s::CDCLSolver, lit::Int32)::Symbol
+    # Already assigned by BCP at a lower level?
+    v = litvar(lit)
+    @inbounds cur = s.assigns[v]
+    if cur != Int8(0)
+        return litval(s.assigns, lit) == Int8(1) ? :sat : :unsat
+    end
+
+    # New decision level with just this literal
+    push!(s.trail_lim, length(s.trail))
+    _cdcl_enqueue!(s, lit)
+    conflict = _cdcl_propagate!(s)
+
+    if conflict != Int32(0)
+        _cdcl_backtrack!(s, _dlevel(s) - 1)
+        return :unsat
+    end
+    return :sat
+end
+
+"""
+    cdcl_pop_assumption!(s::CDCLSolver)
+
+Undo the most recent `cdcl_push_assumption!`, backtracking one decision level.
+"""
+function cdcl_pop_assumption!(s::CDCLSolver)
+    _cdcl_backtrack!(s, _dlevel(s) - 1)
 end
 
 """

@@ -70,36 +70,34 @@ function bind_monad(cont::F, pre_worlds, path_condition, state::LazyKCState; con
 
         inner_path_condition = path_condition & pre_guard
 
-        # Check satisfiability using shared solver + assumption stack + new guard
+        # Check satisfiability incrementally: push one assumption onto the solver's
+        # trail at a new decision level. Children push above this level; we pop after.
         # cdcl_new_selector! returns: >0 = selector literal, 0 = trivially true, -1 = trivially false
-        sel_lit = Int32(0)
         pushed = false
         is_unsat = if solver isa CDCLSolver
             sel_lit = cdcl_new_selector!(solver, pre_guard.sat_expr)
             if sel_lit == Int32(-1)
                 true  # guard is trivially false
+            elseif sel_lit == Int32(0)
+                false  # guard is trivially true, no assumption needed
             else
-                # Push selector onto stack before check (avoids vcat allocation)
-                if sel_lit > Int32(0)
-                    push!(state.assumption_stack, sel_lit)
-                    pushed = true
-                end
-                cdcl_check_assuming!(solver, state.assumption_stack) === :unsat
+                result = cdcl_push_assumption!(solver, sel_lit)
+                pushed = (result === :sat)
+                result === :unsat
             end
         else
             bdd_is_false(inner_path_condition)
         end
 
-        # Cache the shared solver's result on the BDD so bdd_is_false() hits the cache
+        # Cache the solver's result on the BDD so bdd_is_false() hits the cache
         inner_path_condition.sat_known = is_unsat ? Int8(-1) : Int8(1)
 
         if is_unsat
-            if pushed; pop!(state.assumption_stack); end
             push!(nested_worlds, (false_path_condition_worlds(state), pre_guard))
             continue
         end
 
-        # assumption already on the stack from above; recurse
+        # Assumption is on the solver's trail; recurse
         if cont_state
             post_worlds, post_used_info = cont(pre_val, inner_path_condition, state)
         else
@@ -107,7 +105,7 @@ function bind_monad(cont::F, pre_worlds, path_condition, state::LazyKCState; con
         end
 
         if pushed
-            pop!(state.assumption_stack)
+            cdcl_pop_assumption!(solver)
         end
 
         push!(nested_worlds, ((post_worlds, post_used_info), pre_guard))

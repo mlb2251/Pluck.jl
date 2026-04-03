@@ -44,12 +44,12 @@
 ;;   ((False) 0.9999999999998197)
 ;;   ((True) 1.802995485540675e-13))
 
-;;   (assert-query
-;;   'hmm-200
-;;   (Marginal
-;;     (prefix_equals? (hmm (False)) (generate_observations 200)))
-;;   ((False) 0.9999999999998197)
-;;   ((True) 1.802995485540675e-13))
+  (assert-query
+  'hmm-200
+  (Marginal
+    (prefix_equals? (hmm (False)) (generate_observations 200)))
+  ((False) 0.9999999999998197)
+  ((True) 1.802995485540675e-13))
 
 
 ;;   (assert-query
@@ -68,9 +68,9 @@
 ;;   ((False) 0.9999999999998197)
 ;;   ((True) 1.802995485540675e-13))
 
-;;   (assert-query
-;;   'hmm-1000
-;;   (Marginal
-;;     (prefix_equals? (hmm (False)) (generate_observations 1000)))
-;;   ((False) 0.9999999999998197)
-;;   ((True) 1.802995485540675e-13))
+  (assert-query
+  'hmm-1000
+  (Marginal
+    (prefix_equals? (hmm (False)) (generate_observations 1000)))
+  ((False) 0.9999999999998197)
+  ((True) 1.802995485540675e-13))
