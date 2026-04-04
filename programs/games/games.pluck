@@ -1,9 +1,21 @@
+;;;; boolean
 ;; (define-type boolean (T) (F))
 
-;; Signed Peano integers: Z = 0, P = +1, N = -1
+(define (ife c t e)
+  (match c T => t F => e))
+
+(define (band a b)
+  (match a T => b F => (F)))
+
+(define (bor a b)
+  (match a T => (T) F => b))
+
+(define (bnot a)
+  (match a T => (F) F => (T)))
+
+;;;; signed peano integers
 ;; (define-type int (Z) (P int) (N int))
 
-;; Smart constructors that maintain canonical form
 (define (succ x)
   (match x
     Z => (P (Z))
@@ -22,4 +34,85 @@
     P b' => (add (succ a) b')
     N b' => (add (pred a) b')))
 
+(define (int-eq a b)
+  (match a
+    Z => (match b Z => (T) P _ => (F) N _ => (F))
+    P a' => (match b Z => (F) P b' => (int-eq a' b') N _ => (F))
+    N a' => (match b Z => (F) P _ => (F) N b' => (int-eq a' b'))))
 
+;;;; lists
+;; (define-type lst (Mt) (Ct any lst))
+
+(define (hd xs)
+  (match xs Ct x _ => x))
+
+(define (nth xs n)
+  (match xs
+    Ct x rest =>
+    (match n
+      Z => x
+      P n' => (nth rest n'))))
+
+(define (any-of pred xs)
+  (match xs
+    Mt => (F)
+    Ct x rest => (bor (pred x) (any-of pred rest))))
+
+(define (map-ls f xs)
+  (match xs
+    Mt => (Mt)
+    Ct x rest => (Ct (f x) (map-ls f rest))))
+
+;;;; game types
+;; (define-type action (U) (D) (L) (R) (X))
+;; (define-type observable (Obs int int))
+;; (define-type latent (Lat boolean boolean))
+;; (define-type kind (Kd nextlatent nextaction))
+;;   nextlatent :: Latent -> (Action -> Boolean) -> Latent
+;;   nextaction :: Latent -> Action
+;; (define-type obj (Obj type-idx latents actions observables))
+;; (define-type world (World kinds objects))
+
+(define (obs-eq a b)
+  (match a
+    Obs ax ay =>
+    (match b
+      Obs bx by =>
+      (band (int-eq ax bx) (int-eq ay by)))))
+
+(define (nextobs obs act)
+  (match obs
+    Obs x y =>
+    (match act
+      U => (Obs x (succ y))
+      D => (Obs x (pred y))
+      R => (Obs (succ x) y)
+      L => (Obs (pred x) y)
+      X => (Obs x y))))
+
+;; Step a single object forward one timestep
+(define (step-obj kinds obj all-objs)
+  (match obj
+    Obj tidx lats acts obs =>
+    (let ((cur-obs (hd obs))
+          (cur-lat (hd lats)))
+      (match (nth kinds tidx)
+        Kd nextlat nextact =>
+        (let ((new-lat (nextlat cur-lat cur-obs all-objs))
+              (act (nextact new-lat))
+              (new-obs (nextobs cur-obs act)))
+          (Obj tidx (Ct new-lat lats) (Ct act acts) (Ct new-obs obs)))))))
+
+;; Step all objects forward one timestep
+(define (step-objs kinds objs all-objs)
+  (match objs
+    Mt => (Mt)
+    Ct obj rest =>
+    (Ct (step-obj kinds obj all-objs)
+        (step-objs kinds rest all-objs))))
+
+;; Step the whole world forward one timestep
+(define (step world)
+  (match world
+    World kinds objs =>
+    (World kinds (step-objs kinds objs objs))))
