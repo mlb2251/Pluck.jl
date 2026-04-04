@@ -41,37 +41,38 @@
     N a' => (match b Z => (F) P _ => (F) N b' => (int-eq a' b'))))
 
 ;;;; lists
-;; (define-type lst (Mt) (Ct any lst))
+;; (define-type lst (Ni) (Co any lst))
 
 (define (hd xs)
-  (match xs Ct x _ => x))
+  (match xs Co x _ => x))
 
 (define (nth xs n)
   (match xs
-    Ct x rest =>
+    Co x rest =>
     (match n
       Z => x
       P n' => (nth rest n'))))
 
 (define (any-of pred xs)
   (match xs
-    Mt => (F)
-    Ct x rest => (bor (pred x) (any-of pred rest))))
+    Ni => (F)
+    Co x rest => (bor (pred x) (any-of pred rest))))
 
 (define (map-ls f xs)
   (match xs
-    Mt => (Mt)
-    Ct x rest => (Ct (f x) (map-ls f rest))))
+    Ni => (Ni)
+    Co x rest => (Co (f x) (map-ls f rest))))
 
 ;;;; game types
 ;; (define-type action (U) (D) (L) (R) (X))
 ;; (define-type observable (Obs int int))
 ;; (define-type latent (Lat boolean boolean))
+;; (define-type slice (Sc latent action observable))
 ;; (define-type kind (Kd nextlatent nextaction))
-;;   nextlatent :: Latent -> (Action -> Boolean) -> Latent
+;;   nextlatent :: Latent -> Observable -> Lst State -> Latent
 ;;   nextaction :: Latent -> Action
-;; (define-type obj (Obj type-idx latents actions observables))
-;; (define-type world (World kinds objects))
+;; (define-type state (St slices))
+;; (define-type setup (Setup kinds states))
 
 (define (obs-eq a b)
   (match a
@@ -90,29 +91,85 @@
       L => (Obs (pred x) y)
       X => (Obs x y))))
 
-;; Step a single object forward one timestep
-(define (step-obj kinds obj all-objs)
-  (match obj
-    Obj tidx lats acts obs =>
-    (let ((cur-obs (hd obs))
-          (cur-lat (hd lats)))
-      (match (nth kinds tidx)
+;; Current observable of a state
+(define (cur-obs st)
+  (match st
+    St slices =>
+    (match (hd slices) Sc _ _ obs => obs)))
+
+;; Current latent of a state
+(define (cur-lat st)
+  (match st
+    St slices =>
+    (match (hd slices) Sc lat _ _ => lat)))
+
+;; Step a single state forward given its kind
+(define (step-st kind st all-sts)
+  (match st
+    St slices =>
+    (match (hd slices)
+      Sc plat _ pobs =>
+      (match kind
         Kd nextlat nextact =>
-        (let ((new-lat (nextlat cur-lat cur-obs all-objs))
+        (let ((new-lat (nextlat plat pobs all-sts))
               (act (nextact new-lat))
-              (new-obs (nextobs cur-obs act)))
-          (Obj tidx (Ct new-lat lats) (Ct act acts) (Ct new-obs obs)))))))
+              (new-obs (nextobs pobs act)))
+          (St (Co (Sc new-lat act new-obs) slices)))))))
 
-;; Step all objects forward one timestep
-(define (step-objs kinds objs all-objs)
-  (match objs
-    Mt => (Mt)
-    Ct obj rest =>
-    (Ct (step-obj kinds obj all-objs)
-        (step-objs kinds rest all-objs))))
+;; Step all states forward given their kinds
+(define (step-sts kinds sts all-sts)
+  (match kinds
+    Ni => (Ni)
+    Co kind ks =>
+    (match sts
+      Co st rest =>
+      (Co (step-st kind st all-sts)
+          (step-sts ks rest all-sts)))))
 
-;; Step the whole world forward one timestep
-(define (step world)
-  (match world
-    World kinds objs =>
-    (World kinds (step-objs kinds objs objs))))
+;; Step the whole setup forward one timestep
+(define (step setup)
+  (match setup
+    Setup kinds sts =>
+    (Setup kinds (step-sts kinds sts sts)))))
+
+;; Helper: is a cell occupied by any state?
+(define (occupied pos sts)
+  (any-of
+    (fn st -> (obs-eq pos (cur-obs st)))
+    sts))
+
+;;;; example: bouncing between walls
+;; Lat a _: a=T means moving right, a=F means moving left
+
+;; Wall: stays put, ignores everything
+(define wall-kind
+  (Kd (fn lat obs objs -> lat)
+      (fn lat -> (X))))
+
+;; Bouncer: moves in current direction, reverses when next cell is occupied
+(define bouncer-kind
+  (Kd (fn lat obs objs ->
+        (match lat
+          Lat dir b =>
+          (let ((ahead (nextobs obs (ife dir (R) (L)))))
+            (ife (occupied ahead objs)
+              (Lat (bnot dir) b)
+              lat))))
+      (fn lat ->
+        (match lat Lat dir _ => (ife dir (R) (L))))))
+
+;; Run t timesteps
+(define (run t setup)
+  (match t
+    Z => setup
+    P t' => (run t' (step setup))))
+
+(define bounce-setup
+  (Setup
+    ;; kinds (static)
+    (Co wall-kind (Co wall-kind (Co bouncer-kind (Ni))))
+    ;; states (evolving)
+    (Co (St (Co (Sc (Lat (F) (F)) (X) (Obs (N (N (N (Z)))) (Z))) (Ni)))  ;; wall at (-3, 0)
+    (Co (St (Co (Sc (Lat (F) (F)) (X) (Obs (P (P (P (Z)))) (Z))) (Ni)))  ;; wall at (3, 0)
+    (Co (St (Co (Sc (Lat (T) (F)) (X) (Obs (Z) (Z))) (Ni)))              ;; bouncer at (0, 0), right
+    (Ni))))))
