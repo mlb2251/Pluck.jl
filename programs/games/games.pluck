@@ -1,0 +1,25 @@
+;; (define-type boolean (T) (F))
+
+;; Signed Peano integers: Z = 0, P = +1, N = -1
+;; (define-type int (Z) (P int) (N int))
+
+;; Smart constructors that maintain canonical form
+(define (succ x)
+  (match x
+    Z => (P (Z))
+    P n => (P (P n))
+    N n => n))
+
+(define (pred x)
+  (match x
+    Z => (N (Z))
+    N n => (N (N n))
+    P n => n))
+
+(define (add a b)
+  (match b
+    Z => a
+    P b' => (add (succ a) b')
+    N b' => (add (pred a) b')))
+
+
