@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Game Viewer</title>
+<style>
+  body { font-family: monospace; background: #1a1a1a; color: #eee; margin: 20px; }
+  #controls { margin: 16px 0; display: flex; align-items: center; gap: 12px; }
+  #slider { flex: 1; max-width: 400px; }
+  #grid { position: relative; border: 1px solid #444; }
+  .cell { position: absolute; box-sizing: border-box; border: 1px solid #333; }
+  .obj { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+  #info { margin-top: 12px; color: #888; }
+</style>
+</head>
+<body>
+<h3 id="title">Game Viewer</h3>
+<div id="controls">
+  <button id="prev">&larr;</button>
+  <input type="range" id="slider" min="0" value="0">
+  <button id="next">&rarr;</button>
+  <span id="step-label">t=0</span>
+  <button id="play">Play</button>
+</div>
+<div id="grid"></div>
+<div id="info"></div>
+
+<script>
+const COLORS = ['#888', '#888', '#4fc3f7', '#ff8a65', '#81c784', '#ba68c8', '#ffd54f', '#e57373'];
+const CELL = 40;
+
+let data = null;
+let t = 0;
+let maxT = 0;
+let playing = false;
+let playInterval = null;
+
+async function init() {
+  const params = new URLSearchParams(location.search);
+  const path = params.get('path');
+  if (!path) { document.getElementById('info').textContent = 'Add ?path=trajectory.json'; return; }
+
+  const resp = await fetch(path);
+  data = await resp.json();
+  maxT = data.objects[0].timeline.length - 1;
+
+  document.getElementById('slider').max = maxT;
+  render();
+}
+
+function bounds() {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const obj of data.objects) {
+    for (const frame of obj.timeline) {
+      minX = Math.min(minX, frame.x);
+      maxX = Math.max(maxX, frame.x);
+      minY = Math.min(minY, frame.y);
+      maxY = Math.max(maxY, frame.y);
+    }
+  }
+  // pad by 1
+  return { minX: minX - 1, maxX: maxX + 1, minY: minY - 1, maxY: maxY + 1 };
+}
+
+function render() {
+  const b = bounds();
+  const cols = b.maxX - b.minX + 1;
+  const rows = b.maxY - b.minY + 1;
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  grid.style.width = cols * CELL + 'px';
+  grid.style.height = rows * CELL + 'px';
+  grid.style.position = 'relative';
+
+  // draw grid cells
+  for (let gy = b.minY; gy <= b.maxY; gy++) {
+    for (let gx = b.minX; gx <= b.maxX; gx++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.left = (gx - b.minX) * CELL + 'px';
+      cell.style.top = (b.maxY - gy) * CELL + 'px';  // flip y
+      cell.style.width = CELL + 'px';
+      cell.style.height = CELL + 'px';
+      grid.appendChild(cell);
+    }
+  }
+
+  // draw objects
+  for (let i = 0; i < data.objects.length; i++) {
+    const frame = data.objects[i].timeline[t];
+    const el = document.createElement('div');
+    el.className = 'obj';
+    const size = CELL * 0.7;
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.background = COLORS[i % COLORS.length];
+    el.style.left = (frame.x - b.minX) * CELL + CELL / 2 + 'px';
+    el.style.top = (b.maxY - frame.y) * CELL + CELL / 2 + 'px';
+    grid.appendChild(el);
+  }
+
+  document.getElementById('step-label').textContent = `t=${t}`;
+  document.getElementById('slider').value = t;
+
+  // info
+  const lines = data.objects.map((obj, i) => {
+    const f = obj.timeline[t];
+    return `obj ${i}: (${f.x}, ${f.y}) act=${f.act}`;
+  });
+  document.getElementById('info').textContent = lines.join('  |  ');
+}
+
+document.getElementById('slider').addEventListener('input', e => { t = +e.target.value; render(); });
+document.getElementById('prev').addEventListener('click', () => { if (t > 0) { t--; render(); } });
+document.getElementById('next').addEventListener('click', () => { if (t < maxT) { t++; render(); } });
+document.getElementById('play').addEventListener('click', () => {
+  playing = !playing;
+  document.getElementById('play').textContent = playing ? 'Pause' : 'Play';
+  if (playing) {
+    playInterval = setInterval(() => {
+      if (t >= maxT) { t = 0; }
+      else { t++; }
+      render();
+    }, 200);
+  } else {
+    clearInterval(playInterval);
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') { if (t > 0) { t--; render(); } }
+  if (e.key === 'ArrowRight') { if (t < maxT) { t++; render(); } }
+  if (e.key === ' ') { document.getElementById('play').click(); e.preventDefault(); }
+});
+
+init();
+</script>
+</body>
+</html>

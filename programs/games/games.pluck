@@ -2,66 +2,66 @@
 ;; (define-type boolean (T) (F))
 
 (define (ife c t e)
-  (match c T => t F => e))
+  (match c T -> t F -> e))
 
 (define (band a b)
-  (match a T => b F => (F)))
+  (match a T -> b F -> (F)))
 
 (define (bor a b)
-  (match a T => (T) F => b))
+  (match a T -> (T) F -> b))
 
 (define (bnot a)
-  (match a T => (F) F => (T)))
+  (match a T -> (F) F -> (T)))
 
 ;;;; signed peano integers
 ;; (define-type int (Z) (P int) (N int))
 
 (define (succ x)
   (match x
-    Z => (P (Z))
-    P n => (P (P n))
-    N n => n))
+    Z -> (P (Z))
+    P n -> (P (P n))
+    N n -> n))
 
 (define (pred x)
   (match x
-    Z => (N (Z))
-    N n => (N (N n))
-    P n => n))
+    Z -> (N (Z))
+    N n -> (N (N n))
+    P n -> n))
 
 (define (add a b)
   (match b
-    Z => a
-    P b' => (add (succ a) b')
-    N b' => (add (pred a) b')))
+    Z -> a
+    P b' -> (add (succ a) b')
+    N b' -> (add (pred a) b')))
 
 (define (int-eq a b)
   (match a
-    Z => (match b Z => (T) P _ => (F) N _ => (F))
-    P a' => (match b Z => (F) P b' => (int-eq a' b') N _ => (F))
-    N a' => (match b Z => (F) P _ => (F) N b' => (int-eq a' b'))))
+    Z -> (match b Z -> (T) P _ -> (F) N _ -> (F))
+    P a' -> (match b Z -> (F) P b' -> (int-eq a' b') N _ -> (F))
+    N a' -> (match b Z -> (F) P _ -> (F) N b' -> (int-eq a' b'))))
 
 ;;;; lists
 ;; (define-type lst (Ni) (Co any lst))
 
 (define (hd xs)
-  (match xs Co x _ => x))
+  (match xs Co x _ -> x))
 
 (define (nth xs n)
   (match xs
-    Co x rest =>
+    Co x rest ->
     (match n
-      Z => x
-      P n' => (nth rest n'))))
+      Z -> x
+      P n' -> (nth rest n'))))
 
 (define (any-of pred xs)
   (match xs
-    Ni => (F)
-    Co x rest => (bor (pred x) (any-of pred rest))))
+    Ni -> (F)
+    Co x rest -> (bor (pred x) (any-of pred rest))))
 
 (define (map-ls f xs)
   (match xs
-    Ni => (Ni)
-    Co x rest => (Co (f x) (map-ls f rest))))
+    Ni -> (Ni)
+    Co x rest -> (Co (f x) (map-ls f rest))))
 
 ;;;; game types
 ;; (define-type action (U) (D) (L) (R) (X))
@@ -76,41 +76,41 @@
 
 (define (obs-eq a b)
   (match a
-    Obs ax ay =>
+    Obs ax ay ->
     (match b
-      Obs bx by =>
+      Obs bx by ->
       (band (int-eq ax bx) (int-eq ay by)))))
 
 (define (nextobs obs act)
   (match obs
-    Obs x y =>
+    Obs x y ->
     (match act
-      U => (Obs x (succ y))
-      D => (Obs x (pred y))
-      R => (Obs (succ x) y)
-      L => (Obs (pred x) y)
-      X => (Obs x y))))
+      U -> (Obs x (succ y))
+      D -> (Obs x (pred y))
+      R -> (Obs (succ x) y)
+      L -> (Obs (pred x) y)
+      X -> (Obs x y))))
 
 ;; Current observable of a state
 (define (cur-obs st)
   (match st
-    St slices =>
-    (match (hd slices) Sc _ _ obs => obs)))
+    St slices ->
+    (match (hd slices) Sc _ _ obs -> obs)))
 
 ;; Current latent of a state
 (define (cur-lat st)
   (match st
-    St slices =>
-    (match (hd slices) Sc lat _ _ => lat)))
+    St slices ->
+    (match (hd slices) Sc lat _ _ -> lat)))
 
 ;; Step a single state forward given its kind
 (define (step-st kind st all-sts)
   (match st
-    St slices =>
+    St slices ->
     (match (hd slices)
-      Sc plat _ pobs =>
+      Sc plat _ pobs ->
       (match kind
-        Kd nextlat nextact =>
+        Kd nextlat nextact ->
         (let ((new-lat (nextlat plat pobs all-sts))
               (act (nextact new-lat))
               (new-obs (nextobs pobs act)))
@@ -119,18 +119,18 @@
 ;; Step all states forward given their kinds
 (define (step-sts kinds sts all-sts)
   (match kinds
-    Ni => (Ni)
-    Co kind ks =>
+    Ni -> (Ni)
+    Co kind ks ->
     (match sts
-      Co st rest =>
+      Co st rest ->
       (Co (step-st kind st all-sts)
           (step-sts ks rest all-sts)))))
 
 ;; Step the whole setup forward one timestep
 (define (step setup)
   (match setup
-    Setup kinds sts =>
-    (Setup kinds (step-sts kinds sts sts)))))
+    Setup kinds sts ->
+    (Setup kinds (step-sts kinds sts sts))))
 
 ;; Helper: is a cell occupied by any state?
 (define (occupied pos sts)
@@ -150,19 +150,19 @@
 (define bouncer-kind
   (Kd (fn lat obs objs ->
         (match lat
-          Lat dir b =>
+          Lat dir b ->
           (let ((ahead (nextobs obs (ife dir (R) (L)))))
             (ife (occupied ahead objs)
               (Lat (bnot dir) b)
               lat))))
       (fn lat ->
-        (match lat Lat dir _ => (ife dir (R) (L))))))
+        (match lat Lat dir _ -> (ife dir (R) (L))))))
 
 ;; Run t timesteps
 (define (run t setup)
   (match t
-    Z => setup
-    P t' => (run t' (step setup))))
+    Z -> setup
+    P t' -> (run t' (step setup))))
 
 (define bounce-setup
   (Setup
