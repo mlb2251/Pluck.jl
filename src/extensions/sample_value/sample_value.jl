@@ -7,10 +7,10 @@ mutable struct SampleValueState
     manager::Union{RSDD.Manager, Nothing}
     lazy::Bool
     cache::IdDict{LazyKCThunk, Any}
-    thunks::Vector{LazyKCThunk}
+    thunks::IdDict{LazyKCThunk, Nothing}
 
     function SampleValueState(;constraint=nothing, callstack=Int[], var_of_callstack=nothing, lazy=false, manager=nothing, thunks=nothing)
-        thunks_vec = isnothing(thunks) ? LazyKCThunk[] : thunks
+        thunks_dict = isnothing(thunks) ? IdDict{LazyKCThunk, Nothing}() : thunks
         state = new(
             constraint,
             callstack,
@@ -20,7 +20,7 @@ mutable struct SampleValueState
             manager,
             lazy,
             IdDict{LazyKCThunk, Any}(),
-            thunks_vec,
+            thunks_dict,
         )
         return state
     end

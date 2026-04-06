@@ -36,9 +36,7 @@ function make_thunk(expr, env, strict_order_index, state::SampleValueState)
     # since posterior sampling just produces one result, we dont need to worry about binding in the strict case
     !state.lazy && return traced_compile_inner(expr, env, nothing, state, strict_order_index)
     thunk = LazyKCThunk(expr, env, strict_order_index, state)
-    if thunk ∉ state.thunks
-        push!(state.thunks, thunk)
-    end
+    state.thunks[thunk] = nothing # track this thunk so we can clear its cache later
     print_make_thunk(thunk, state)
     return thunk
 end

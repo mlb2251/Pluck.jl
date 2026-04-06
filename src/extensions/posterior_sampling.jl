@@ -19,10 +19,10 @@ function posterior_sample(val, state::LazyKCState)
     n, = from_value(deterministic_world(force_thunks(toplevel_evaluate(num_samples_thunk, state))))
 
     samples = []
-    shared_thunks = LazyKCThunk[]
+    shared_thunks = IdDict{LazyKCThunk, Nothing}()
     for i in 1:n
         # clear any cached results from previous sample
-        for t in shared_thunks
+        for t in keys(shared_thunks)
             empty!(t.cache)
         end
         empty!(shared_thunks)
@@ -58,15 +58,15 @@ function adaptive_rejection_sampling(val, state::LazyKCState)
     sorted_callstacks = state.sorted_callstacks
     sorted_var_labels = state.sorted_var_labels
 
-    shared_thunks = LazyKCThunk[]
+    shared_thunks = IdDict{LazyKCThunk, Nothing}()
     sample_state = SampleValueState(;constraint, var_of_callstack=state.var_of_callstack, lazy=true, manager=state.manager, thunks=shared_thunks)
     # clear caches on predicate/result thunks before sampling loop
-    
+
     while true
         # clear all caches
         clear_thunk_cache!(result_thunk)
         clear_thunk_cache!(predicate_thunk)
-        for t in shared_thunks
+        for t in keys(shared_thunks)
             empty!(t.cache)
         end
         empty!(shared_thunks)
