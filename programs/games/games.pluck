@@ -97,12 +97,6 @@
     St slices ->
     (match (hd slices) Sc _ _ obs -> obs)))
 
-;; Current latent of a state
-(define (cur-lat st)
-  (match st
-    St slices ->
-    (match (hd slices) Sc lat _ _ -> lat)))
-
 ;; Step a single state forward given its kind
 (define (step-st kind st all-sts)
   (match st
@@ -138,8 +132,7 @@
     (fn st -> (obs-eq pos (cur-obs st)))
     sts))
 
-;;;; example: bouncing between walls
-;; Lat a _: a=T means moving right, a=F means moving left
+;;;; kinds
 
 ;; Wall: stays put, ignores everything
 (define wall-kind
@@ -204,13 +197,3 @@
   (match t
     Z -> setup
     P t' -> (run t' (step setup))))
-
-(define bounce-setup
-  (Setup
-    ;; kinds (static)
-    (Co wall-kind (Co wall-kind (Co bouncer-kind (Ni))))
-    ;; states (evolving)
-    (Co (St (Co (Sc (Lat (F) (F) (F)) (X) (Obs (N (N (N (Z)))) (Z))) (Ni)))  ;; wall at (-3, 0)
-    (Co (St (Co (Sc (Lat (F) (F) (F)) (X) (Obs (P (P (P (Z)))) (Z))) (Ni)))  ;; wall at (3, 0)
-    (Co (St (Co (Sc (Lat (T) (F) (T)) (X) (Obs (Z) (Z))) (Ni)))              ;; bouncer at (0, 0), right
-    (Ni))))))

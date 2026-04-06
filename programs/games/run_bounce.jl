@@ -3,140 +3,144 @@ using JSON
 
 load_pluck_file("programs/games/games.pluck"; silent=true)
 
-# --- Pluck int/expr helpers ---
+# --- Pluck expression helpers ---
 
-function pluck_signed(n::Int)
+function pluck_int(n::Int)
     n == 0 ? "(Z)" :
-    n > 0  ? "(P $(pluck_signed(n-1)))" :
-             "(N $(pluck_signed(n+1)))"
-end
-
-function games_nat(n::Int)
-    @assert n >= 0
-    pluck_signed(n)
-end
-
-# --- Build setup expressions ---
-
-function wall_state(x, y)
-    "(St (Co (Sc (Lat (F) (F) (F)) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
-end
-
-function bouncer_state(x, y; hdir=true, vdir=true, hturn=true)
-    h = hdir ? "(T)" : "(F)"
-    v = vdir ? "(T)" : "(F)"
-    ht = hturn ? "(T)" : "(F)"
-    "(St (Co (Sc (Lat $h $v $ht) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
+    n > 0  ? "(P $(pluck_int(n-1)))" :
+             "(N $(pluck_int(n+1)))"
 end
 
 function pluck_list(items)
     foldr((item, acc) -> "(Co $item $acc)", items; init="(Ni)")
 end
 
+function pluck_bool(b::Bool)
+    b ? "(T)" : "(F)"
+end
+
+# --- Setup builders ---
+
+function make_state(x, y, bools::Vector{Bool}=Bool[])
+    lat_args = isempty(bools) ? "(F) (F) (F)" : join(pluck_bool.(bools), " ")
+    "(St (Co (Sc (Lat $lat_args) (X) (Obs $(pluck_int(x)) $(pluck_int(y)))) (Ni)))"
+end
+
+function make_walls(coords)
+    [make_state(x, y) for (x, y) in coords]
+end
+
 function make_box(; half=4)
-    walls = String[]
-    for x in -half:half, y in -half:half
-        if x == -half || x == half || y == -half || y == half
-            push!(walls, wall_state(x, y))
-        end
-    end
-    walls
+    coords = [(x, y) for x in -half:half for y in -half:half
+              if x == -half || x == half || y == -half || y == half]
+    make_walls(coords)
 end
 
-function box_setup(; half=4, bx=0, by=0, hdir=true, vdir=true)
-    walls = make_box(; half)
-    n_walls = length(walls)
-    kinds = pluck_list([fill("wall-kind", n_walls); "alt-bouncer-kind"])
-    states = pluck_list([walls; bouncer_state(bx, by; hdir, vdir)])
+function make_hline(; y=0, x0=-3, x1=3)
+    make_walls([(x, y) for x in x0:x1])
+end
+
+function make_vline(; x=0, y0=-3, y1=3)
+    make_walls([(x, y) for y in y0:y1])
+end
+
+function make_setup(wall_states, actors)
+    n_walls = length(wall_states)
+    kinds = pluck_list([fill("wall-kind", n_walls); [a.kind for a in actors]])
+    states = pluck_list([wall_states; [a.state for a in actors]])
     "(Setup $kinds $states)"
 end
 
-function water_state(x, y)
-    "(St (Co (Sc (Lat (F) (F) (F)) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
+struct Actor
+    kind::String
+    state::String
 end
 
-function water_setup(; half=4, drops=[(0,3), (-2,3), (2,3)])
-    walls = make_box(; half)
-    n_walls = length(walls)
-    n_drops = length(drops)
-    kinds = pluck_list([fill("wall-kind", n_walls); fill("water-kind", n_drops)])
-    states = pluck_list([walls; [water_state(x, y) for (x,y) in drops]])
-    "(Setup $kinds $states)"
+function bouncer(x, y; hdir=true, vdir=true, hturn=true)
+    Actor("alt-bouncer-kind", make_state(x, y, [hdir, vdir, hturn]))
+end
+
+function hbouncer(x, y; dir=true)
+    Actor("bouncer-kind", make_state(x, y, [dir, false, false]))
+end
+
+function water(x, y)
+    Actor("water-kind", make_state(x, y))
 end
 
 # --- Run query ---
 
 function run_game(setup_expr::String, n_steps::Int)
-    query_str = "(PosteriorSamples (run $(games_nat(n_steps)) $setup_expr) true 1)"
+    query_str = "(PosteriorSamples (run $(pluck_int(n_steps)) $setup_expr) true 1)"
     state = LazyKCState()
     body = deterministic_world(toplevel_compile(parse_expr(query_str); state))
     results = Pluck.eval_query(body, state)
     free_state(state)
-    return results[1]  # PosteriorSamples returns Vector of values
+    return results[1]
 end
 
-# --- Value tree walkers ---
+# --- Value extraction ---
 
-function pluck_int(v::Value)
+function extract_int(v::Value)
     v.constructor == :Z && return 0
-    v.constructor == :P && return 1 + pluck_int(v.args[1])
-    v.constructor == :N && return -1 + pluck_int(v.args[1])
+    v.constructor == :P && return 1 + extract_int(v.args[1])
+    v.constructor == :N && return -1 + extract_int(v.args[1])
     error("not an int: $(v.constructor)")
 end
 
-function extract_pluck_list(v::Value)
+function extract_list(v::Value)
     result = []
     while v.constructor == :Co
         push!(result, v.args[1])
         v = v.args[2]
     end
-    @assert v.constructor == :Ni
     result
 end
 
 function extract_trajectory(setup::Value)
-    @assert setup.constructor == :Setup
-    kinds = extract_pluck_list(setup.args[1])
-    states = extract_pluck_list(setup.args[2])
+    kinds = extract_list(setup.args[1])
+    states = extract_list(setup.args[2])
 
-    # assign a kind index by string identity (Values with closures aren't ==)
     kind_strs = [Pluck.rawstring(k) for k in kinds]
     unique_strs = unique(kind_strs)
     kind_idx = [findfirst(==(s), unique_strs) - 1 for s in kind_strs]
 
     objects = []
     for (i, st) in enumerate(states)
-        @assert st.constructor == :St
-        slices = reverse(extract_pluck_list(st.args[1]))
-
-        timeline = []
-        for sc in slices
-            @assert sc.constructor == :Sc
+        slices = reverse(extract_list(st.args[1]))
+        timeline = map(slices) do sc
             obs = sc.args[3]
-            @assert obs.constructor == :Obs
-            push!(timeline, Dict(
-                "x" => pluck_int(obs.args[1]),
-                "y" => pluck_int(obs.args[2]),
+            Dict(
+                "x" => extract_int(obs.args[1]),
+                "y" => extract_int(obs.args[2]),
                 "act" => string(sc.args[2].constructor),
-            ))
+            )
         end
         push!(objects, Dict("timeline" => timeline, "kind" => kind_idx[i]))
     end
     objects
 end
 
+# --- Scenes ---
+
+SCENES = [
+    ("line", make_setup(
+        [make_walls([(-3,0), (3,0)]);],
+        [hbouncer(0, 0; dir=true)])),
+    ("box", make_setup(
+        make_box(half=4),
+        [bouncer(0, 1; hdir=true, vdir=true)])),
+    ("water", make_setup(
+        make_box(half=4),
+        [water(0, 3), water(-2, 3), water(2, 3)])),
+]
+
 # --- Main ---
 
 n_steps = length(ARGS) >= 1 ? parse(Int, ARGS[1]) : 50
 
-examples = [
-    ("line",  "bounce-setup"),
-    ("box",   box_setup(half=4, bx=0, by=1, hdir=true, vdir=true)),
-    ("water", water_setup()),
-]
-
 scenes = []
-for (name, setup_expr) in examples
+for (name, setup_expr) in SCENES
     println("Running '$name' for $n_steps steps...")
     result = run_game(setup_expr, n_steps)
     push!(scenes, Dict("name" => name, "objects" => extract_trajectory(result)))

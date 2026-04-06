@@ -6,7 +6,6 @@
 <style>
   body { font-family: monospace; background: #1a1a1a; color: #eee; margin: 20px; }
   #scenes { display: flex; flex-wrap: wrap; gap: 32px; }
-  .scene { display: inline-block; }
   .scene h4 { margin: 0 0 8px 0; color: #aaa; }
   .controls { margin: 8px 0; display: flex; align-items: center; gap: 8px; }
   .controls span { min-width: 40px; text-align: right; font-size: 12px; color: #888; }
@@ -42,135 +41,141 @@ const KIND_COLORS = [
   'rgba(85,85,85,0.7)', 'rgba(79,195,247,0.7)', 'rgba(255,138,101,0.7)', 'rgba(129,199,132,0.7)',
   'rgba(186,104,200,0.7)', 'rgba(255,213,79,0.7)', 'rgba(229,115,115,0.7)', 'rgba(144,164,174,0.7)'
 ];
-const GRID_SIZE = 9;
 const CELL = 32;
 
 let data = null;
-const sceneStates = [];
+const scenes = [];
 
-async function init() {
-  const params = new URLSearchParams(location.search);
-  const path = params.get('path') || 'trajectory.json';
-
-  const resp = await fetch(path);
-  data = await resp.json();
-
-  if (!data.scenes) {
-    data = { scenes: [{ name: 'default', objects: data.objects }] };
-  }
-
-  const container = document.getElementById('scenes');
-  for (let si = 0; si < data.scenes.length; si++) {
-    const scene = data.scenes[si];
-    const maxT = scene.objects[0].timeline.length - 1;
-    const ss = { t: 0, maxT, playing: false, interval: null };
-    sceneStates.push(ss);
-
-    const div = document.createElement('div');
-    div.className = 'scene';
-    div.innerHTML = `
-      <h4>${scene.name}</h4>
-      <div class="grid" data-si="${si}"></div>
-      <div class="controls">
-        <button data-si="${si}" data-act="prev">&larr;</button>
-        <input type="range" data-si="${si}" min="0" max="${maxT}" value="0">
-        <button data-si="${si}" data-act="next">&rarr;</button>
-        <span data-si="${si}" class="step-label">t=0</span>
-        <button data-si="${si}" data-act="play">Pause</button>
-      </div>
-      <div class="info" data-si="${si}"></div>`;
-    container.appendChild(div);
-
-    renderScene(si);
-    togglePlay(si, true);
-  }
-
-  container.addEventListener('input', e => {
-    if (e.target.type === 'range') {
-      const si = +e.target.dataset.si;
-      sceneStates[si].t = +e.target.value;
-      renderScene(si);
+function sceneBounds(scene) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const obj of scene.objects) {
+    for (const frame of obj.timeline) {
+      minX = Math.min(minX, frame.x);
+      maxX = Math.max(maxX, frame.x);
+      minY = Math.min(minY, frame.y);
+      maxY = Math.max(maxY, frame.y);
     }
-  });
-  container.addEventListener('click', e => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const si = +btn.dataset.si;
-    const act = btn.dataset.act;
-    if (act === 'prev') { if (sceneStates[si].t > 0) { sceneStates[si].t--; renderScene(si); } }
-    if (act === 'next') { if (sceneStates[si].t < sceneStates[si].maxT) { sceneStates[si].t++; renderScene(si); } }
-    if (act === 'play') togglePlay(si);
-  });
-}
-
-function togglePlay(si, forceOn) {
-  const ss = sceneStates[si];
-  const btn = document.querySelector(`button[data-si="${si}"][data-act="play"]`);
-  if (forceOn) ss.playing = false;
-  ss.playing = !ss.playing;
-  btn.textContent = ss.playing ? 'Pause' : 'Play';
-  if (ss.playing) {
-    ss.interval = setInterval(() => {
-      ss.t = ss.t >= ss.maxT ? 0 : ss.t + 1;
-      renderScene(si);
-    }, 150);
-  } else {
-    clearInterval(ss.interval);
   }
+  return { minX: minX - 1, maxX: maxX + 1, minY: minY - 1, maxY: maxY + 1 };
 }
 
-function renderScene(si) {
-  const scene = data.scenes[si];
-  const ss = sceneStates[si];
-  const half = Math.floor(GRID_SIZE / 2);
-  const minX = -half - 1, maxX = half + 1, minY = -half - 1, maxY = half + 1;
-  const cols = maxX - minX + 1;
-  const rows = maxY - minY + 1;
+function initScene(scene, si) {
+  const maxT = scene.objects[0].timeline.length - 1;
+  const b = sceneBounds(scene);
+  const cols = b.maxX - b.minX + 1;
+  const rows = b.maxY - b.minY + 1;
+  const nObj = scene.objects.length;
 
-  const grid = document.querySelector(`.grid[data-si="${si}"]`);
-  grid.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'scene';
+  div.innerHTML = `
+    <h4>${scene.name}</h4>
+    <div class="grid"></div>
+    <div class="controls">
+      <button data-act="prev">&larr;</button>
+      <input type="range" min="0" max="${maxT}" value="0">
+      <button data-act="next">&rarr;</button>
+      <span class="step-label">t=0</span>
+      <button data-act="play">Pause</button>
+    </div>
+    <div class="info"></div>`;
+
+  const grid = div.querySelector('.grid');
   grid.style.width = cols * CELL + 'px';
   grid.style.height = rows * CELL + 'px';
 
-  for (let gy = minY; gy <= maxY; gy++) {
-    for (let gx = minX; gx <= maxX; gx++) {
+  // static grid cells
+  for (let gy = b.minY; gy <= b.maxY; gy++) {
+    for (let gx = b.minX; gx <= b.maxX; gx++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
-      cell.style.left = (gx - minX) * CELL + 'px';
-      cell.style.top = (maxY - gy) * CELL + 'px';
+      cell.style.left = (gx - b.minX) * CELL + 'px';
+      cell.style.top = (b.maxY - gy) * CELL + 'px';
       cell.style.width = CELL + 'px';
       cell.style.height = CELL + 'px';
       grid.appendChild(cell);
     }
   }
 
-  const curT = Math.min(ss.t, scene.objects[0].timeline.length - 1);
-  for (let i = 0; i < scene.objects.length; i++) {
-    const frame = scene.objects[i].timeline[curT];
-    if (frame.x < minX || frame.x > maxX || frame.y < minY || frame.y > maxY) continue;
+  // pre-create object elements
+  const objEls = [];
+  const size = CELL * 0.7;
+  for (let i = 0; i < nObj; i++) {
     const el = document.createElement('div');
     el.className = 'obj';
-    const size = CELL * 0.7;
     el.style.width = size + 'px';
     el.style.height = size + 'px';
-    const kind = scene.objects[i].kind || 0;
-    el.style.background = KIND_COLORS[kind % KIND_COLORS.length];
-    el.style.left = (frame.x - minX) * CELL + CELL / 2 + 'px';
-    el.style.top = (maxY - frame.y) * CELL + CELL / 2 + 'px';
+    el.style.background = KIND_COLORS[(scene.objects[i].kind || 0) % KIND_COLORS.length];
     grid.appendChild(el);
+    objEls.push(el);
   }
 
-  const slider = document.querySelector(`input[data-si="${si}"]`);
-  const label = document.querySelector(`.step-label[data-si="${si}"]`);
-  slider.value = ss.t;
-  label.textContent = `t=${ss.t}`;
+  document.getElementById('scenes').appendChild(div);
 
-  const info = document.querySelector(`.info[data-si="${si}"]`);
+  const ss = { t: 0, maxT, playing: false, interval: null, bounds: b, div, objEls };
+  scenes.push(ss);
+
+  // controls
+  div.querySelector('input').addEventListener('input', e => { ss.t = +e.target.value; updateScene(si); });
+  div.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'prev' && ss.t > 0) { ss.t--; updateScene(si); }
+    if (act === 'next' && ss.t < ss.maxT) { ss.t++; updateScene(si); }
+    if (act === 'play') togglePlay(si);
+  });
+
+  updateScene(si);
+  togglePlay(si, true);
+}
+
+function updateScene(si) {
+  const scene = data.scenes[si];
+  const ss = scenes[si];
+  const b = ss.bounds;
+  const curT = Math.min(ss.t, scene.objects[0].timeline.length - 1);
+
+  for (let i = 0; i < scene.objects.length; i++) {
+    const frame = scene.objects[i].timeline[curT];
+    const el = ss.objEls[i];
+    el.style.left = (frame.x - b.minX) * CELL + CELL / 2 + 'px';
+    el.style.top = (b.maxY - frame.y) * CELL + CELL / 2 + 'px';
+  }
+
+  ss.div.querySelector('input').value = ss.t;
+  ss.div.querySelector('.step-label').textContent = `t=${ss.t}`;
+
   const nonWall = scene.objects.filter(o => (o.kind || 0) !== 0);
-  info.textContent = nonWall.map(obj => {
+  ss.div.querySelector('.info').textContent = nonWall.map(obj => {
     const f = obj.timeline[Math.min(ss.t, obj.timeline.length - 1)];
     return `(${f.x}, ${f.y}) ${f.act}`;
   }).join('  ');
+}
+
+function togglePlay(si, forceOn) {
+  const ss = scenes[si];
+  const btn = ss.div.querySelector('[data-act="play"]');
+  if (forceOn) ss.playing = false;
+  ss.playing = !ss.playing;
+  btn.textContent = ss.playing ? 'Pause' : 'Play';
+  if (ss.playing) {
+    ss.interval = setInterval(() => {
+      ss.t = ss.t >= ss.maxT ? 0 : ss.t + 1;
+      updateScene(si);
+    }, 150);
+  } else {
+    clearInterval(ss.interval);
+  }
+}
+
+async function init() {
+  const params = new URLSearchParams(location.search);
+  const path = params.get('path') || 'trajectory.json';
+  const resp = await fetch(path);
+  data = await resp.json();
+  if (!data.scenes) data = { scenes: [{ name: 'default', objects: data.objects }] };
+  data.scenes.forEach((scene, si) => initScene(scene, si));
 }
 
 init();
