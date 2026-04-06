@@ -64,8 +64,8 @@
     Co x rest -> (Co (f x) (map-ls f rest))))
 
 ;;;; game types
-;; (define-type action (U) (D) (L) (R) (X))
-;; (define-type observable (Obs int int))
+;; (define-type action (U) (D) (L) (R) (X) (Despawn))
+;; (define-type observable (Obs int int boolean))  ;; x y alive
 ;; (define-type latent (Lat boolean boolean boolean))
 ;; (define-type slice (Sc latent action observable))
 ;; (define-type kind (Kd nextlatent nextaction))
@@ -74,28 +74,48 @@
 ;; (define-type state (St slices))
 ;; (define-type setup (Setup kinds states))
 
-(define (obs-eq a b)
+;; Position equality (ignores alive flag)
+(define (pos-eq a b)
   (match a
-    Obs ax ay ->
+    Obs ax ay _ ->
     (match b
-      Obs bx by ->
+      Obs bx by _ ->
       (band (int-eq ax bx) (int-eq ay by)))))
 
-(define (nextobs obs act)
+(define (obs-alive obs)
+  (match obs Obs _ _ alive -> alive))
+
+;; Apply an action to an observable
+(define (do-action obs act)
   (match obs
-    Obs x y ->
-    (match act
-      U -> (Obs x (succ y))
-      D -> (Obs x (pred y))
-      R -> (Obs (succ x) y)
-      L -> (Obs (pred x) y)
-      X -> (Obs x y))))
+    Obs x y alive ->
+    (ife alive
+      (match act
+        U -> (Obs x (succ y) (T))
+        D -> (Obs x (pred y) (T))
+        R -> (Obs (succ x) y (T))
+        L -> (Obs (pred x) y (T))
+        Despawn -> (Obs x y (F))
+        X -> (Obs x y (T)))
+      obs)))
 
 ;; Current observable of a state
 (define (cur-obs st)
   (match st
     St slices ->
     (match (hd slices) Sc _ _ obs -> obs)))
+
+;; Is a cell occupied by any alive state?
+(define (occupied pos sts)
+  (any-of
+    (fn st ->
+      (let ((obs (cur-obs st)))
+        (band (obs-alive obs) (pos-eq pos obs))))
+    sts))
+
+;; Was an object heading toward a target position?
+(define (heading-toward other-obs act target-obs)
+  (pos-eq (do-action other-obs act) target-obs))
 
 ;; Step a single state forward given its kind
 (define (step-st kind st all-sts)
@@ -107,7 +127,7 @@
         Kd nextlat nextact ->
         (let ((new-lat (nextlat plat pobs all-sts))
               (act (nextact new-lat))
-              (new-obs (nextobs pobs act)))
+              (new-obs (do-action pobs act)))
           (St (Co (Sc new-lat act new-obs) slices)))))))
 
 ;; Step all states forward given their kinds
@@ -126,11 +146,11 @@
     Setup kinds sts ->
     (Setup kinds (step-sts kinds sts sts))))
 
-;; Helper: is a cell occupied by any state?
-(define (occupied pos sts)
-  (any-of
-    (fn st -> (obs-eq pos (cur-obs st)))
-    sts))
+;; Run t timesteps
+(define (run t setup)
+  (match t
+    Z -> setup
+    P t' -> (run t' (step setup))))
 
 ;;;; kinds
 
@@ -139,12 +159,12 @@
   (Kd (fn lat obs objs -> lat)
       (fn lat -> (X))))
 
-;; Bouncer: moves in current direction, reverses when next cell is occupied
+;; Horizontal bouncer: Lat dir _ _
 (define bouncer-kind
   (Kd (fn lat obs objs ->
         (match lat
           Lat dir b c ->
-          (let ((ahead (nextobs obs (ife dir (R) (L)))))
+          (let ((ahead (do-action obs (ife dir (R) (L)))))
             (ife (occupied ahead objs)
               (Lat (bnot dir) b c)
               lat))))
@@ -152,18 +172,16 @@
         (match lat Lat dir _ _ -> (ife dir (R) (L))))))
 
 ;; Alternating bouncer: Lat hdir vdir hturn
-;; hturn=T: move horizontally this step, hturn=F: move vertically
-;; Flips hturn each step, reverses the active direction on wall hit
 (define alt-bouncer-kind
   (Kd (fn lat obs sts ->
         (match lat
           Lat hdir vdir hturn ->
           (ife hturn
             (let ((act (ife hdir (R) (L)))
-                  (blocked (occupied (nextobs obs act) sts)))
+                  (blocked (occupied (do-action obs act) sts)))
               (Lat (ife blocked (bnot hdir) hdir) vdir (F)))
             (let ((act (ife vdir (U) (D)))
-                  (blocked (occupied (nextobs obs act) sts)))
+                  (blocked (occupied (do-action obs act) sts)))
               (Lat hdir (ife blocked (bnot vdir) vdir) (T))))))
       (fn lat ->
         (match lat
@@ -172,13 +190,12 @@
             (ife hdir (R) (L))
             (ife vdir (U) (D)))))))
 
-;; Water: falls down if free, otherwise randomly goes left or right
-;; Lat a b c: a=down-free, b=left-free, c=right-free
+;; Water: Lat down-free left-free right-free
 (define water-kind
   (Kd (fn lat obs sts ->
-        (Lat (bnot (occupied (nextobs obs (D)) sts))
-             (bnot (occupied (nextobs obs (L)) sts))
-             (bnot (occupied (nextobs obs (R)) sts))))
+        (Lat (bnot (occupied (do-action obs (D)) sts))
+             (bnot (occupied (do-action obs (L)) sts))
+             (bnot (occupied (do-action obs (R)) sts))))
       (fn lat ->
         (match lat
           Lat down-free left-free right-free ->
@@ -192,8 +209,19 @@
                 (R)
                 (X))))))))
 
-;; Run t timesteps
-(define (run t setup)
-  (match t
-    Z -> setup
-    P t' -> (run t' (step setup))))
+;; Breakable block: despawns when an adjacent alive object was heading toward it
+;; Lat hit _ _
+(define block-kind
+  (Kd (fn lat obs sts ->
+        (let ((hit (any-of
+                     (fn st ->
+                       (match st St slices ->
+                       (match (hd slices) Sc _ act other-obs ->
+                       (band (obs-alive other-obs)
+                             (band (bnot (pos-eq other-obs obs))
+                                   (heading-toward other-obs act obs))))))
+                     sts)))
+          (Lat hit (F) (F))))
+      (fn lat ->
+        (match lat Lat hit _ _ ->
+          (ife hit (Despawn) (X))))))

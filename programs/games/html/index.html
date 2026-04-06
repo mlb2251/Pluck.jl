@@ -14,6 +14,9 @@
     padding: 2px 8px; cursor: pointer; font-family: monospace; font-size: 12px;
   }
   .controls button:hover { background: #444; }
+  .controls button.active { background: #4fc3f7; color: #1a1a1a; border-color: #4fc3f7; }
+  .sample-controls { margin-bottom: 6px; display: flex; gap: 4px; }
+  .sample-controls button { font-size: 11px; padding: 1px 6px; }
   input[type=range] {
     -webkit-appearance: none; appearance: none;
     width: 200px; height: 4px; background: #444; border-radius: 2px; outline: none;
@@ -28,7 +31,7 @@
   }
   .grid { position: relative; border: 1px solid #444; }
   .cell { position: absolute; box-sizing: border-box; border: 1px solid #282828; }
-  .obj { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+  .obj { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); transition: left 0.1s, top 0.1s; }
   .info { margin-top: 6px; color: #888; font-size: 11px; min-height: 14px; }
 </style>
 </head>
@@ -38,8 +41,8 @@
 
 <script>
 const KIND_COLORS = [
-  'rgba(85,85,85,0.7)', 'rgba(79,195,247,0.7)', 'rgba(255,138,101,0.7)', 'rgba(129,199,132,0.7)',
-  'rgba(186,104,200,0.7)', 'rgba(255,213,79,0.7)', 'rgba(229,115,115,0.7)', 'rgba(144,164,174,0.7)'
+  [85,85,85], [79,195,247], [255,138,101], [129,199,132],
+  [186,104,200], [255,213,79], [229,115,115], [144,164,174]
 ];
 const CELL = 32;
 
@@ -48,35 +51,50 @@ const scenes = [];
 
 function sceneBounds(scene) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const obj of scene.objects) {
-    for (const frame of obj.timeline) {
-      minX = Math.min(minX, frame.x);
-      maxX = Math.max(maxX, frame.x);
-      minY = Math.min(minY, frame.y);
-      maxY = Math.max(maxY, frame.y);
+  for (const sample of scene.samples) {
+    for (const obj of sample.objects) {
+      for (const f of obj.timeline) {
+        minX = Math.min(minX, f.x); maxX = Math.max(maxX, f.x);
+        minY = Math.min(minY, f.y); maxY = Math.max(maxY, f.y);
+      }
     }
   }
   return { minX: minX - 1, maxX: maxX + 1, minY: minY - 1, maxY: maxY + 1 };
 }
 
+function objColor(kind, alive) {
+  const [r, g, b] = KIND_COLORS[kind % KIND_COLORS.length];
+  return `rgba(${r},${g},${b},${alive ? 0.7 : 0.03})`;
+}
+
 function initScene(scene, si) {
-  const maxT = scene.objects[0].timeline.length - 1;
+  const nSamples = scene.samples.length;
+  const maxT = Math.max(...scene.samples.map(s => s.objects[0].timeline.length - 1));
   const b = sceneBounds(scene);
   const cols = b.maxX - b.minX + 1;
   const rows = b.maxY - b.minY + 1;
-  const nObj = scene.objects.length;
 
   const div = document.createElement('div');
   div.className = 'scene';
+
+  let samplesHTML = '';
+  if (nSamples > 1) {
+    samplesHTML = '<div class="sample-controls">' +
+      Array.from({length: nSamples}, (_, i) =>
+        `<button data-act="sample" data-sample="${i}" ${i === 0 ? 'class="active"' : ''}>${i + 1}</button>`
+      ).join('') + '</div>';
+  }
+
   div.innerHTML = `
     <h4>${scene.name}</h4>
+    ${samplesHTML}
     <div class="grid"></div>
     <div class="controls">
-      <button data-act="prev">&larr;</button>
+      <button data-act="prev">\u25C0</button>
       <input type="range" min="0" max="${maxT}" value="0">
-      <button data-act="next">&rarr;</button>
+      <button data-act="next">\u25B6</button>
       <span class="step-label">t=0</span>
-      <button data-act="play">Pause</button>
+      <button data-act="play">\u23F8</button>
     </div>
     <div class="info"></div>`;
 
@@ -84,7 +102,6 @@ function initScene(scene, si) {
   grid.style.width = cols * CELL + 'px';
   grid.style.height = rows * CELL + 'px';
 
-  // static grid cells
   for (let gy = b.minY; gy <= b.maxY; gy++) {
     for (let gx = b.minX; gx <= b.maxX; gx++) {
       const cell = document.createElement('div');
@@ -97,25 +114,13 @@ function initScene(scene, si) {
     }
   }
 
-  // pre-create object elements
-  const objEls = [];
-  const size = CELL * 0.7;
-  for (let i = 0; i < nObj; i++) {
-    const el = document.createElement('div');
-    el.className = 'obj';
-    el.style.width = size + 'px';
-    el.style.height = size + 'px';
-    el.style.background = KIND_COLORS[(scene.objects[i].kind || 0) % KIND_COLORS.length];
-    grid.appendChild(el);
-    objEls.push(el);
-  }
-
   document.getElementById('scenes').appendChild(div);
 
-  const ss = { t: 0, maxT, playing: false, interval: null, bounds: b, div, objEls };
+  const ss = { t: 0, maxT, sample: 0, playing: false, interval: null, bounds: b, div, objEls: null };
   scenes.push(ss);
 
-  // controls
+  buildObjEls(si);
+
   div.querySelector('input').addEventListener('input', e => { ss.t = +e.target.value; updateScene(si); });
   div.addEventListener('click', e => {
     const btn = e.target.closest('button');
@@ -124,33 +129,61 @@ function initScene(scene, si) {
     if (act === 'prev' && ss.t > 0) { ss.t--; updateScene(si); }
     if (act === 'next' && ss.t < ss.maxT) { ss.t++; updateScene(si); }
     if (act === 'play') togglePlay(si);
+    if (act === 'sample') {
+      ss.sample = +btn.dataset.sample;
+      div.querySelectorAll('.sample-controls button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      buildObjEls(si);
+      updateScene(si);
+    }
   });
 
   updateScene(si);
   togglePlay(si, true);
 }
 
+function buildObjEls(si) {
+  const scene = data.scenes[si];
+  const ss = scenes[si];
+  const grid = ss.div.querySelector('.grid');
+  if (ss.objEls) ss.objEls.forEach(el => el.remove());
+  const objects = scene.samples[ss.sample].objects;
+  const size = CELL * 0.7;
+  ss.objEls = objects.map(obj => {
+    const el = document.createElement('div');
+    el.className = 'obj';
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    grid.appendChild(el);
+    return el;
+  });
+}
+
 function updateScene(si) {
   const scene = data.scenes[si];
   const ss = scenes[si];
   const b = ss.bounds;
-  const curT = Math.min(ss.t, scene.objects[0].timeline.length - 1);
+  const objects = scene.samples[ss.sample].objects;
+  const curT = Math.min(ss.t, objects[0].timeline.length - 1);
 
-  for (let i = 0; i < scene.objects.length; i++) {
-    const frame = scene.objects[i].timeline[curT];
+  for (let i = 0; i < objects.length; i++) {
+    const frame = objects[i].timeline[curT];
     const el = ss.objEls[i];
     el.style.left = (frame.x - b.minX) * CELL + CELL / 2 + 'px';
     el.style.top = (b.maxY - frame.y) * CELL + CELL / 2 + 'px';
+    el.style.background = objColor(objects[i].kind || 0, frame.alive !== false);
   }
 
   ss.div.querySelector('input').value = ss.t;
   ss.div.querySelector('.step-label').textContent = `t=${ss.t}`;
 
-  const nonWall = scene.objects.filter(o => (o.kind || 0) !== 0);
+  const nonWall = objects.filter(o => (o.kind || 0) !== 0);
   ss.div.querySelector('.info').textContent = nonWall.map(obj => {
     const f = obj.timeline[Math.min(ss.t, obj.timeline.length - 1)];
-    return `(${f.x}, ${f.y}) ${f.act}`;
-  }).join('  ');
+    const lat = f.lat ? `(${f.lat.join(',')})` : '';
+    const alive = f.alive === false ? ' dead' : '';
+    return `(${f.x},${f.y}) ${f.act} ${lat}${alive}`;
+  }).join('  |  ');
 }
 
 function togglePlay(si, forceOn) {
@@ -158,7 +191,7 @@ function togglePlay(si, forceOn) {
   const btn = ss.div.querySelector('[data-act="play"]');
   if (forceOn) ss.playing = false;
   ss.playing = !ss.playing;
-  btn.textContent = ss.playing ? 'Pause' : 'Play';
+  btn.textContent = ss.playing ? '\u23F8' : '\u25B6';
   if (ss.playing) {
     ss.interval = setInterval(() => {
       ss.t = ss.t >= ss.maxT ? 0 : ss.t + 1;
@@ -174,7 +207,13 @@ async function init() {
   const path = params.get('path') || 'trajectory.json';
   const resp = await fetch(path);
   data = await resp.json();
+
+  // normalize old format
   if (!data.scenes) data = { scenes: [{ name: 'default', objects: data.objects }] };
+  for (const scene of data.scenes) {
+    if (!scene.samples) scene.samples = [{ objects: scene.objects }];
+  }
+
   data.scenes.forEach((scene, si) => initScene(scene, si));
 }
 
