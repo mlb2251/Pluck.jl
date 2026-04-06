@@ -26,7 +26,7 @@
 <div id="info"></div>
 
 <script>
-const COLORS = ['#888', '#888', '#4fc3f7', '#ff8a65', '#81c784', '#ba68c8', '#ffd54f', '#e57373'];
+const KIND_COLORS = ['#555', '#4fc3f7', '#ff8a65', '#81c784', '#ba68c8', '#ffd54f', '#e57373', '#90a4ae'];
 const CELL = 40;
 
 let data = null;
@@ -93,7 +93,8 @@ function render() {
     const size = CELL * 0.7;
     el.style.width = size + 'px';
     el.style.height = size + 'px';
-    el.style.background = COLORS[i % COLORS.length];
+    const kind = data.objects[i].kind || 0;
+    el.style.background = KIND_COLORS[kind % KIND_COLORS.length];
     el.style.left = (frame.x - b.minX) * CELL + CELL / 2 + 'px';
     el.style.top = (b.maxY - frame.y) * CELL + CELL / 2 + 'px';
     grid.appendChild(el);

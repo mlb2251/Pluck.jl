@@ -64,7 +64,7 @@
     Co x rest -> (Co (f x) (map-ls f rest))))
 
 ;;;; game types
-;; (define-type action (U) (D) (L) (R) (X))
+;; (define-type action (U) (D) (L) (R) (X) (UR) (UL) (DR) (DL))
 ;; (define-type observable (Obs int int))
 ;; (define-type latent (Lat boolean boolean))
 ;; (define-type slice (Sc latent action observable))
@@ -89,6 +89,10 @@
       D -> (Obs x (pred y))
       R -> (Obs (succ x) y)
       L -> (Obs (pred x) y)
+      UR -> (Obs (succ x) (succ y))
+      UL -> (Obs (pred x) (succ y))
+      DR -> (Obs (succ x) (pred y))
+      DL -> (Obs (pred x) (pred y))
       X -> (Obs x y))))
 
 ;; Current observable of a state
@@ -157,6 +161,23 @@
               lat))))
       (fn lat ->
         (match lat Lat dir _ -> (ife dir (R) (L))))))
+
+;; Diagonal bouncer: uses both latent bools (h-dir, v-dir)
+;; Checks horizontal and vertical independently, reverses each on wall hit
+(define diag-bouncer-kind
+  (Kd (fn lat obs sts ->
+        (match lat
+          Lat hdir vdir ->
+          (let ((hblocked (occupied (nextobs obs (ife hdir (R) (L))) sts))
+                (vblocked (occupied (nextobs obs (ife vdir (U) (D))) sts)))
+            (Lat (ife hblocked (bnot hdir) hdir)
+                 (ife vblocked (bnot vdir) vdir)))))
+      (fn lat ->
+        (match lat
+          Lat hdir vdir ->
+          (match hdir
+            T -> (match vdir T -> (UR) F -> (DR))
+            F -> (match vdir T -> (UL) F -> (DL)))))))
 
 ;; Run t timesteps
 (define (run t setup)
