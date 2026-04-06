@@ -123,9 +123,50 @@ end
 
 # --- Scenes ---
 
+function make_plinko(; half=4)
+    walls = Set{Tuple{Int,Int}}()
+    # border
+    for x in -half:half, y in -half:half
+        if x == -half || x == half || y == -half || y == half
+            push!(walls, (x, y))
+        end
+    end
+    # staggered pegs: alternate rows offset by 1
+    peg_row = 0
+    for row in (half-2):-2:(-half+2)
+        offset = isodd(peg_row) ? 1 : 0
+        for x in (-half+2+offset):2:(half-2)
+            push!(walls, (x, row))
+        end
+        peg_row += 1
+    end
+    make_walls(collect(walls))
+end
+
+function make_basin_box(; half=4, bx=0, by=-1, bw=2, bh=2)
+    walls = Set{Tuple{Int,Int}}()
+    # outer border
+    for x in -half:half, y in -half:half
+        if x == -half || x == half || y == -half || y == half
+            push!(walls, (x, y))
+        end
+    end
+    # basin walls: a box with open top
+    x0, x1 = bx - bw÷2 - 1, bx + bw÷2
+    y0, y1 = by, by + bh - 1
+    for x in x0:x1
+        push!(walls, (x, y0 - 1))  # floor
+    end
+    for y in y0:y1
+        push!(walls, (x0, y))      # left wall
+        push!(walls, (x1, y))      # right wall
+    end
+    make_walls(collect(walls))
+end
+
 SCENES = [
     ("line", make_setup(
-        [make_walls([(-3,0), (3,0)]);],
+        make_walls([(-3,0), (3,0)]),
         [hbouncer(0, 0; dir=true)])),
     ("box", make_setup(
         make_box(half=4),
@@ -133,6 +174,12 @@ SCENES = [
     ("water", make_setup(
         make_box(half=4),
         [water(0, 3), water(-2, 3), water(2, 3)])),
+    ("plinko", make_setup(
+        make_plinko(half=4),
+        [water(0, 3), water(-1, 3), water(1, 3)])),
+    ("basin", make_setup(
+        make_basin_box(half=4, bx=0, by=-1, bw=2, bh=2),
+        [water(0, 3), water(-1, 3), water(1, 3)])),
 ]
 
 # --- Main ---
