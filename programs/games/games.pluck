@@ -64,9 +64,9 @@
     Co x rest -> (Co (f x) (map-ls f rest))))
 
 ;;;; game types
-;; (define-type action (U) (D) (L) (R) (X) (UR) (UL) (DR) (DL))
+;; (define-type action (U) (D) (L) (R) (X))
 ;; (define-type observable (Obs int int))
-;; (define-type latent (Lat boolean boolean))
+;; (define-type latent (Lat boolean boolean boolean))
 ;; (define-type slice (Sc latent action observable))
 ;; (define-type kind (Kd nextlatent nextaction))
 ;;   nextlatent :: Latent -> Observable -> Lst State -> Latent
@@ -89,10 +89,6 @@
       D -> (Obs x (pred y))
       R -> (Obs (succ x) y)
       L -> (Obs (pred x) y)
-      UR -> (Obs (succ x) (succ y))
-      UL -> (Obs (pred x) (succ y))
-      DR -> (Obs (succ x) (pred y))
-      DL -> (Obs (pred x) (pred y))
       X -> (Obs x y))))
 
 ;; Current observable of a state
@@ -162,22 +158,26 @@
       (fn lat ->
         (match lat Lat dir _ -> (ife dir (R) (L))))))
 
-;; Diagonal bouncer: uses both latent bools (h-dir, v-dir)
-;; Checks horizontal and vertical independently, reverses each on wall hit
-(define diag-bouncer-kind
+;; Alternating bouncer: Lat hdir vdir hturn
+;; hturn=T: move horizontally this step, hturn=F: move vertically
+;; Flips hturn each step, reverses the active direction on wall hit
+(define alt-bouncer-kind
   (Kd (fn lat obs sts ->
         (match lat
-          Lat hdir vdir ->
-          (let ((hblocked (occupied (nextobs obs (ife hdir (R) (L))) sts))
-                (vblocked (occupied (nextobs obs (ife vdir (U) (D))) sts)))
-            (Lat (ife hblocked (bnot hdir) hdir)
-                 (ife vblocked (bnot vdir) vdir)))))
+          Lat hdir vdir hturn ->
+          (ife hturn
+            (let ((act (ife hdir (R) (L)))
+                  (blocked (occupied (nextobs obs act) sts)))
+              (Lat (ife blocked (bnot hdir) hdir) vdir (F)))
+            (let ((act (ife vdir (U) (D)))
+                  (blocked (occupied (nextobs obs act) sts)))
+              (Lat hdir (ife blocked (bnot vdir) vdir) (T))))))
       (fn lat ->
         (match lat
-          Lat hdir vdir ->
-          (match hdir
-            T -> (match vdir T -> (UR) F -> (DR))
-            F -> (match vdir T -> (UL) F -> (DL)))))))
+          Lat hdir vdir hturn ->
+          (ife hturn
+            (ife hdir (R) (L))
+            (ife vdir (U) (D)))))))
 
 ;; Run t timesteps
 (define (run t setup)
@@ -190,7 +190,7 @@
     ;; kinds (static)
     (Co wall-kind (Co wall-kind (Co bouncer-kind (Ni))))
     ;; states (evolving)
-    (Co (St (Co (Sc (Lat (F) (F)) (X) (Obs (N (N (N (Z)))) (Z))) (Ni)))  ;; wall at (-3, 0)
-    (Co (St (Co (Sc (Lat (F) (F)) (X) (Obs (P (P (P (Z)))) (Z))) (Ni)))  ;; wall at (3, 0)
-    (Co (St (Co (Sc (Lat (T) (F)) (X) (Obs (Z) (Z))) (Ni)))              ;; bouncer at (0, 0), right
+    (Co (St (Co (Sc (Lat (F) (F) (F)) (X) (Obs (N (N (N (Z)))) (Z))) (Ni)))  ;; wall at (-3, 0)
+    (Co (St (Co (Sc (Lat (F) (F) (F)) (X) (Obs (P (P (P (Z)))) (Z))) (Ni)))  ;; wall at (3, 0)
+    (Co (St (Co (Sc (Lat (T) (F) (T)) (X) (Obs (Z) (Z))) (Ni)))              ;; bouncer at (0, 0), right
     (Ni))))))

@@ -19,13 +19,14 @@ end
 # --- Build setup expressions ---
 
 function wall_state(x, y)
-    "(St (Co (Sc (Lat (F) (F)) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
+    "(St (Co (Sc (Lat (F) (F) (F)) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
 end
 
-function bouncer_state(x, y; hdir=true, vdir=true)
+function bouncer_state(x, y; hdir=true, vdir=true, hturn=true)
     h = hdir ? "(T)" : "(F)"
     v = vdir ? "(T)" : "(F)"
-    "(St (Co (Sc (Lat $h $v) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
+    ht = hturn ? "(T)" : "(F)"
+    "(St (Co (Sc (Lat $h $v $ht) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
 end
 
 function pluck_list(items)
@@ -40,7 +41,7 @@ function box_setup(; half=4, bx=0, by=0, hdir=true, vdir=true)
         end
     end
     n_walls = length(walls)
-    kinds = pluck_list([fill("wall-kind", n_walls); "diag-bouncer-kind"])
+    kinds = pluck_list([fill("wall-kind", n_walls); "alt-bouncer-kind"])
     states = pluck_list([walls; bouncer_state(bx, by; hdir, vdir)])
     "(Setup $kinds $states)"
 end
