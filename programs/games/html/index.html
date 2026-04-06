@@ -5,134 +5,173 @@
 <title>Game Viewer</title>
 <style>
   body { font-family: monospace; background: #1a1a1a; color: #eee; margin: 20px; }
-  #controls { margin: 16px 0; display: flex; align-items: center; gap: 12px; }
-  #slider { flex: 1; max-width: 400px; }
-  #grid { position: relative; border: 1px solid #444; }
-  .cell { position: absolute; box-sizing: border-box; border: 1px solid #333; }
+  #scenes { display: flex; flex-wrap: wrap; gap: 32px; }
+  .scene { display: inline-block; }
+  .scene h4 { margin: 0 0 8px 0; color: #aaa; }
+  .controls { margin: 8px 0; display: flex; align-items: center; gap: 8px; }
+  .controls span { min-width: 40px; text-align: right; font-size: 12px; color: #888; }
+  .controls button {
+    background: #333; color: #ccc; border: 1px solid #555; border-radius: 4px;
+    padding: 2px 8px; cursor: pointer; font-family: monospace; font-size: 12px;
+  }
+  .controls button:hover { background: #444; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 200px; height: 4px; background: #444; border-radius: 2px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 12px; height: 12px; background: #4fc3f7; border-radius: 50%; cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 12px; height: 12px; background: #4fc3f7; border-radius: 50%;
+    cursor: pointer; border: none;
+  }
+  .grid { position: relative; border: 1px solid #444; }
+  .cell { position: absolute; box-sizing: border-box; border: 1px solid #282828; }
   .obj { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
-  #info { margin-top: 12px; color: #888; }
+  .info { margin-top: 6px; color: #888; font-size: 11px; min-height: 14px; }
 </style>
 </head>
 <body>
-<h3 id="title">Game Viewer</h3>
-<div id="controls">
-  <button id="prev">&larr;</button>
-  <input type="range" id="slider" min="0" value="0">
-  <button id="next">&rarr;</button>
-  <span id="step-label">t=0</span>
-  <button id="play">Play</button>
-</div>
-<div id="grid"></div>
-<div id="info"></div>
+<h3>Game Viewer</h3>
+<div id="scenes"></div>
 
 <script>
-const KIND_COLORS = ['#555', '#4fc3f7', '#ff8a65', '#81c784', '#ba68c8', '#ffd54f', '#e57373', '#90a4ae'];
-const CELL = 40;
+const KIND_COLORS = [
+  'rgba(85,85,85,0.7)', 'rgba(79,195,247,0.7)', 'rgba(255,138,101,0.7)', 'rgba(129,199,132,0.7)',
+  'rgba(186,104,200,0.7)', 'rgba(255,213,79,0.7)', 'rgba(229,115,115,0.7)', 'rgba(144,164,174,0.7)'
+];
+const GRID_SIZE = 9;
+const CELL = 32;
 
 let data = null;
-let t = 0;
-let maxT = 0;
-let playing = false;
-let playInterval = null;
+const sceneStates = [];
 
 async function init() {
   const params = new URLSearchParams(location.search);
-  const path = params.get('path');
-  if (!path) { document.getElementById('info').textContent = 'Add ?path=trajectory.json'; return; }
+  const path = params.get('path') || 'trajectory.json';
 
   const resp = await fetch(path);
   data = await resp.json();
-  maxT = data.objects[0].timeline.length - 1;
 
-  document.getElementById('slider').max = maxT;
-  render();
-}
-
-function bounds() {
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const obj of data.objects) {
-    for (const frame of obj.timeline) {
-      minX = Math.min(minX, frame.x);
-      maxX = Math.max(maxX, frame.x);
-      minY = Math.min(minY, frame.y);
-      maxY = Math.max(maxY, frame.y);
-    }
+  if (!data.scenes) {
+    data = { scenes: [{ name: 'default', objects: data.objects }] };
   }
-  // pad by 1
-  return { minX: minX - 1, maxX: maxX + 1, minY: minY - 1, maxY: maxY + 1 };
+
+  const container = document.getElementById('scenes');
+  for (let si = 0; si < data.scenes.length; si++) {
+    const scene = data.scenes[si];
+    const maxT = scene.objects[0].timeline.length - 1;
+    const ss = { t: 0, maxT, playing: false, interval: null };
+    sceneStates.push(ss);
+
+    const div = document.createElement('div');
+    div.className = 'scene';
+    div.innerHTML = `
+      <h4>${scene.name}</h4>
+      <div class="grid" data-si="${si}"></div>
+      <div class="controls">
+        <button data-si="${si}" data-act="prev">&larr;</button>
+        <input type="range" data-si="${si}" min="0" max="${maxT}" value="0">
+        <button data-si="${si}" data-act="next">&rarr;</button>
+        <span data-si="${si}" class="step-label">t=0</span>
+        <button data-si="${si}" data-act="play">Pause</button>
+      </div>
+      <div class="info" data-si="${si}"></div>`;
+    container.appendChild(div);
+
+    renderScene(si);
+    togglePlay(si, true);
+  }
+
+  container.addEventListener('input', e => {
+    if (e.target.type === 'range') {
+      const si = +e.target.dataset.si;
+      sceneStates[si].t = +e.target.value;
+      renderScene(si);
+    }
+  });
+  container.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const si = +btn.dataset.si;
+    const act = btn.dataset.act;
+    if (act === 'prev') { if (sceneStates[si].t > 0) { sceneStates[si].t--; renderScene(si); } }
+    if (act === 'next') { if (sceneStates[si].t < sceneStates[si].maxT) { sceneStates[si].t++; renderScene(si); } }
+    if (act === 'play') togglePlay(si);
+  });
 }
 
-function render() {
-  const b = bounds();
-  const cols = b.maxX - b.minX + 1;
-  const rows = b.maxY - b.minY + 1;
-  const grid = document.getElementById('grid');
+function togglePlay(si, forceOn) {
+  const ss = sceneStates[si];
+  const btn = document.querySelector(`button[data-si="${si}"][data-act="play"]`);
+  if (forceOn) ss.playing = false;
+  ss.playing = !ss.playing;
+  btn.textContent = ss.playing ? 'Pause' : 'Play';
+  if (ss.playing) {
+    ss.interval = setInterval(() => {
+      ss.t = ss.t >= ss.maxT ? 0 : ss.t + 1;
+      renderScene(si);
+    }, 150);
+  } else {
+    clearInterval(ss.interval);
+  }
+}
+
+function renderScene(si) {
+  const scene = data.scenes[si];
+  const ss = sceneStates[si];
+  const half = Math.floor(GRID_SIZE / 2);
+  const minX = -half - 1, maxX = half + 1, minY = -half - 1, maxY = half + 1;
+  const cols = maxX - minX + 1;
+  const rows = maxY - minY + 1;
+
+  const grid = document.querySelector(`.grid[data-si="${si}"]`);
   grid.innerHTML = '';
   grid.style.width = cols * CELL + 'px';
   grid.style.height = rows * CELL + 'px';
-  grid.style.position = 'relative';
 
-  // draw grid cells
-  for (let gy = b.minY; gy <= b.maxY; gy++) {
-    for (let gx = b.minX; gx <= b.maxX; gx++) {
+  for (let gy = minY; gy <= maxY; gy++) {
+    for (let gx = minX; gx <= maxX; gx++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
-      cell.style.left = (gx - b.minX) * CELL + 'px';
-      cell.style.top = (b.maxY - gy) * CELL + 'px';  // flip y
+      cell.style.left = (gx - minX) * CELL + 'px';
+      cell.style.top = (maxY - gy) * CELL + 'px';
       cell.style.width = CELL + 'px';
       cell.style.height = CELL + 'px';
       grid.appendChild(cell);
     }
   }
 
-  // draw objects
-  for (let i = 0; i < data.objects.length; i++) {
-    const frame = data.objects[i].timeline[t];
+  const curT = Math.min(ss.t, scene.objects[0].timeline.length - 1);
+  for (let i = 0; i < scene.objects.length; i++) {
+    const frame = scene.objects[i].timeline[curT];
+    if (frame.x < minX || frame.x > maxX || frame.y < minY || frame.y > maxY) continue;
     const el = document.createElement('div');
     el.className = 'obj';
     const size = CELL * 0.7;
     el.style.width = size + 'px';
     el.style.height = size + 'px';
-    const kind = data.objects[i].kind || 0;
+    const kind = scene.objects[i].kind || 0;
     el.style.background = KIND_COLORS[kind % KIND_COLORS.length];
-    el.style.left = (frame.x - b.minX) * CELL + CELL / 2 + 'px';
-    el.style.top = (b.maxY - frame.y) * CELL + CELL / 2 + 'px';
+    el.style.left = (frame.x - minX) * CELL + CELL / 2 + 'px';
+    el.style.top = (maxY - frame.y) * CELL + CELL / 2 + 'px';
     grid.appendChild(el);
   }
 
-  document.getElementById('step-label').textContent = `t=${t}`;
-  document.getElementById('slider').value = t;
+  const slider = document.querySelector(`input[data-si="${si}"]`);
+  const label = document.querySelector(`.step-label[data-si="${si}"]`);
+  slider.value = ss.t;
+  label.textContent = `t=${ss.t}`;
 
-  // info
-  const lines = data.objects.map((obj, i) => {
-    const f = obj.timeline[t];
-    return `obj ${i}: (${f.x}, ${f.y}) act=${f.act}`;
-  });
-  document.getElementById('info').textContent = lines.join('  |  ');
+  const info = document.querySelector(`.info[data-si="${si}"]`);
+  const nonWall = scene.objects.filter(o => (o.kind || 0) !== 0);
+  info.textContent = nonWall.map(obj => {
+    const f = obj.timeline[Math.min(ss.t, obj.timeline.length - 1)];
+    return `(${f.x}, ${f.y}) ${f.act}`;
+  }).join('  ');
 }
-
-document.getElementById('slider').addEventListener('input', e => { t = +e.target.value; render(); });
-document.getElementById('prev').addEventListener('click', () => { if (t > 0) { t--; render(); } });
-document.getElementById('next').addEventListener('click', () => { if (t < maxT) { t++; render(); } });
-document.getElementById('play').addEventListener('click', () => {
-  playing = !playing;
-  document.getElementById('play').textContent = playing ? 'Pause' : 'Play';
-  if (playing) {
-    playInterval = setInterval(() => {
-      if (t >= maxT) { t = 0; }
-      else { t++; }
-      render();
-    }, 200);
-  } else {
-    clearInterval(playInterval);
-  }
-});
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowLeft') { if (t > 0) { t--; render(); } }
-  if (e.key === 'ArrowRight') { if (t < maxT) { t++; render(); } }
-  if (e.key === ' ') { document.getElementById('play').click(); e.preventDefault(); }
-});
 
 init();
 </script>

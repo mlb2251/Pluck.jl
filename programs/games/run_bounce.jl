@@ -55,11 +55,12 @@ function water_state(x, y)
     "(St (Co (Sc (Lat (F) (F) (F)) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
 end
 
-function water_setup(; half=4, wx=0, wy=3)
+function water_setup(; half=4, drops=[(0,3), (-2,3), (2,3)])
     walls = make_box(; half)
     n_walls = length(walls)
-    kinds = pluck_list([fill("wall-kind", n_walls); "water-kind"])
-    states = pluck_list([walls; water_state(wx, wy)])
+    n_drops = length(drops)
+    kinds = pluck_list([fill("wall-kind", n_walls); fill("water-kind", n_drops)])
+    states = pluck_list([walls; [water_state(x, y) for (x,y) in drops]])
     "(Setup $kinds $states)"
 end
 
@@ -126,24 +127,23 @@ end
 
 # --- Main ---
 
-example = length(ARGS) >= 1 ? ARGS[1] : "box"
-n_steps = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 20
+n_steps = length(ARGS) >= 1 ? parse(Int, ARGS[1]) : 50
 
-if example == "line"
-    setup_expr = "bounce-setup"
-elseif example == "box"
-    setup_expr = box_setup(half=4, bx=0, by=1, hdir=true, vdir=true)
-elseif example == "water"
-    setup_expr = water_setup(half=4, wx=0, wy=3)
-else
-    error("Unknown example: $example. Use 'line', 'box', or 'water'.")
+examples = [
+    ("line",  "bounce-setup"),
+    ("box",   box_setup(half=4, bx=0, by=1, hdir=true, vdir=true)),
+    ("water", water_setup()),
+]
+
+scenes = []
+for (name, setup_expr) in examples
+    println("Running '$name' for $n_steps steps...")
+    result = run_game(setup_expr, n_steps)
+    push!(scenes, Dict("name" => name, "objects" => extract_trajectory(result)))
 end
 
-println("Running '$example' for $n_steps steps...")
-result = run_game(setup_expr, n_steps)
-data = Dict("objects" => extract_trajectory(result))
 outpath = joinpath("programs", "games", "html", "trajectory.json")
 open(outpath, "w") do f
-    JSON.print(f, data, 2)
+    JSON.print(f, Dict("scenes" => scenes), 2)
 end
 println("Wrote $outpath")

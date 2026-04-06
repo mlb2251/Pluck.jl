@@ -150,13 +150,13 @@
 (define bouncer-kind
   (Kd (fn lat obs objs ->
         (match lat
-          Lat dir b ->
+          Lat dir b c ->
           (let ((ahead (nextobs obs (ife dir (R) (L)))))
             (ife (occupied ahead objs)
-              (Lat (bnot dir) b)
+              (Lat (bnot dir) b c)
               lat))))
       (fn lat ->
-        (match lat Lat dir _ -> (ife dir (R) (L))))))
+        (match lat Lat dir _ _ -> (ife dir (R) (L))))))
 
 ;; Alternating bouncer: Lat hdir vdir hturn
 ;; hturn=T: move horizontally this step, hturn=F: move vertically
@@ -180,14 +180,24 @@
             (ife vdir (U) (D)))))))
 
 ;; Water: falls down if free, otherwise randomly goes left or right
+;; Lat a b c: a=down-free, b=left-free, c=right-free
 (define water-kind
   (Kd (fn lat obs sts ->
-        (let ((down-free (bnot (occupied (nextobs obs (D)) sts))))
-          (Lat down-free (F) (F))))
+        (Lat (bnot (occupied (nextobs obs (D)) sts))
+             (bnot (occupied (nextobs obs (L)) sts))
+             (bnot (occupied (nextobs obs (R)) sts))))
       (fn lat ->
         (match lat
-          Lat down-free _ _ ->
-          (ife down-free (D) (if (flip 0.5) (L) (R)))))))
+          Lat down-free left-free right-free ->
+          (ife down-free
+            (D)
+            (ife left-free
+              (ife right-free
+                (if (flip 0.5) (L) (R))
+                (L))
+              (ife right-free
+                (R)
+                (X))))))))
 
 ;; Run t timesteps
 (define (run t setup)
