@@ -179,6 +179,16 @@
             (ife hdir (R) (L))
             (ife vdir (U) (D)))))))
 
+;; Water: falls down if free, otherwise randomly goes left or right
+(define water-kind
+  (Kd (fn lat obs sts ->
+        (let ((down-free (bnot (occupied (nextobs obs (D)) sts))))
+          (Lat down-free (F) (F))))
+      (fn lat ->
+        (match lat
+          Lat down-free _ _ ->
+          (ife down-free (D) (if (flip 0.5) (L) (R)))))))
+
 ;; Run t timesteps
 (define (run t setup)
   (match t

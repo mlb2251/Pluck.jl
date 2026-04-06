@@ -6,11 +6,11 @@ using JSON: JSON
 # using .Timing
 
 const ENABLE_INTDISTS = false
-const ENABLE_SAMPLE_VALUE = false
+const ENABLE_SAMPLE_VALUE = true
 const ENABLE_LPSMC = false
 const ENABLE_OPTIMIZE = false
-const ENABLE_LOGGING = false
-const ENABLE_POSTERIOR_SAMPLING = false
+const ENABLE_LOGGING = true
+const ENABLE_POSTERIOR_SAMPLING = true
 
 include("RSDD/RSDD.jl")
 using .RSDD

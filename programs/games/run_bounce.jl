@@ -33,28 +33,45 @@ function pluck_list(items)
     foldr((item, acc) -> "(Co $item $acc)", items; init="(Ni)")
 end
 
-function box_setup(; half=4, bx=0, by=0, hdir=true, vdir=true)
+function make_box(; half=4)
     walls = String[]
     for x in -half:half, y in -half:half
         if x == -half || x == half || y == -half || y == half
             push!(walls, wall_state(x, y))
         end
     end
+    walls
+end
+
+function box_setup(; half=4, bx=0, by=0, hdir=true, vdir=true)
+    walls = make_box(; half)
     n_walls = length(walls)
     kinds = pluck_list([fill("wall-kind", n_walls); "alt-bouncer-kind"])
     states = pluck_list([walls; bouncer_state(bx, by; hdir, vdir)])
     "(Setup $kinds $states)"
 end
 
+function water_state(x, y)
+    "(St (Co (Sc (Lat (F) (F) (F)) (X) (Obs $(pluck_signed(x)) $(pluck_signed(y)))) (Ni)))"
+end
+
+function water_setup(; half=4, wx=0, wy=3)
+    walls = make_box(; half)
+    n_walls = length(walls)
+    kinds = pluck_list([fill("wall-kind", n_walls); "water-kind"])
+    states = pluck_list([walls; water_state(wx, wy)])
+    "(Setup $kinds $states)"
+end
+
 # --- Run query ---
 
 function run_game(setup_expr::String, n_steps::Int)
-    query_str = "(Marginal (run $(games_nat(n_steps)) $setup_expr))"
+    query_str = "(PosteriorSamples (run $(games_nat(n_steps)) $setup_expr) true 1)"
     state = LazyKCState()
     body = deterministic_world(toplevel_compile(parse_expr(query_str); state))
     results = Pluck.eval_query(body, state)
     free_state(state)
-    return results[1][1]
+    return results[1]  # PosteriorSamples returns Vector of values
 end
 
 # --- Value tree walkers ---
@@ -116,8 +133,10 @@ if example == "line"
     setup_expr = "bounce-setup"
 elseif example == "box"
     setup_expr = box_setup(half=4, bx=0, by=1, hdir=true, vdir=true)
+elseif example == "water"
+    setup_expr = water_setup(half=4, wx=0, wy=3)
 else
-    error("Unknown example: $example. Use 'line' or 'box'.")
+    error("Unknown example: $example. Use 'line', 'box', or 'water'.")
 end
 
 println("Running '$example' for $n_steps steps...")
