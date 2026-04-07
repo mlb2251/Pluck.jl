@@ -5,7 +5,8 @@
 <title>Game Viewer</title>
 <style>
   body { font-family: monospace; background: #1a1a1a; color: #eee; margin: 20px; }
-  #scenes { display: flex; flex-wrap: wrap; gap: 32px; }
+  #scenes { display: flex; flex-wrap: wrap; gap: 16px; }
+  .scene { width: 320px; }
   .scene h4 { margin: 0 0 8px 0; color: #aaa; }
   .controls { margin: 8px 0; display: flex; align-items: center; gap: 8px; }
   .controls span { min-width: 40px; text-align: right; font-size: 12px; color: #888; }
@@ -32,7 +33,7 @@
   .grid { position: relative; border: 1px solid #444; }
   .cell { position: absolute; box-sizing: border-box; border: 1px solid #282828; }
   .obj { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); transition: left 0.1s, top 0.1s; }
-  .info { margin-top: 6px; color: #888; font-size: 11px; min-height: 14px; }
+  .info { margin-top: 6px; color: #888; font-size: 11px; height: 28px; overflow: hidden; }
 </style>
 </head>
 <body>
@@ -44,22 +45,13 @@ const KIND_COLORS = [
   [85,85,85], [79,195,247], [255,138,101], [129,199,132],
   [186,104,200], [255,213,79], [229,115,115], [144,164,174]
 ];
-const CELL = 32;
+const CELL = 28;
 
 let data = null;
 const scenes = [];
 
 function sceneBounds(scene) {
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const sample of scene.samples) {
-    for (const obj of sample.objects) {
-      for (const f of obj.timeline) {
-        minX = Math.min(minX, f.x); maxX = Math.max(maxX, f.x);
-        minY = Math.min(minY, f.y); maxY = Math.max(maxY, f.y);
-      }
-    }
-  }
-  return { minX: minX - 1, maxX: maxX + 1, minY: minY - 1, maxY: maxY + 1 };
+  return { minX: -4, maxX: 4, minY: -4, maxY: 4 };
 }
 
 function objColor(kind, alive) {
@@ -177,8 +169,8 @@ function updateScene(si) {
   ss.div.querySelector('input').value = ss.t;
   ss.div.querySelector('.step-label').textContent = `t=${ss.t}`;
 
-  const nonWall = objects.filter(o => (o.kind || 0) !== 0);
-  ss.div.querySelector('.info').textContent = nonWall.map(obj => {
+  const movers = objects.filter(o => o.timeline.some(f => f.act !== 'X' && f.act !== 'Despawn'));
+  ss.div.querySelector('.info').textContent = movers.map(obj => {
     const f = obj.timeline[Math.min(ss.t, obj.timeline.length - 1)];
     const lat = f.lat ? `(${f.lat.join(',')})` : '';
     const alive = f.alive === false ? ' dead' : '';
@@ -193,12 +185,41 @@ function togglePlay(si, forceOn) {
   ss.playing = !ss.playing;
   btn.textContent = ss.playing ? '\u23F8' : '\u25B6';
   if (ss.playing) {
-    ss.interval = setInterval(() => {
-      ss.t = ss.t >= ss.maxT ? 0 : ss.t + 1;
-      updateScene(si);
-    }, 150);
+    const tick = () => {
+      if (ss.t >= ss.maxT) {
+        // Pause on final frame, then restart with a delay at t=0
+        ss.t = 0;
+        updateScene(si);
+        ss.interval = setTimeout(() => {
+          if (ss.playing) { ss.t = 1; updateScene(si); ss.interval = setInterval(advance, 150); }
+        }, 1000);
+      } else {
+        ss.t++;
+        updateScene(si);
+      }
+    };
+    const advance = () => {
+      if (ss.t >= ss.maxT) {
+        clearInterval(ss.interval);
+        // Freeze on final frame, then restart after delay
+        ss.interval = setTimeout(() => {
+          if (ss.playing) {
+            ss.t = 0;
+            updateScene(si);
+            ss.interval = setTimeout(() => {
+              if (ss.playing) { ss.interval = setInterval(advance, 150); advance(); }
+            }, 1000);
+          }
+        }, 1500);
+      } else {
+        ss.t++;
+        updateScene(si);
+      }
+    };
+    ss.interval = setInterval(advance, 150);
   } else {
     clearInterval(ss.interval);
+    clearTimeout(ss.interval);
   }
 }
 
