@@ -158,36 +158,45 @@ end
 
 # --- Scenes ---
 
-function breakout_setup(; half=4, block_rows=1:1, balls=[bouncer(0, -2; hdir=true, vdir=true)])
+function random_bouncer(xs, y; hdir=true, vdir=true, hturn=true)
+    # Generate a Pluck uniform expression over possible x positions
+    options = [Actor("alt-bouncer-kind", make_state(x, y, [hdir, vdir, hturn])) for x in xs]
+    kind_exprs = [a.kind for a in options]
+    state_exprs = [a.state for a in options]
+    # All share the same kind, so just pick state randomly
+    kind = kind_exprs[1]
+    state = "(uniform $(join(state_exprs, " ")))"
+    Actor(kind, state)
+end
+
+function breakout_setup(; half=4, block_rows=1:1)
     walls = make_box(half=half)
     blocks = [block(x, y) for y in block_rows for x in (-half+1):(half-1)]
-    make_setup(walls, [blocks; balls])
+    ball = random_bouncer((-half+1):(half-1), -2; hdir=true, vdir=true)
+    make_setup(walls, [blocks; ball])
 end
 
 SCENES = [
-    ("line", 15, make_setup(
+    ("line", 50, make_setup(
         make_walls([(-3,0), (3,0)]),
         [hbouncer(0, 0; dir=true)])),
-    ("box", 15, make_setup(
+    ("box", 50, make_setup(
         make_box(half=4),
         [bouncer(0, 1; hdir=true, vdir=true)])),
-    ("box 2-ball", 15, make_setup(
+    ("box 2-ball", 50, make_setup(
         make_box(half=4),
         [bouncer(0, 1; hdir=true, vdir=true),
          bouncer(1, -1; hdir=false, vdir=false, hturn=false)])),
-    ("water", 15, make_setup(
+    ("water", 50, make_setup(
         make_box(half=4),
         [water(0, 3), water(-2, 3), water(2, 3)])),
-    ("plinko", 15, make_setup(
+    ("plinko", 50, make_setup(
         make_plinko(half=4),
         [water(0, 3), water(-1, 3), water(1, 3)])),
-    ("basin", 15, make_setup(
+    ("basin", 50, make_setup(
         make_basin_box(half=4, bx=0, by=-1, bw=2, bh=2),
         [water(0, 3), water(-1, 3), water(1, 3)])),
-    ("breakout", 15, breakout_setup(block_rows=3:3)),
-    ("breakout 2-ball", 15, breakout_setup(block_rows=3:3, balls=[
-        bouncer(0, -2; hdir=true, vdir=true),
-        bouncer(1, -3; hdir=false, vdir=false, hturn=false)])),
+    ("breakout", 50, breakout_setup(block_rows=0:3)),
 ]
 
 # --- Main ---

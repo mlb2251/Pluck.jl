@@ -187,8 +187,8 @@
         (match lat
           Lat hdir vdir hturn ->
           (ife hturn
-            (ife hdir (R) (L))
-            (ife vdir (U) (D)))))))
+            (ife vdir (U) (D))
+            (ife hdir (R) (L)))))))
 
 ;; Water: Lat down-free left-free right-free
 (define water-kind
@@ -209,17 +209,27 @@
                 (R)
                 (X))))))))
 
-;; Breakable block: despawns when an adjacent alive object was heading toward it
+;; Is adjacent object facing toward us? Checks latent dir flags (a=hdir, b=vdir)
+(define (facing-toward other-obs other-lat act obs)
+  (band (bnot (pos-eq (do-action other-obs act) other-obs))
+        (match other-lat
+          Lat a b c ->
+          (bor (band c (bor (band (pos-eq (do-action other-obs (R)) obs) a)
+                            (band (pos-eq (do-action other-obs (L)) obs) (bnot a))))
+               (band (bnot c) (bor (band (pos-eq (do-action other-obs (U)) obs) b)
+                                   (band (pos-eq (do-action other-obs (D)) obs) (bnot b))))))))
+
+;; Breakable block: despawns when an adjacent moving object faces toward it
 ;; Lat hit _ _
 (define block-kind
   (Kd (fn lat obs sts ->
         (let ((hit (any-of
                      (fn st ->
                        (match st St slices ->
-                       (match (hd slices) Sc _ act other-obs ->
+                       (match (hd slices) Sc other-lat act other-obs ->
                        (band (obs-alive other-obs)
                              (band (bnot (pos-eq other-obs obs))
-                                   (heading-toward other-obs act obs))))))
+                                   (facing-toward other-obs other-lat act obs))))))
                      sts)))
           (Lat hit (F) (F))))
       (fn lat ->
