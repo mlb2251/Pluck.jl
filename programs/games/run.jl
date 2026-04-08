@@ -187,13 +187,13 @@ SCENES = [
         make_box(half=4),
         [bouncer(0, 1; hdir=true, vdir=true),
          bouncer(1, -1; hdir=false, vdir=false, hturn=false)])),
-    ("water", 50, make_setup(
+    ("water", 25, make_setup(
         make_box(half=4),
         [water(0, 3), water(-2, 3), water(2, 3)])),
-    ("plinko", 50, make_setup(
+    ("plinko", 20, make_setup(
         make_plinko(half=4),
         [water(0, 3), water(-1, 3), water(1, 3)])),
-    ("basin", 50, make_setup(
+    ("basin", 20, make_setup(
         make_basin_box(half=4, bx=0, by=-1, bw=2, bh=2),
         [water(0, 3), water(-1, 3), water(1, 3)])),
     ("breakout", 50, breakout_setup(block_rows=0:3)),
